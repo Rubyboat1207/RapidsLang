@@ -1,0 +1,23 @@
+﻿// Comments in double slash
+
+use module;
+
+use minecraft;
+use obs;
+use twitch;
+
+on twitch.dono(text, bits, user) {
+    pipe text -> minecraft.chat
+}
+
+// cli tool
+
+pipe twitch.dono `{user} ({bits}): {text}` -> minecraft.chat
+
+// interfaces
+
+define module twitch;
+
+define target chat<string>
+define source bits<{text, bits: number, user}>
+
