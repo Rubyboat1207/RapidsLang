@@ -148,7 +148,7 @@ public static class RapidsLexer
 
     public static List<Token> Lex(StringTokenStepper stepper)
     {
-        while (stepper.HasNext)
+        while (!stepper.AtEnd)
         {
             if (char.IsWhiteSpace(stepper.Cur))
             {
@@ -161,10 +161,10 @@ public static class RapidsLexer
                 continue;
             }
             
-            if (char.IsNumber(stepper.Cur) || stepper.Cur == '.')
+            if (char.IsNumber(stepper.Cur) || (stepper.Cur == '.' && char.IsNumber(stepper.Next)))
             {
                 var hasHadDecimal = stepper.Cur == '.';
-                while (stepper.HasNext)
+                while (!stepper.AtEnd)
                 {
                     stepper.Append();
                     if (char.IsNumber(stepper.Cur))
@@ -208,65 +208,71 @@ public static class RapidsLexer
                     {
                         stepper.Append();
                         stepper.FlushBufferToToken(TokenType.StringContent);
+
                         stepper.Append();
                         stepper.FlushBufferToToken(TokenType.OpenCurly);
 
-                        // var templateStepper = new StringStepper(stepper.ActiveString[stepper.index..]);
-
-                        int curlyCount = 1;
+                        int depth = 1;
                         bool inString = false;
-                        Stack<bool> wasInString = new();
-                        while (stepper.HasNext)
+                        stepper.ClearBuffer();
+
+                        while (true)
                         {
-                            if (stepper is { Prev: not '\\', Cur: not '\\', Next: '{' })
-                            {
-                                curlyCount += 1;
-                                wasInString.Push(inString);
-                                inString = false;
-                            }
-                            if (stepper is { Prev: not '\\', Cur: not '\\', Next: '}' } && !inString)
-                            {
-                                curlyCount -= 1;
-                                wasInString.TryPop(out inString);
-                            }
-                            if (stepper is { Prev: not '\\', Cur: not '\\', Next: '`' })
+                            if (stepper.AtEnd)
+                                throw new Exception("Unterminated { in template string");
+
+                            char c = stepper.Cur;
+
+                            if (c == '`' && stepper.Prev != '\\')
                             {
                                 inString = !inString;
+                                stepper.Append();
+                                continue;
                             }
 
-                            // templateStepper.Append();
-                            stepper.Append();
-                            
-                            if (curlyCount == 0)
+                            if (!inString)
                             {
-                                break;
+                                if (c == '{')
+                                {
+                                    depth++;
+                                    stepper.Append();
+                                    continue;
+                                }
+
+                                if (c == '}')
+                                {
+                                    depth--;
+                                    if (depth == 0)
+                                    {
+                                        break;
+                                    }
+                                    stepper.Append();
+                                    continue;
+                                }
                             }
-                            
-                        }
-                        
-                        // Should at this point be at the final curly brace
-                        if (stepper.Cur != '}')
-                        {
-                            throw new Exception("woah");
+
+                            stepper.Append();
                         }
 
-                        var lex_result = Lex(stepper.Buffer);
-                        
-                        stepper.Tokens.AddRange(lex_result);
-                        
+                        var innerCode = stepper.Buffer;
+                        var innerTokens = Lex(innerCode);
+                        stepper.Tokens.AddRange(innerTokens);
                         stepper.ClearBuffer();
 
                         stepper.Append();
                         stepper.FlushBufferToToken(TokenType.ClosedCurly);
-                        
-                        if (stepper is { Cur: '`' })
+
+                        if (!stepper.AtEnd && stepper.Cur == '`')
                         {
                             stepper.Append();
                             stepper.FlushBufferToToken(TokenType.EndString);
                             break;
                         }
+
                         continue;
                     }
+
+
                     
                     stepper.Append();
                 }
@@ -278,7 +284,7 @@ public static class RapidsLexer
             {
                 stepper.Append();
 
-                while (stepper.HasNext)
+                while (!stepper.AtEnd)
                 {
                     if (char.IsNumber(stepper.Cur) || char.IsLetter(stepper.Cur))
                     {
