@@ -1,5 +1,4 @@
-﻿using System.Security.Cryptography;
-using RapidsLang.Utils;
+﻿using RapidsLang.Utils;
 
 namespace RapidsLang.Lexer;
 
@@ -101,7 +100,7 @@ public class Token(TokenType type, int index, string? value = null)
 
 public static class RapidsLexer
 {
-    public static readonly TokenType[] keywords =
+    private static readonly TokenType[] Keywords =
     [
         TokenType.On,
         TokenType.Pipe,
@@ -113,7 +112,7 @@ public static class RapidsLexer
         TokenType.While,
     ];
 
-    public static readonly TokenType[] symbols =
+    private static readonly TokenType[] Symbols =
     [
         TokenType.GreaterThanOrEqualTo,
         TokenType.LessThanOrEqualTo,
@@ -146,7 +145,7 @@ public static class RapidsLexer
         return Lex(stepper);
     }
 
-    public static List<Token> Lex(StringTokenStepper stepper)
+    private static List<Token> Lex(StringTokenStepper stepper)
     {
         while (!stepper.AtEnd)
         {
@@ -156,7 +155,7 @@ public static class RapidsLexer
                 continue;
             }
             
-            if (keywords.Any(kw => stepper.CaptureIfNextHas(Token.GetDefaultValueForTokenType(kw), kw)))
+            if (Keywords.Any(kw => stepper.CaptureIfNextHas(Token.GetDefaultValueForTokenType(kw), kw)))
             {
                 continue;
             }
@@ -183,7 +182,7 @@ public static class RapidsLexer
                 continue;
             }
             
-            if (symbols.Any(sy => stepper.CaptureIfNextHas(Token.GetDefaultValueForTokenType(sy), sy)))
+            if (Symbols.Any(sy => stepper.CaptureIfNextHas(Token.GetDefaultValueForTokenType(sy), sy)))
             {
                 continue;
             }
@@ -262,7 +261,7 @@ public static class RapidsLexer
                         stepper.Append();
                         stepper.FlushBufferToToken(TokenType.ClosedCurly);
 
-                        if (!stepper.AtEnd && stepper.Cur == '`')
+                        if (stepper is { AtEnd: false, Cur: '`' })
                         {
                             stepper.Append();
                             stepper.FlushBufferToToken(TokenType.EndString);
@@ -280,23 +279,21 @@ public static class RapidsLexer
                 continue;
             }
 
-            if (char.IsLetter(stepper.Cur))
+            if (!char.IsLetter(stepper.Cur)) continue;
+            stepper.Append();
+
+            while (!stepper.AtEnd)
             {
-                stepper.Append();
-
-                while (!stepper.AtEnd)
+                if (char.IsNumber(stepper.Cur) || char.IsLetter(stepper.Cur))
                 {
-                    if (char.IsNumber(stepper.Cur) || char.IsLetter(stepper.Cur))
-                    {
-                        stepper.Append();
-                        continue;
-                    }
-
-                    break;
+                    stepper.Append();
+                    continue;
                 }
 
-                stepper.FlushBufferToToken(TokenType.Identifier);
+                break;
             }
+
+            stepper.FlushBufferToToken(TokenType.Identifier);
         }
 
         return stepper.Tokens;
