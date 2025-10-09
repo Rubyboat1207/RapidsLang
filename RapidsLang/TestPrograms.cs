@@ -6,4 +6,9 @@ public static class TestPrograms
     // Do something awesome
     pipe twitch.chat `<{user}>: {text /*Ive got a comment*/ + ` ok bye ruby  love you{/*comment*/`.`}`}` minecraft.chat; // Pipe the twitch chat format into this.
     """.Trim();
+
+    public static readonly string HelloWorld = """
+                                               // should print "Hello, World"
+                                               print(`Hello, World`);
+                                               """;
 }

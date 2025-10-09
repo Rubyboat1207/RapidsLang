@@ -7,8 +7,51 @@ use obs;
 use twitch;
 
 on twitch.dono(text, bits, user) {
-    pipe text -> minecraft.chat
+    pipe text -> minecraft.chat;
 }
+
+// assignments
+
+const id = 5000;
+let last_chatter = null;
+
+// typed assignments
+
+const id: number = 5000;
+let last_chatter: string? = null;
+
+// functions
+
+tts(text, voice)> {
+    
+}
+
+// anon functions exist too
+(command)> {
+
+}
+
+
+// call like:
+
+tts(text, voice);
+
+// you can ask a statement (if it supports it) to emit debug info to the console.
+// by ending the line with a ? instead of a semicolon.
+// increase verbosity by adding more question marks
+// 1 is minimal
+// 2 is medium
+// 3+ is verbose logging and the most any out of the box statement will support
+
+pipe sensor("temperature") -> dashboard.widget("climate-display")???
+
+// DBG: pipe sensor("temperature") -> dashboard.widget("climate-display")???
+// ├─ CALL sensor(name): (name = "temperature") SENSOR CONNECTED STREAMING DATA.
+// └─ CALL dashboard.widget(name): (name = "climate-display") WIDGET READY TO RECEIVE.
+
+// DBG: PIPE (sensor -> dashboard.widget)
+// └─ {value: 22.4, unit: "C", timestamp: 1728_5534_010}
+
 
 // cli tool
 

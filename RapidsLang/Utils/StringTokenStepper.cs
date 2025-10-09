@@ -52,7 +52,7 @@ public class StringTokenStepper(string str)
 
     public bool NextHas(string str)
     {
-        if (index + str.Length >= ActiveString.Length)
+        if (index + str.Length > ActiveString.Length)
         {
             return false;
         }

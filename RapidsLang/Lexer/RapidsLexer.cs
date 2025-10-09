@@ -13,12 +13,15 @@ public enum TokenType
     If,
     For,
     While,
+    Let,
+    Const,
     
     // -- Symbols
     Dot,
     Comma,
     Colon,
     SemiColon,
+    QuestionMark,
     
     // -- Operators
     Plus,
@@ -34,6 +37,8 @@ public enum TokenType
     LessThanOrEqualTo,
     GreaterThanOrEqualTo,
     NotEqual,
+    And,
+    Or,
     
     // -- Blocks
     OpenCurly,
@@ -42,6 +47,8 @@ public enum TokenType
     ClosedTriangle, // also lt
     OpenParen,
     ClosedParen,
+    OpenSquare,
+    ClosedSquare,
     
     // -- Variables
     Identifier,
@@ -71,6 +78,8 @@ public class Token(TokenType type, int index, string? value = null)
             TokenType.If => "if",
             TokenType.For => "for",
             TokenType.While => "while",
+            TokenType.Let => "let",
+            TokenType.Const => "const",
             TokenType.Dot => ".",
             TokenType.Comma => ",",
             TokenType.Colon => ":",
@@ -81,6 +90,8 @@ public class Token(TokenType type, int index, string? value = null)
             TokenType.ClosedTriangle => ">",
             TokenType.OpenParen => "(",
             TokenType.ClosedParen => ")",
+            TokenType.OpenSquare => "[",
+            TokenType.ClosedSquare => "]",
             TokenType.Plus => "+",
             TokenType.Minus => "-",
             TokenType.Slash => "/",
@@ -92,8 +103,34 @@ public class Token(TokenType type, int index, string? value = null)
             TokenType.LessThanOrEqualTo => "<=",
             TokenType.GreaterThanOrEqualTo => ">=",
             TokenType.NotEqual => "!=",
+            TokenType.And => "&&",
+            TokenType.Or => "||",
             TokenType.StartString or TokenType.EndString => "`",
+            TokenType.QuestionMark => "?",
             _ => null
+        };
+    }
+
+    public static int GetPrecedence(TokenType type)
+    {
+        return type switch
+        {
+            TokenType.Dot                     => 7,  // Member access (highest precedence)
+            TokenType.OpenSquare              => 7,  // Indexing []
+            TokenType.Star                    => 6,  // Multiplication / division / modulo
+            TokenType.Slash                   => 6,
+            TokenType.Modulo                  => 6,
+            TokenType.Plus                    => 5,  // Addition / subtraction
+            TokenType.Minus                   => 5,
+            TokenType.Equality                => 4,  // Equality / inequality
+            TokenType.NotEqual                => 4,
+            TokenType.OpenTriangle            => 3,  // Comparison
+            TokenType.GreaterThanOrEqualTo    => 3,
+            TokenType.ClosedTriangle          => 3,
+            TokenType.LessThanOrEqualTo       => 3,
+            TokenType.And                     => 2,  // Logical AND
+            TokenType.Or                      => 1,  // Logical OR
+            _                                 => 0,  // Everything else
         };
     }
 }
@@ -110,6 +147,8 @@ public static class RapidsLexer
         TokenType.If,
         TokenType.For,
         TokenType.While,
+        TokenType.Let,
+        TokenType.Const
     ];
 
     private static readonly TokenType[] Symbols =
@@ -129,13 +168,16 @@ public static class RapidsLexer
         TokenType.ClosedParen,
         TokenType.OpenTriangle,
         TokenType.ClosedTriangle,
+        TokenType.OpenSquare,
+        TokenType.ClosedSquare,
         TokenType.Assignment,
         TokenType.Not,
         TokenType.Star,
         TokenType.Slash,
         TokenType.Modulo,
         TokenType.Plus,
-        TokenType.Minus
+        TokenType.Minus,
+        TokenType.QuestionMark
     ];
     
     public static List<Token> Lex(string code)
