@@ -22,33 +22,35 @@ public class RapidsParser
             if (stepper.Cur.TokenType is TokenType.Identifier)
             {
                 var expression = ParseExpression(stepper);
-
+                
                 // check for function call
                 if (stepper.Cur.TokenType is TokenType.OpenParen)
                 {
-                    stepper.Increment();
-                    List<ExpressionNode> parameters = [];
-                    while (stepper is { AtEnd: false, Cur.TokenType: not TokenType.ClosedParen })
+                    if (CheckIfIsFunctionDeclaration(stepper))
                     {
-                        parameters.Add(ParseExpression(stepper));
-
-                        if (stepper.Cur.TokenType is not TokenType.Comma)
+                        if (expression is not IdentifierNode identNode)
                         {
-                            break;
+                            throw new Exception("Invalid function definition");
                         }
+
+                        var functionExpr = ParseExpression(stepper);
+
+                        if (functionExpr is not FunctionNode function)
+                        {
+                            throw new Exception("I dun messed up.");
+                        }
+                        
+                        root.Statements.Add(new FunctionDelcarationNode(
+                            identNode.Token,
+                            function,
+                            0
+                        ));
                     }
-
-                    if (stepper.Cur.TokenType is not TokenType.ClosedParen)
-                        throw new Exception("Expected end of function call.");
-
-                    stepper.Increment(); // closed paren
-                    root.Statements.Add(new FunctionCallStatementNode(
-                        new FunctionCallExpressionNode(
-                            expression,
-                            parameters
-                        ),
-                        GetLogLevel(stepper)
-                    ));
+                    else
+                    {
+                        root.Statements.Add(ParseFunctionCall(stepper, expression));
+                    }
+                    
                     continue;
                 }
 
@@ -218,6 +220,33 @@ public class RapidsParser
         return root;
     }
 
+    public static FunctionCallStatementNode ParseFunctionCall(ListStepper<Token> stepper, ExpressionNode initialExpression)
+    {
+        stepper.Increment();
+        List<ExpressionNode> parameters = [];
+        while (stepper is { AtEnd: false, Cur.TokenType: not TokenType.ClosedParen })
+        {
+            parameters.Add(ParseExpression(stepper));
+
+            if (stepper.Cur.TokenType is not TokenType.Comma)
+            {
+                break;
+            }
+        }
+
+        if (stepper.Cur.TokenType is not TokenType.ClosedParen)
+            throw new Exception("Expected end of function call.");
+
+        stepper.Increment(); // closed paren
+        return new FunctionCallStatementNode(
+            new FunctionCallExpressionNode(
+                initialExpression,
+                parameters
+            ),
+            GetLogLevel(stepper)
+        );
+    }
+
     public static int GetLogLevel(ListStepper<Token> stepper)
     {
         switch (stepper.Cur.TokenType)
@@ -246,26 +275,8 @@ public class RapidsParser
     {
         // Array
         ExpressionNode left;
-        if (stepper.Cur.TokenType == TokenType.OpenSquare)
-        {
-            List<ExpressionNode> list = [];
-            stepper.Increment();
-            while (stepper.Cur.TokenType != TokenType.ClosedSquare)
-            {
-                if (list.Count > 0 && stepper.Step().TokenType != TokenType.Comma)
-                {
-                    throw new Exception("Expected Comma");
-                }
-                list.Add(ParseExpression(stepper));
-            }
-            stepper.Increment();
-
-            left = new ListNode(list);
-        }
-        else
-        {
-            left = ParseSimpleExpression(stepper);
-        }
+        
+        left = ParseSimpleExpression(stepper);
         
 
         if(stepper.Cur.TokenType is TokenType.Plus or TokenType.Minus or TokenType.Slash or TokenType.Star or TokenType.Modulo && stepper.Next?.TokenType == TokenType.Assignment)
@@ -302,6 +313,27 @@ public class RapidsParser
         return left;
     }
 
+    public static bool CheckIfIsFunctionDeclaration(ListStepper<Token> stepper)
+    {
+        var explorer = new ListStepper<Token>(stepper.FromIndex());
+
+        var openParens = 1;
+        while (openParens > 0)
+        {
+            if (explorer.Cur.TokenType is not TokenType.ClosedParen)
+            {
+                openParens--;
+            }
+            if (explorer.Cur.TokenType is not TokenType.OpenParen)
+            {
+                openParens++;
+            }
+            explorer.Increment();
+        }
+
+        return explorer.Cur.TokenType is TokenType.ClosedTriangle;
+    }
+
     public static ExpressionNode ParseSimpleExpression(ListStepper<Token> stepper)
     {
         Token start = stepper.Step();
@@ -318,6 +350,49 @@ public class RapidsParser
                 return new BooleanNode(start);
             case TokenType.OpenParen:
             {
+                if (CheckIfIsFunctionDeclaration(stepper))
+                {
+                    // function
+                    var arguments = new List<ArgumentNode>();
+                    while (stepper.Cur.TokenType is not TokenType.ClosedParen)
+                    {
+                        var name = stepper.Step();
+                        if (stepper.Cur.TokenType is TokenType.Colon)
+                        {
+                            // types
+                            throw new NotImplementedException("Types not yet implemented.");
+                        }
+
+                        if (stepper.Cur.TokenType is not (TokenType.Comma or TokenType.ClosedParen))
+                        {
+                            throw new Exception("Expected comma or end of function header");
+                        }
+
+                        if (stepper.Cur.TokenType is TokenType.Comma)
+                        {
+                            stepper.Increment();
+                        }
+                        
+                        arguments.Add(new ArgumentNode(name, null));
+                    }
+                    stepper.Increment(); // closed paren
+                    stepper.Increment(); // open triangle
+                    stepper.Increment(); // open curly
+
+                    var functionBody = Parse(stepper);
+                    StatementsNode? debugBody = null;
+
+                    if (stepper.Cur.TokenType is TokenType.QuestionMark)
+                    {
+                        stepper.Increment();
+                        debugBody = Parse(stepper);
+                    }
+
+                    return new FunctionNode(arguments, functionBody, debugBody);
+                }
+                
+                // not function just normal expression.
+                
                 var expr = ParseExpression(stepper);
 
                 if (stepper.Cur.TokenType is not TokenType.ClosedParen)
@@ -327,6 +402,18 @@ public class RapidsParser
                 
                 return expr;
             }
+            case TokenType.OpenSquare:
+                List<ExpressionNode> list = [];
+                while (stepper.Cur.TokenType != TokenType.ClosedSquare)
+                {
+                    if (list.Count > 0 && stepper.Step().TokenType != TokenType.Comma)
+                    {
+                        throw new Exception("Expected Comma");
+                    }
+                    list.Add(ParseExpression(stepper));
+                }
+                stepper.Increment();
+                return new ListNode(list);
             default:
                 throw new Exception("Unexpected end of expression");
         }

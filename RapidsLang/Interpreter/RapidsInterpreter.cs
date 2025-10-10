@@ -246,9 +246,10 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
                 }
 
                 return holder!.Variable;
+            case FunctionNode functionNode:
+                throw new Exception("Gonna have to refactor for this one.");
             default:
                 throw new NotImplementedException("Expression not yet implemented. Sorry!");
         }
     }
-    
 }
