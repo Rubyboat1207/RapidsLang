@@ -43,7 +43,7 @@ public class StringStepper(string str)
     public StringStepper CreateChild(int Length)
     {
 
-        return new(str[index..(index + Length)]) {
+        return new(ActiveString[index..(index + Length)]) {
             ParentIndex = index + ParentIndex,
             ParentBufferSize = Buffer.Length + ParentBufferSize
         };

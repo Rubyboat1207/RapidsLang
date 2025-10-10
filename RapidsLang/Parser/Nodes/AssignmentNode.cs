@@ -1,12 +1,11 @@
-using System.Linq.Expressions;
 using RapidsLang.Lexer;
 
 namespace RapidsLang.Parser.Nodes;
 
 public record AssignmentNode(
-    Expression Variable,
+    MemberAccessNode Variable,
     Token Operator,
-    Expression Expression,
+    ExpressionNode Expression,
     int DebugLevel
 ) : StatementNode(DebugLevel)
 {

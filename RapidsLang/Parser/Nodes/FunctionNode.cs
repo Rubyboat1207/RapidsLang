@@ -2,8 +2,7 @@ using RapidsLang.Lexer;
 
 namespace RapidsLang.Parser.Nodes;
 
-public record FunctionDeclarationNode(
-    Token Name,
+public record FunctionNode(
     List<ArgumentNode>? Arguments,
     StatementsNode Body
 ) : ExpressionNode;

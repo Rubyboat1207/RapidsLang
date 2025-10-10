@@ -23,4 +23,9 @@ public class ListStepper<T>(List<T> list) where T : class
         Increment();
         return cur;
     }
+
+    public List<T> FromIndex()
+    {
+        return ActiveList.GetRange(Index, ActiveList.Count - Index);
+    }
 }

@@ -140,7 +140,7 @@ public static class RapidsPreproc
         return new RapidsPreprocMetaData(indices);
     }
 
-    public static int GetSourceIndexFromProcessedIndex(int processedIndex, RapidsPreprocMetaData metaData)
+    public static int GetSourceIdx(int processedIndex, RapidsPreprocMetaData metaData)
     {
         return processedIndex 
                + metaData.CommentedIndices
@@ -164,5 +164,12 @@ public static class RapidsPreproc
         }
 
         return new Tuple<int, int>(lines, cols);
+    }
+
+    public static string GetRowCol(string str, int processedIndex, RapidsPreprocMetaData metaData)
+    {
+        var rowcol = GetRowColFromIndex(GetSourceIdx(processedIndex, metaData), str);
+
+        return $"{rowcol.Item1}:{rowcol.Item2}";
     }
 }

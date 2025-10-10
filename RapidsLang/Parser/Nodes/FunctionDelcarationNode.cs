@@ -2,9 +2,9 @@ using RapidsLang.Lexer;
 
 namespace RapidsLang.Parser.Nodes;
 
-public record FunctionStatement(
+public record FunctionDelcarationNode(
    Token Name, 
-   FunctionDeclarationNode Function,
-   FunctionDeclarationNode? DebugFunction,
+   FunctionNode Function,
+   FunctionNode? DebugFunction,
    int DebugLevel
 ) : StatementNode(DebugLevel);

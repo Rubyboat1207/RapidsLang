@@ -1,4 +1,5 @@
-﻿using RapidsLang.Utils;
+﻿using RapidsLang.Interpreter;
+using RapidsLang.Utils;
 
 namespace RapidsLang.Lexer;
 
@@ -15,14 +16,18 @@ public enum TokenType
     While,
     Let,
     Const,
-    
+    Null,
+    Use,
+    True,
+    False,
+
     // -- Symbols
     Dot,
     Comma,
     Colon,
     SemiColon,
     QuestionMark,
-    
+
     // -- Operators
     Plus,
     Minus,
@@ -31,7 +36,7 @@ public enum TokenType
     Modulo,
     Assignment,
     Not,
-    
+
     // -- Comparison Operators
     Equality,
     LessThanOrEqualTo,
@@ -39,7 +44,7 @@ public enum TokenType
     NotEqual,
     And,
     Or,
-    
+
     // -- Blocks
     OpenCurly,
     ClosedCurly,
@@ -49,11 +54,11 @@ public enum TokenType
     ClosedParen,
     OpenSquare,
     ClosedSquare,
-    
+
     // -- Variables
     Identifier,
     LiteralNumber,
-    
+
     // -- Strings
     StartString,
     StringContent,
@@ -80,6 +85,10 @@ public class Token(TokenType type, int index, string? value = null)
             TokenType.While => "while",
             TokenType.Let => "let",
             TokenType.Const => "const",
+            TokenType.Null => "null",
+            TokenType.Use => "use",
+            TokenType.True => "true",
+            TokenType.False => "false",
             TokenType.Dot => ".",
             TokenType.Comma => ",",
             TokenType.Colon => ":",
@@ -130,7 +139,26 @@ public class Token(TokenType type, int index, string? value = null)
             TokenType.LessThanOrEqualTo       => 3,
             TokenType.And                     => 2,  // Logical AND
             TokenType.Or                      => 1,  // Logical OR
-            _                                 => 0,  // Everything else
+            _                                 => -1,  // Everything else
+        };
+    }
+
+    public RapidsOperator GetOperator()
+    {
+        return TokenType switch
+        {
+            TokenType.Plus => RapidsOperator.Add,
+            TokenType.Minus => RapidsOperator.Subtract,
+            TokenType.Slash => RapidsOperator.Divide,
+            TokenType.Star => RapidsOperator.Multiply,
+            TokenType.Modulo => RapidsOperator.Modulo,
+            TokenType.ClosedTriangle => RapidsOperator.GreaterThan,
+            TokenType.OpenTriangle => RapidsOperator.LessThan,
+            TokenType.GreaterThanOrEqualTo => RapidsOperator.GreaterThanEqualTo,
+            TokenType.LessThanOrEqualTo => RapidsOperator.LessThanEqualTo,
+            TokenType.Equality => RapidsOperator.Equality,
+            TokenType.NotEqual => RapidsOperator.Inequal,
+            _ => throw new ArgumentOutOfRangeException()
         };
     }
 }
@@ -148,7 +176,11 @@ public static class RapidsLexer
         TokenType.For,
         TokenType.While,
         TokenType.Let,
-        TokenType.Const
+        TokenType.Const,
+        TokenType.Null,
+        TokenType.Use,
+        TokenType.True,
+        TokenType.False
     ];
 
     private static readonly TokenType[] Symbols =
@@ -208,6 +240,10 @@ public static class RapidsLexer
                 while (!stepper.AtEnd)
                 {
                     stepper.Append();
+                    if(stepper.AtEnd)
+                    {
+                        break;
+                    }
                     if (char.IsNumber(stepper.Cur))
                     {
                         continue;

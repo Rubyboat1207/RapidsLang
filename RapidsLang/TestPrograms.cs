@@ -8,7 +8,38 @@ public static class TestPrograms
     """.Trim();
 
     public static readonly string HelloWorld = """
-                                               // should print "Hello, World"
-                                               print(`Hello, World`);
-                                               """;
+    use console;
+    // should print "Hello, World"
+    print(`Hello, World!`);
+    """;
+
+    public static readonly string PrintFormatted = """
+    use console;
+    // should print "Hello, World"
+    print(`Hello, {3.5} World!`);
+    """;
+
+    public static readonly string HelloFiveTimes = """
+    use console;
+    
+    let i = 0;
+    
+    while(i < 5) {
+        print(`Hello #{i + 1}`);
+
+        i += 1;
+    }
+    """;
+    
+    public static readonly string TuringTest = """
+    use console;
+ 
+    let i = 0;
+    while (true) {
+      i += 1;
+      if (i % 2 == 0) {
+         print(i);
+     }
+    }
+    """;
 }
