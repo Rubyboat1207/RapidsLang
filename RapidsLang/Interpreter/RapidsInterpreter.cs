@@ -3,13 +3,13 @@ using RapidsLang.PreProcessor;
 
 namespace RapidsLang.Interpreter;
 
-using RapidsLang.Parser.Nodes;
+using Parser.Nodes;
 
 public class BlockProgress(StatementsNode block, int programCounter=0)
 {
     public StatementsNode Block { get; init; } = block;
     public int ProgramCounter { get; set; } = programCounter;
-    public List<string> ScopedVariables = [];
+    public readonly List<string> ScopedVariables = [];
 }
 
 public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preprocessorMetadata, StatementsNode Root)
@@ -38,10 +38,12 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
         StartNewBlock(Root);
         while (true)
         {
+            bool done = false;
             while (ProgramCounter >= _statementsStack.Peek().Block.Statements.Count)
             {
                 if (_statementsStack.Count == 1)
                 {
+                    done = true;
                     break;
                 }
 
@@ -51,6 +53,10 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
                 {
                     Ctx.variables.Remove(variable);
                 }
+            }
+            if(done == true)
+            {
+                break;
             }
             StatementNode statement = _statementsStack.Peek().Block.Statements[ProgramCounter];
 
@@ -72,20 +78,16 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
 
             if (statement is FunctionCallStatementNode functionCallStatementNode)
             {
-                // check if in global namespace
-                if (functionCallStatementNode.Function.Function is IdentifierNode identifierNode)
+                var function = EvaluateExpression(functionCallStatementNode.Function.Function);
+
+                foreach (var param in functionCallStatementNode.Function.Arguments)
                 {
-                    Ctx.variables.TryGetValue(identifierNode.Token.Value, out var maybeFunction);
+                    Ctx.FunctionCallStack.Push(EvaluateExpression(param));
+                }
 
-                    foreach (var param in functionCallStatementNode.Function.Arguments)
-                    {
-                        Ctx.FunctionCallStack.Push(EvaluateExpression(param));
-                    }
-
-                    if (maybeFunction is { Variable: RapidsFunctionReferenceVariable func })
-                    {
-                        func.Function!.Function.Invoke(Ctx);
-                    }
+                if (function is RapidsFunctionReferenceVariable func)
+                {
+                    func.Function!.Function.Invoke(Ctx);
                 }
 
                 ProgramCounter++;
@@ -110,10 +112,8 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
                 if (assignment.Variable.Left == null)
                 {
                     if (!TryGetValue(assignment.Variable, out var variable))
-                        throw new Exception($"Variable named {assignment.Variable} was not found at {GetLineCol(assignment.Operator)}");
-
-                    if (variable.Constant)
-                        throw new Exception($"attempted to assign to a constant variable at {GetLineCol(assignment.Operator)}.");
+                        if (variable!.Constant)
+                            throw new Exception($"attempted to assign to a constant variable at {GetLineCol(assignment.Operator)}.");
 
                     var evaluatedExpression = EvaluateExpression(assignment.Expression);
 
@@ -121,16 +121,16 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
                     
                     if(assignment.Operator.TokenType != TokenType.Assignment)
                     {
-                        result = variable.Variable.GetResult(assignment.Operator.GetOperator(), evaluatedExpression);
+                        result = variable!.Variable.GetResult(assignment.Operator.GetOperator(), evaluatedExpression);
                     }
 
                     if(result is null)
                     {
                         throw new Exception(
-                        $"Operation {assignment.Operator.GetOperator()} is not compatible with types {variable.Variable.VariableTypeName} and {evaluatedExpression.VariableTypeName}");
+                        $"Operation {assignment.Operator.GetOperator()} is not compatible with types {variable!.Variable.VariableTypeName} and {evaluatedExpression.VariableTypeName}");
                     }
 
-                    variable.Variable = result;
+                    variable!.Variable = result;
                 }
                 ProgramCounter++;
                 continue;
@@ -167,17 +167,29 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
         }
     }
 
-    public bool TryGetValue(MemberAccessNode accessNode, out VariableHolder? rapidsVariable)
+    private bool TryGetValue(MemberAccessNode accessNode, out VariableHolder? rapidsVariable)
     {
         if (accessNode.Left is null)
         {
             return Ctx.variables.TryGetValue(accessNode.MemberName.Value, out rapidsVariable);
         }
 
-        throw new NotImplementedException(); // evaluate expression and then call some function ill make called RapidsVariable::GetMember(string)
+        var left = EvaluateExpression(accessNode.Left);
+
+        var value = left.GetMember(accessNode.MemberName.Value);
+
+        if (value is null)
+        {
+            rapidsVariable = null;
+            return false;
+        }
+
+        rapidsVariable = new VariableHolder(value, false);
+
+        return true;
     }
 
-    public RapidsVariable EvaluateExpression(ExpressionNode expressionNode)
+    private RapidsVariable EvaluateExpression(ExpressionNode expressionNode)
     {
         switch (expressionNode)
         {
@@ -215,6 +227,7 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
 
                 return res;
             case IdentifierNode identifierNode:
+                // ReSharper disable once ConvertIfStatementToReturnStatement
                 if (!Ctx.variables.TryGetValue(identifierNode.Token.Value, out var variable))
                 {
                     throw new Exception($"Attempted to access variable \"{identifierNode.Token.Value}\" which is not defined at {GetLineCol(identifierNode.Token)}.");
@@ -223,6 +236,16 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
                 return variable.Variable;
             case BooleanNode booleanNode:
                 return new RapidsBooleanVariable(booleanNode.value.TokenType == TokenType.True);
+            case ListNode arrayNode:
+                return new RapidsListVariable(arrayNode.Values.Select(EvaluateExpression).ToList());
+            case MemberAccessNode memberAccessNode:
+                // ReSharper disable once ConvertIfStatementToReturnStatement
+                if (!TryGetValue(memberAccessNode, out var holder))
+                {
+                    throw new Exception($"Variable named {memberAccessNode.MemberName} was not found at {GetLineCol(memberAccessNode.MemberName)}");
+                }
+
+                return holder!.Variable;
             default:
                 throw new NotImplementedException("Expression not yet implemented. Sorry!");
         }

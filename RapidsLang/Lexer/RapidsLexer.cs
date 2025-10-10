@@ -158,6 +158,7 @@ public class Token(TokenType type, int index, string? value = null)
             TokenType.LessThanOrEqualTo => RapidsOperator.LessThanEqualTo,
             TokenType.Equality => RapidsOperator.Equality,
             TokenType.NotEqual => RapidsOperator.Inequal,
+            TokenType.OpenSquare => RapidsOperator.Index,
             _ => throw new ArgumentOutOfRangeException()
         };
     }

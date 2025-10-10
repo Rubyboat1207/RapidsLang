@@ -42,4 +42,32 @@ public static class TestPrograms
      }
     }
     """;
+
+    public static readonly string ListTest = """
+     use console;
+     
+     let array = [];
+     
+     array.add(`Hello, World!`);
+     
+     print(array[0]);
+     
+     array.add(`Test123`);
+     
+     print(array[1]);
+     
+     let i = 0;
+     while(i < 10) {
+        array.add(i);
+        
+        i += 1;
+     }
+     
+     while(i >= 0) {
+        print(array[i]);
+        
+        i -= 1;
+     }
+     
+     """;
 }

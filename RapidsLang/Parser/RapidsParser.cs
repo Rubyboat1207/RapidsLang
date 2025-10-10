@@ -244,10 +244,36 @@ public class RapidsParser
 
     public static ExpressionNode ParseExpression(ListStepper<Token> stepper, int minPrecedence = 0)
     {
-        var left = ParseSimpleExpression(stepper);
+        // Array
+        ExpressionNode left;
+        if (stepper.Cur.TokenType == TokenType.OpenSquare)
+        {
+            List<ExpressionNode> list = [];
+            stepper.Increment();
+            while (stepper.Cur.TokenType != TokenType.ClosedSquare)
+            {
+                if (list.Count > 0 && stepper.Step().TokenType != TokenType.Comma)
+                {
+                    throw new Exception("Expected Comma");
+                }
+                list.Add(ParseExpression(stepper));
+            }
+            stepper.Increment();
+
+            left = new ListNode(list);
+        }
+        else
+        {
+            left = ParseSimpleExpression(stepper);
+        }
+        
 
         if(stepper.Cur.TokenType is TokenType.Plus or TokenType.Minus or TokenType.Slash or TokenType.Star or TokenType.Modulo && stepper.Next?.TokenType == TokenType.Assignment)
         {
+            if (left is not (MemberAccessNode or IdentifierNode))
+            {
+                throw new Exception("Cannot assign to literals");
+            }
             return left;
         }
 

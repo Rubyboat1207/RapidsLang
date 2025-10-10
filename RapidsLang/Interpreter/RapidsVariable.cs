@@ -5,6 +5,7 @@ public abstract class RapidsVariable
     public abstract RapidsVariable? GetResult(RapidsOperator op, RapidsVariable other);
     public abstract string VariableTypeName { get; }
     public abstract bool Truthy { get; }
+    public abstract RapidsVariable? GetMember(string memberName);
 }
 
 public class RapidsStringVariable(string value) : RapidsVariable
@@ -45,6 +46,15 @@ public class RapidsStringVariable(string value) : RapidsVariable
     public override string VariableTypeName => "string";
 
     public override bool Truthy => !string.IsNullOrEmpty(Value);
+    public override RapidsVariable? GetMember(string memberName)
+    {
+        if (memberName == "length")
+        {
+            return new RapidsNumberVariable(memberName.Length);
+        }
+
+        return null;
+    }
 }
 
 public class RapidsNumberVariable(double value) : RapidsVariable
@@ -52,6 +62,11 @@ public class RapidsNumberVariable(double value) : RapidsVariable
 
     public override string VariableTypeName => "number";
     public override bool Truthy => Value != 0;
+    public override RapidsVariable? GetMember(string memberName)
+    {
+        return null;
+    }
+
     public double Value { get; init; } = value;
     
     public override RapidsVariable? GetResult(RapidsOperator op, RapidsVariable other)
@@ -92,6 +107,20 @@ public class RapidsObjectVariable : RapidsVariable
 {
     public override string VariableTypeName => "object";
     public override bool Truthy => ObjectValues.Count > 0;
+    public override RapidsVariable? GetMember(string memberName)
+    {
+        if (ObjectValues.ContainsKey(memberName))
+        {
+            return ObjectValues[memberName];
+        }
+
+        if (memberName == "__keys__")
+        {
+            return new RapidsListVariable(ObjectValues.Values.ToList());
+        }
+
+        return null;
+    }
 
     public Dictionary<string, RapidsVariable> ObjectValues { get; private init; } = [];
     
@@ -122,7 +151,25 @@ public class RapidsListVariable : RapidsVariable
 {
     public override string VariableTypeName => "array";
     public override bool Truthy => List.Count > 0;
-    public List<RapidsVariable> List { get; private init; } = [];
+    private readonly RapidsFunction _addFunction;
+
+    public RapidsListVariable(List<RapidsVariable>? list=null)
+    {
+        List = list ?? [];
+        _addFunction = new RapidsFunction(Add);
+    }
+
+    public override RapidsVariable? GetMember(string memberName)
+    {
+        if (memberName == "add")
+        {
+            return new RapidsFunctionReferenceVariable(_addFunction);
+        }
+
+        return null;
+    }
+
+    public List<RapidsVariable> List { get; private init; }
     
     public override RapidsVariable? GetResult(RapidsOperator op, RapidsVariable other)
     {
@@ -143,7 +190,23 @@ public class RapidsListVariable : RapidsVariable
             return new RapidsBooleanVariable(result);
         }
 
+        if (op is RapidsOperator.Index && other is RapidsNumberVariable oNum)
+        {
+            return List[(int)oNum.Value];
+        }
+
         return null;
+    }
+
+    public RapidsFunctionResult Add(InterpreterContext ctx)
+    {
+        if (!ctx.FunctionCallStack.TryPop(out var result))
+        {
+            return RapidsFunctionResult.Err("Expected 1 argument, found 0.");
+        }
+        List.Add(result);
+        
+        return RapidsFunctionResult.Returned();
     }
 }
 
@@ -151,6 +214,11 @@ public class RapidsFunctionReferenceVariable(RapidsFunction function) : RapidsVa
 {
     public override string VariableTypeName => "function";
     public override bool Truthy => Function is not null;
+    public override RapidsVariable? GetMember(string memberName)
+    {
+        return null;
+    }
+
     public RapidsFunction? Function { get; init; } = function;
     
     public override RapidsVariable? GetResult(RapidsOperator op, RapidsVariable other)
@@ -179,7 +247,12 @@ public class RapidsFunctionReferenceVariable(RapidsFunction function) : RapidsVa
 public class RapidsBooleanVariable(bool value): RapidsVariable
 {
     public override string VariableTypeName => "bool";
-    public override bool Truthy => Value; 
+    public override bool Truthy => Value;
+    public override RapidsVariable? GetMember(string memberName)
+    {
+        return null;
+    }
+
     public bool Value { get; init; } = value;
     
     public override RapidsVariable? GetResult(RapidsOperator op, RapidsVariable other)
@@ -213,6 +286,10 @@ public class RapidsNullVariable : RapidsVariable
 {
     public override string VariableTypeName => "null";
     public override bool Truthy => false;
+    public override RapidsVariable? GetMember(string memberName)
+    {
+        return null;
+    }
 
     public override RapidsVariable? GetResult(RapidsOperator op, RapidsVariable other)
     {
