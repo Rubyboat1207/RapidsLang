@@ -20,6 +20,7 @@ public enum TokenType
     Use,
     True,
     False,
+    Return,
 
     // -- Symbols
     Dot,
@@ -89,6 +90,7 @@ public class Token(TokenType type, int index, string? value = null)
             TokenType.Use => "use",
             TokenType.True => "true",
             TokenType.False => "false",
+            TokenType.Return => "return",
             TokenType.Dot => ".",
             TokenType.Comma => ",",
             TokenType.Colon => ":",
@@ -181,7 +183,8 @@ public static class RapidsLexer
         TokenType.Null,
         TokenType.Use,
         TokenType.True,
-        TokenType.False
+        TokenType.False,
+        TokenType.Return
     ];
 
     private static readonly TokenType[] Symbols =
@@ -363,7 +366,7 @@ public static class RapidsLexer
 
             while (!stepper.AtEnd)
             {
-                if (char.IsNumber(stepper.Cur) || char.IsLetter(stepper.Cur))
+                if (char.IsNumber(stepper.Cur) || char.IsLetter(stepper.Cur) || stepper.Cur == '_')
                 {
                     stepper.Append();
                     continue;

@@ -22,7 +22,7 @@ public class RapidsParser
             if (stepper.Cur.TokenType is TokenType.Identifier)
             {
                 var expression = ParseExpression(stepper);
-                
+
                 // check for function call
                 if (stepper.Cur.TokenType is TokenType.OpenParen)
                 {
@@ -39,8 +39,8 @@ public class RapidsParser
                         {
                             throw new Exception("I dun messed up.");
                         }
-                        
-                        root.Statements.Add(new FunctionDelcarationNode(
+
+                        root.Statements.Add(new FunctionDeclarationNode(
                             identNode.Token,
                             function,
                             0
@@ -48,9 +48,16 @@ public class RapidsParser
                     }
                     else
                     {
-                        root.Statements.Add(ParseFunctionCall(stepper, expression));
+                        throw new Exception("todo");
                     }
-                    
+
+                    continue;
+                }
+
+                if (expression is FunctionCallExpressionNode call)
+                {
+                    root.Statements.Add(new FunctionCallStatementNode(call,
+                        GetLogLevel(stepper)));
                     continue;
                 }
 
@@ -70,6 +77,8 @@ public class RapidsParser
                             GetLogLevel(stepper)
                         )
                     );
+                    
+                    continue;
                 }
 
                 if (expression is IdentifierNode ident && stepper.Cur is { TokenType: TokenType.Plus or TokenType.Minus or TokenType.Slash or TokenType.Star or TokenType.Modulo or TokenType.Assignment })
@@ -88,6 +97,7 @@ public class RapidsParser
                             GetLogLevel(stepper)
                         )
                     );
+                    continue;
                 }
                 
             }
@@ -208,6 +218,17 @@ public class RapidsParser
 
                 continue;
             }
+            
+            if (stepper.Cur.TokenType is TokenType.Return)
+            {
+                var ret = stepper.Step();
+                root.Statements.Add(new ReturnNode(
+                    ret,
+                    ParseExpression(stepper),
+                    GetLogLevel(stepper)
+                ));
+                continue;
+            }
 
             if (stepper.Cur.TokenType is TokenType.ClosedCurly)
             {
@@ -220,9 +241,28 @@ public class RapidsParser
         return root;
     }
 
-    public static FunctionCallStatementNode ParseFunctionCall(ListStepper<Token> stepper, ExpressionNode initialExpression)
+    public static FunctionCallExpressionNode ParseFunctionCall(ListStepper<Token> stepper, ExpressionNode initialExpression)
     {
+        if (initialExpression is not (MemberAccessNode or IdentifierNode))
+        {
+            throw new Exception("Unexpected Function Call");
+        }
+        
         stepper.Increment();
+        var parameters = ParseParams(stepper);
+
+        if (stepper.Cur.TokenType is not TokenType.ClosedParen)
+            throw new Exception("Expected end of function call.");
+
+        stepper.Increment(); // closed paren
+        return new FunctionCallExpressionNode(
+            initialExpression,
+            parameters
+        );
+    }
+
+    public static List<ExpressionNode> ParseParams(ListStepper<Token> stepper)
+    {
         List<ExpressionNode> parameters = [];
         while (stepper is { AtEnd: false, Cur.TokenType: not TokenType.ClosedParen })
         {
@@ -232,20 +272,11 @@ public class RapidsParser
             {
                 break;
             }
+            stepper.Increment();
         }
 
-        if (stepper.Cur.TokenType is not TokenType.ClosedParen)
-            throw new Exception("Expected end of function call.");
-
-        stepper.Increment(); // closed paren
-        return new FunctionCallStatementNode(
-            new FunctionCallExpressionNode(
-                initialExpression,
-                parameters
-            ),
-            GetLogLevel(stepper)
-        );
-    }
+        return parameters;
+    } 
 
     public static int GetLogLevel(ListStepper<Token> stepper)
     {
@@ -288,19 +319,21 @@ public class RapidsParser
             return left;
         }
 
+
+
         while (!stepper.AtEnd && Token.GetPrecedence(stepper.Cur.TokenType) >= minPrecedence)
         {
             if (stepper.Cur.TokenType is TokenType.Dot)
             {
                 stepper.Step();
                 var member = stepper.Step();
-                if(member.TokenType is not TokenType.Identifier) 
+                if (member.TokenType is not TokenType.Identifier)
                     throw new Exception("Expected identifier");
-            
+
                 left = new MemberAccessNode(left, member);
                 continue;
             }
-            
+
             var op = stepper.Step();
             var precedence = Token.GetPrecedence(op.TokenType);
             var right = ParseExpression(stepper, precedence + 1);
@@ -309,29 +342,44 @@ public class RapidsParser
 
             left = new OperationNode(left, op, right);
         }
+        
+        if (stepper.Cur.TokenType == TokenType.OpenParen)
+        {
+            if (!CheckIfIsFunctionDeclaration(stepper))
+            {
+                left = ParseFunctionCall(stepper, left);
+            }
+        }
 
         return left;
     }
 
     public static bool CheckIfIsFunctionDeclaration(ListStepper<Token> stepper)
     {
-        var explorer = new ListStepper<Token>(stepper.FromIndex());
-
         var openParens = 1;
+        var explorer = new ListStepper<Token>(stepper.FromIndex());
+        if(explorer.Cur.TokenType == TokenType.OpenParen)
+        {
+            explorer.Increment();
+        }
+
         while (openParens > 0)
         {
-            if (explorer.Cur.TokenType is not TokenType.ClosedParen)
+            if (explorer.Cur.TokenType is TokenType.ClosedParen)
             {
                 openParens--;
             }
-            if (explorer.Cur.TokenType is not TokenType.OpenParen)
+            if (explorer.Cur.TokenType is TokenType.OpenParen)
             {
                 openParens++;
             }
             explorer.Increment();
         }
-
-        return explorer.Cur.TokenType is TokenType.ClosedTriangle;
+        // so in theory this is ambiguous in the exact situation where you are trying to compare the result of a function with a property of an object declared inline
+        // like so: function() > {test: 5}.test
+        // but I dont want to deal with this situation, so developers are gonna have to do this:
+        // function() > ({test: 5}).test
+        return explorer.Cur.TokenType is TokenType.ClosedTriangle && explorer.Next.TokenType is TokenType.OpenCurly;
     }
 
     public static ExpressionNode ParseSimpleExpression(ListStepper<Token> stepper)

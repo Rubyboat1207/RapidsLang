@@ -122,7 +122,7 @@ public class RapidsObjectVariable : RapidsVariable
         return null;
     }
 
-    public Dictionary<string, RapidsVariable> ObjectValues { get; private init; } = [];
+    public Dictionary<string, RapidsVariable> ObjectValues { get; } = [];
     
     public override RapidsVariable? GetResult(RapidsOperator op, RapidsVariable other)
     {
@@ -156,7 +156,7 @@ public class RapidsListVariable : RapidsVariable
     public RapidsListVariable(List<RapidsVariable>? list=null)
     {
         List = list ?? [];
-        _addFunction = new RapidsFunction(Add);
+        _addFunction = new RapidsNativeFunction(Add);
     }
 
     public override RapidsVariable? GetMember(string memberName)
@@ -198,28 +198,27 @@ public class RapidsListVariable : RapidsVariable
         return null;
     }
 
-    public RapidsFunctionResult Add(InterpreterContext ctx)
+    public void Add(InterpreterContext ctx)
     {
         if (!ctx.FunctionCallStack.TryPop(out var result))
         {
-            return RapidsFunctionResult.Err("Expected 1 argument, found 0.");
+            // todo: exceptions
+            // return RapidsFunctionResult.Err("Expected 1 argument, found 0.");
         }
-        List.Add(result);
-        
-        return RapidsFunctionResult.Returned();
+        List.Add(result!);
     }
 }
 
 public class RapidsFunctionReferenceVariable(RapidsFunction function) : RapidsVariable
 {
     public override string VariableTypeName => "function";
-    public override bool Truthy => Function is not null;
+    public override bool Truthy => true;
     public override RapidsVariable? GetMember(string memberName)
     {
         return null;
     }
 
-    public RapidsFunction? Function { get; init; } = function;
+    public RapidsFunction Function { get; init; } = function;
     
     public override RapidsVariable? GetResult(RapidsOperator op, RapidsVariable other)
     {

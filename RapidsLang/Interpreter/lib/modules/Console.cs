@@ -2,7 +2,7 @@ namespace RapidsLang.Interpreter.Lib.Modules;
 
 public class ConsoleModule : Module
 {
-    public static RapidsFunctionResult Print(InterpreterContext context)
+    public static void Print(InterpreterContext context)
     {
         context.FunctionCallStack.TryPop(out var variable);
 
@@ -13,12 +13,10 @@ public class ConsoleModule : Module
         {
             Console.WriteLine(Utils.StringifyVariable(variable));
         }
-
-        return RapidsFunctionResult.VoidRet();
     }
 
     public override void Import(InterpreterContext context)
     {
-        context.AddExternalFunction("print", Print);
+        context.AddNativeFunction("print", Print);
     }
 }

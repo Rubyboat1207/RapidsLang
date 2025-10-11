@@ -70,4 +70,34 @@ public static class TestPrograms
      }
      
      """;
+
+   public static readonly string FunctionTest = """
+     use console;
+     
+     do()> {
+        print(`Hello, Functions`);
+     }
+     
+     do();
+    """;
+
+   public static readonly string FunctionExpressionTest = """
+   use console;
+   
+   get_number()> {
+      return 5;
+   }
+   
+   print(get_number());
+   """;
+
+   public static readonly string AddFunctionTest = """
+   use console;
+   
+   add(a, b)> {
+      return a + b;
+   }
+   
+   print(add(0.5, 1));
+   """;
 }

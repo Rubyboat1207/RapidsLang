@@ -7,12 +7,12 @@ public class InterpreterContext
     public Stack<RapidsVariable> FunctionCallStack = [];
     public Dictionary<string, VariableHolder> variables { get; init; } = [];
 
-    public void AddExternalFunction(string name, Func<InterpreterContext, RapidsFunctionResult> func)
+    public void AddNativeFunction(string name, Action<InterpreterContext> func)
     {
         variables.Add(
             name,
             new(
-                new RapidsFunctionReferenceVariable(new(func)),
+                new RapidsFunctionReferenceVariable(new RapidsNativeFunction(func)),
                 true
             )
         );

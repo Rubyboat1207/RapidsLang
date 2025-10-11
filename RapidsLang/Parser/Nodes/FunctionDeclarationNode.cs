@@ -2,7 +2,7 @@ using RapidsLang.Lexer;
 
 namespace RapidsLang.Parser.Nodes;
 
-public record FunctionDelcarationNode(
+public record FunctionDeclarationNode(
    Token Name, 
    FunctionNode Function,
    int DebugLevel
