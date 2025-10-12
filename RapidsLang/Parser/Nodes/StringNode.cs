@@ -4,7 +4,7 @@ namespace RapidsLang.Parser.Nodes;
 
 public record StringNode : ExpressionNode
 {
-    public StringNode(List<StringPart>? Parts = null)
+    public StringNode(Token StartString, List<StringPart>? Parts = null) : base(StartString)
     {
         this.Parts = Parts ?? [];
     }

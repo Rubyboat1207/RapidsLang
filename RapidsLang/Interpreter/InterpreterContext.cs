@@ -1,3 +1,4 @@
+using RapidsLang.Interpreter.Variables;
 using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter;

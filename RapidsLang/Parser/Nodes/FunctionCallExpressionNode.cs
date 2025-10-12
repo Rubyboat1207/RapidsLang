@@ -5,4 +5,4 @@ namespace RapidsLang.Parser.Nodes;
 public record FunctionCallExpressionNode(
     ExpressionNode Function,
     List<ExpressionNode> Arguments
-) : ExpressionNode;
+) : ExpressionNode(Function.BaseToken);

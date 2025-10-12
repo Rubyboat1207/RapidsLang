@@ -6,4 +6,4 @@ public record OperationNode(
     ExpressionNode Left,
     Token Operator,
     ExpressionNode Right
-) : ExpressionNode;
+) : ExpressionNode(Left.BaseToken);

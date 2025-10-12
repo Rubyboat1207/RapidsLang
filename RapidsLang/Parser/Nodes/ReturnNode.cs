@@ -6,4 +6,4 @@ public record ReturnNode(
     Token Ret,
     ExpressionNode Value,
     int DebugLevel
-) : StatementNode(DebugLevel);
+) : StatementNode(Ret, DebugLevel);

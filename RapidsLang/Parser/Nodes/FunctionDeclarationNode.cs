@@ -6,4 +6,4 @@ public record FunctionDeclarationNode(
    Token Name, 
    FunctionNode Function,
    int DebugLevel
-) : StatementNode(DebugLevel);
+) : StatementNode(Name, DebugLevel);

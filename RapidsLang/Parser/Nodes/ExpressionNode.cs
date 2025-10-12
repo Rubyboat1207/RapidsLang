@@ -1,3 +1,5 @@
+using RapidsLang.Lexer;
+
 namespace RapidsLang.Parser.Nodes;
 
-public abstract record ExpressionNode : Node;
+public abstract record ExpressionNode(Token BaseToken) : Node(BaseToken);

@@ -7,7 +7,7 @@ public record AssignmentNode(
     Token Operator,
     ExpressionNode Expression,
     int DebugLevel
-) : StatementNode(DebugLevel)
+) : StatementNode(Variable.BaseToken, DebugLevel)
 {
     
 }

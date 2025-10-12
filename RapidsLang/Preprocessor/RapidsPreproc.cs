@@ -91,54 +91,61 @@ public static class RapidsPreproc
     }
 
     private static RapidsPreprocMetaData ProcessString(StringStepper stepper)
-    {
-        stepper.Append();
-        List<CommentedIndices> indices = [];
-        while (stepper.HasNext)
-        {
-            if (stepper is { Prev: not '\\', Cur: not '\\', Next: '`' })
-            {
-                stepper.Append(2);
-                break;
-            }
+{
+    stepper.Append();
+    List<CommentedIndices> indices = [];
 
+    while (stepper.HasNext)
+    {
+        if (stepper.Cur == '`' && !stepper.CurIsEscaped())
+        {
+            stepper.Append();
+            break;
+        }
+
+        stepper.Append();
+
+        if (stepper.Cur == '{' && !stepper.CurIsEscaped())
+        {
             stepper.Append();
 
-            if (stepper is { Prev: not '\\', Cur: not '\\', Next: '{' })
+            var stringLiteralStepper = new StringStepper(stepper.ActiveString[stepper.index..]);
+            int curlyCount = 1;
+
+            while (stringLiteralStepper.HasNext)
             {
-                stepper.Append(2);
-                var stringLiteralStepper = new StringStepper(stepper.ActiveString[stepper.index..]);
+                char c = stringLiteralStepper.Cur;
 
-                var curlyCount = 1;
-                while (stringLiteralStepper.HasNext)
+                if (c == '{' && !stringLiteralStepper.CurIsEscaped())
                 {
-                    if (stringLiteralStepper is { Prev: not '\\', Cur: not '\\', Next: '}' })
-                    {
-                        curlyCount--;
-                    }
-
-                    if (stringLiteralStepper is { Prev: not '\\', Cur: not '\\', Next: '{' })
-                    {
-                        curlyCount++;
-                    }
-
-                    stringLiteralStepper.Append();
-
+                    curlyCount++;
+                }
+                else if (c == '}' && !stringLiteralStepper.CurIsEscaped())
+                {
+                    curlyCount--;
                     if (curlyCount == 0)
                     {
+                        stringLiteralStepper.Append();
                         break;
                     }
                 }
 
-                var baby = stepper.CreateChild(stringLiteralStepper.Buffer.Length);
-                var process = Preprocess(baby);
-                indices.AddRange(process.Metadata.CommentedIndices);
-                stepper.Join(baby);
+                stringLiteralStepper.Append();
             }
-        }
 
-        return new RapidsPreprocMetaData(indices);
+            if (curlyCount != 0)
+                throw new Exception("Unterminated { in template string");
+
+            var baby = stepper.CreateChild(stringLiteralStepper.Buffer.Length - 1); 
+            var process = Preprocess(baby);
+            indices.AddRange(process.Metadata.CommentedIndices);
+            stepper.Join(baby);
+        }
     }
+
+    return new RapidsPreprocMetaData(indices);
+}
+
 
     public static int GetSourceIdx(int processedIndex, RapidsPreprocMetaData metaData)
     {

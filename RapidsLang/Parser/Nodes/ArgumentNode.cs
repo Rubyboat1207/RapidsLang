@@ -5,4 +5,4 @@ namespace RapidsLang.Parser.Nodes;
 public record ArgumentNode(
     Token Name,
     TypeNode? Type
-) : Node;
+) : Node(Name);

@@ -6,4 +6,4 @@ public record UseStatementNode(
     Token Use,
     string ModuleIdentifier,
     int DebugLevel
-) : StatementNode(DebugLevel);
+) : StatementNode(Use, DebugLevel);

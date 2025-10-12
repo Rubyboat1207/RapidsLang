@@ -15,6 +15,7 @@ public class StringStepper(string str)
     public bool AtEnd => ActiveString.Length == index;
     public int SourceIndex => index + ParentIndex;
     public int SourceBufferSize => Buffer.Length + ParentBufferSize;
+    public string DebugStr => ActiveString[index..Math.Min(ActiveString.Length, index + 70)];
 
     public void Increment(bool intoBuff=false, int count=1)
     {
@@ -54,4 +55,19 @@ public class StringStepper(string str)
         index += child.index;
         Buffer += child.Buffer;
     }
+
+    public bool IsEscaped(int index)
+    {
+        var count = 0;
+        var i = index - 1;
+        while (i >= 0 && ActiveString[i] == '\\')
+        {
+            count++;
+            i--;
+        }
+        // odd = escaped, even = not escaped
+        return (count % 2) != 0;
+    }
+
+    public bool CurIsEscaped() => IsEscaped(index);
 }

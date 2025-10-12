@@ -68,4 +68,19 @@ public class StringTokenStepper(string str)
         Increment(count:str.Length);
         return true;
     }
+    
+    public bool IsEscaped(int index)
+    {
+        var count = 0;
+        var i = index - 1;
+        while (i >= 0 && ActiveString[i] == '\\')
+        {
+            count++;
+            i--;
+        }
+        // odd = escaped, even = not escaped
+        return (count % 2) != 0;
+    }
+    
+    public bool CurIsEscaped() => IsEscaped(index);
 }

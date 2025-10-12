@@ -1,3 +1,5 @@
+using RapidsLang.Interpreter.Variables;
+
 namespace RapidsLang.Interpreter;
 
 public static class Utils

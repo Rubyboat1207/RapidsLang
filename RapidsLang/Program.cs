@@ -10,7 +10,7 @@ public class RapidLangEntry
 {
     public static void Main(string[] args)
     {
-        var code = TestPrograms.AddFunctionTest;
+        var code = TestPrograms.BrainFuckInterpreterByChatgpt;
         var preprocRes = RapidsPreproc.Preprocess(code);
 
         var lexResult = RapidsLexer.Lex(preprocRes.Output);

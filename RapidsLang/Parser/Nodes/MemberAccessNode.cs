@@ -5,4 +5,4 @@ namespace RapidsLang.Parser.Nodes;
 public record MemberAccessNode(
     ExpressionNode? Left,
     Token MemberName
-) : ExpressionNode;
+) : ExpressionNode(MemberName);

@@ -39,7 +39,11 @@ public static class TestPrograms
       i += 1;
       if (i % 2 == 0) {
          print(i);
-     }
+      }
+      if(i > 20000) {
+         print(`leaving loop.`);
+         break;
+      }
     }
     """;
 
@@ -97,7 +101,240 @@ public static class TestPrograms
    add(a, b)> {
       return a + b;
    }
+
+
+   //test
+   //test
+   //test
+   //test
+   //test
    
    print(add(0.5, 1));
    """;
+
+  public static readonly string ArrayModuleTest = """
+   use console;
+   use arrays;
+   
+   // returns array with 16 ones.
+   let arr = filledArray(1, 16);
+   
+   let i = 0;
+   while(i < arr.length) {
+      print(`{i + 1}: {arr[i]}`);
+      
+      i += 1;
+   }
+   """;
+
+  public static readonly string ArrayAssignmentTest = """
+  use console;
+  use arrays;
+
+  let arr = filledArray(1, 16);
+
+  arr[0] = 15;
+
+  let i = 0;
+  while(i < arr.length) {
+    arr[i] += 1;
+    print(arr[i]);
+    i += 1;
+  }
+
+  """;
+
+   public static readonly string BrainFuckInterpreterByChatgpt = """
+    // Brainfuck Interpreter (Rapids-style, fully compatible)
+    // -----------------------------------------------------
+    // Required:
+    //   use console;
+    //   use strings; // charFromCode, codeFromChar, substr(start[, end])
+
+    use console;
+    use strings;
+
+    // 1) Brainfuck program string (edit as needed)
+    let program = `++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.`;
+    // Classic "Hello World!\n"
+
+    // -----------------------------------------------------
+    // Utility: ensure tape index exists
+    ensureIndex(arr, idx)>
+    {
+        while (arr.length <= idx) {
+            arr.add(0);
+        }
+    }
+
+    // Get value from tape
+    tapeGet(arr, idx)>
+    {
+        ensureIndex(arr, idx);
+        return arr[idx];
+    }
+
+    // Set value on tape with 0..255 wrap
+    tapeSet(arr, idx, value)>
+    {
+        ensureIndex(arr, idx);
+        let v = value % 256;
+        if (v < 0) {
+            v += 256;
+        }
+        arr[idx] = v;
+    }
+
+    // Output one cell as character
+    emit(value)>
+    {
+        print(charFromCode(value));
+    }
+
+    // Build bracket jump table (linked pairs of '[' and ']')
+    buildJumpTable(prog)>
+    {
+        let jump = [];
+        let i = 0;
+        while (i < prog.length) {
+            jump.add(-1);
+            i += 1;
+        }
+
+        let openStack = [];
+        let top = 0;
+
+        i = 0;
+        while (i < prog.length) {
+            let ch = prog[i];
+
+            if (ch == `[`) {
+                openStack.add(i);
+                top += 1;
+            }
+
+            if (ch == `]`) {
+                if (top == 0) {
+                    print(`Unmatched ']' at {i}`);
+                }
+                if (top > 0) {
+                    top -= 1;
+                    let j = openStack[top];
+                    jump[i] = j;
+                    jump[j] = i;
+                }
+            }
+
+            i += 1;
+        }
+
+        if (top > 0) {
+            let temp = top - 1;
+            let last = openStack[temp];
+            print(`Unmatched '[' at {last}`);
+        }
+
+        return jump;
+    }
+
+    // -----------------------------------------------------
+    // Run Brainfuck
+    runBF(prog)>
+    {
+        let jump = buildJumpTable(prog);
+
+        let tape = [];
+        let ptr = 0;
+        let pc = 0;
+
+        let inbuf = ``;
+
+        // On-demand input for ','
+        getInputByte()>
+        {
+            if (inbuf.length == 0) {
+                inbuf = input();
+            }
+
+            if (inbuf.length == 0) {
+                return 0;
+            }
+
+            let ch = inbuf[0];
+            let tempagain = codeFromChar(ch);
+            let code = tempagain % 256;
+            if (code < 0) {
+                code += 256;
+            }
+
+            inbuf = inbuf.substr(1);
+            return code;
+        }
+
+        while (pc < prog.length) {
+            let op = prog[pc];
+
+            if (op == `>`) {
+                ptr += 1;
+            }
+
+            if (op == `<`) {
+                ptr -= 1;
+                if (ptr < 0) {
+                    print(`Error: pointer moved left of tape at pc {pc}`);
+                    break;
+                }
+            }
+
+            if (op == `+`) {
+                let v = tapeGet(tape, ptr);
+                tapeSet(tape, ptr, v + 1);
+            }
+
+            if (op == `-`) {
+                let v = tapeGet(tape, ptr);
+                tapeSet(tape, ptr, v - 1);
+            }
+
+            if (op == `.`) {
+                let v = tapeGet(tape, ptr);
+                emit(v);
+            }
+
+            if (op == `,`) {
+                let v = getInputByte();
+                tapeSet(tape, ptr, v);
+            }
+
+            if (op == `[`) {
+                let v = tapeGet(tape, ptr);
+                if (v == 0) {
+                    let mate = jump[pc];
+                    if (mate < 0) {
+                        print(`Error: no matching ']' for '[' at {pc}`);
+                        break;
+                    }
+                    pc = mate;
+                }
+            }
+
+            if (op == `]`) {
+                let v = tapeGet(tape, ptr);
+                if (v != 0) {
+                    let mate = jump[pc];
+                    if (mate < 0) {
+                        print(`Error: no matching '[' for ']' at {pc}`);
+                        break;
+                    }
+                    pc = mate;
+                }
+            }
+
+            pc += 1;
+        }
+    }
+
+    // 3) Execute
+    runBF(program);
+    """;
 }

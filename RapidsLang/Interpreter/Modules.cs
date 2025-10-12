@@ -4,8 +4,10 @@ namespace RapidsLang.Interpreter;
 
 public static class Modules
 {
-    public static Dictionary<string, Module> RegisteredModules = new()
+    public static readonly Dictionary<string, Module> RegisteredModules = new()
     {
-        {"console", new ConsoleModule()}
+        {"console", new ConsoleModule()},
+        {"arrays", new ArraysModule()},
+        {"strings", new StringsModule()}
     };
 }

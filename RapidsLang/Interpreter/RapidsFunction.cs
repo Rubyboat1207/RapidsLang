@@ -4,7 +4,11 @@ namespace RapidsLang.Interpreter;
 
 public abstract class RapidsFunction
 {
-    public abstract void EnqueueExecution(InterpreterContext ctx);
+    public event Action? OnCompleted = null;
+    public virtual void EnqueueExecution(InterpreterContext ctx)
+    {
+        OnCompleted?.Invoke();
+    }
 }
 
 public class RapidsNativeFunction(Action<InterpreterContext> func) : RapidsFunction
@@ -13,6 +17,8 @@ public class RapidsNativeFunction(Action<InterpreterContext> func) : RapidsFunct
     public override void EnqueueExecution(InterpreterContext ctx)
     {
         Function.Invoke(ctx);
+
+        base.EnqueueExecution(ctx);
     }
 }
 
@@ -23,7 +29,7 @@ public class RapidsUserFunction(FunctionNode func, RapidsInterpreter interpreter
 
     public override void EnqueueExecution(InterpreterContext ctx)
     {
-        var body = Interpreter.StartNewBlock(func.Body);
+        var body = Interpreter.StartNewBlock(func.Body, BlockType.Function);
 
         var oldVariables = new List<Tuple<string, VariableHolder>>();
         
@@ -41,7 +47,7 @@ public class RapidsUserFunction(FunctionNode func, RapidsInterpreter interpreter
                 ctx.variables.Add(name, new VariableHolder(ctx.FunctionCallStack.Pop(), false, arg.Type ?? null));
             }
         }
-        
+
         body.CompletedListeners.Add(() =>
         {
             foreach (var oldVariable in oldVariables)
@@ -53,6 +59,10 @@ public class RapidsUserFunction(FunctionNode func, RapidsInterpreter interpreter
             {
                 ctx.FunctionCallStack.Push(body.Scope.Return);
             }
+
+            base.EnqueueExecution(ctx);
+
         });
+        
     }
 }

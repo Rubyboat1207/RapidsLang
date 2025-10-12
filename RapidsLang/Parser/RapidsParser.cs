@@ -15,7 +15,7 @@ public class RapidsParser
 
     public static StatementsNode Parse(ListStepper<Token> stepper, StatementsNode? activeBlock=null)
     {
-        var root = activeBlock ?? new StatementsNode();
+        var root = activeBlock ?? new StatementsNode(stepper.Cur);
         
         while (!stepper.AtEnd)
         {
@@ -61,7 +61,7 @@ public class RapidsParser
                     continue;
                 }
 
-                if (expression is MemberAccessNode access && stepper.Cur is { TokenType: TokenType.Plus or TokenType.Minus or TokenType.Slash or TokenType.Star or TokenType.Modulo or TokenType.Assignment })
+                if (expression is MemberAccessNode access && IsCurValidAssignPrefix(stepper))
                 {
                     Token op = stepper.Step();
                     if (stepper.Cur.TokenType != TokenType.Equality)
@@ -81,10 +81,10 @@ public class RapidsParser
                     continue;
                 }
 
-                if (expression is IdentifierNode ident && stepper.Cur is { TokenType: TokenType.Plus or TokenType.Minus or TokenType.Slash or TokenType.Star or TokenType.Modulo or TokenType.Assignment })
+                if (expression is IdentifierNode ident && IsCurValidAssignPrefix(stepper))
                 {
                     Token op = stepper.Step();
-                    if (stepper.Cur.TokenType != TokenType.Equality)
+                    if (op.TokenType != TokenType.Assignment)
                     {
                         stepper.Increment();
                     }
@@ -92,6 +92,26 @@ public class RapidsParser
                     root.Statements.Add(
                         new AssignmentNode(
                             new MemberAccessNode(null, ident.Token),
+                            op,
+                            ParseExpression(stepper),
+                            GetLogLevel(stepper)
+                        )
+                    );
+                    continue;
+                }
+                
+                if (expression is OperationNode { Operator.TokenType: TokenType.OpenSquare } indexingOperation && IsCurValidAssignPrefix(stepper))
+                {
+                    Token op = stepper.Step();
+                    if (op.TokenType != TokenType.Assignment)
+                    {
+                        stepper.Increment();
+                    }
+
+                    root.Statements.Add(
+                        new ListItemAssignmentNode(
+                            indexingOperation.Left,
+                            indexingOperation.Right,
                             op,
                             ParseExpression(stepper),
                             GetLogLevel(stepper)
@@ -136,6 +156,7 @@ public class RapidsParser
                 var expression = ParseExpression(stepper);
 
                 root.Statements.Add(new DeclarationNode(
+                    declaration,
                     declaration.TokenType == TokenType.Const,
                     name,
                     null,
@@ -148,7 +169,7 @@ public class RapidsParser
 
             if (stepper.Cur.TokenType is TokenType.While )
             {
-                stepper.Increment();
+                var whileToken = stepper.Step();
                 var paren = stepper.Step();
                 if (paren is not { TokenType: TokenType.OpenParen })
                 {
@@ -174,6 +195,7 @@ public class RapidsParser
                 var block = Parse(stepper);
 
                 root.Statements.Add(new WhileLoopNode(
+                    whileToken,
                     expression,
                     block,
                     0
@@ -185,7 +207,7 @@ public class RapidsParser
             
             if (stepper.Cur.TokenType is TokenType.If )
             {
-                stepper.Increment();
+                var ifNode = stepper.Step();
                 var paren = stepper.Step();
                 if (paren is not { TokenType: TokenType.OpenParen })
                 {
@@ -211,6 +233,7 @@ public class RapidsParser
                 var block = Parse(stepper);
 
                 root.Statements.Add(new IfNode(
+                    ifNode,
                     expression,
                     block,
                     0
@@ -230,6 +253,14 @@ public class RapidsParser
                 continue;
             }
 
+            if (stepper.Cur.TokenType is TokenType.Break)
+            {
+                root.Statements.Add(new BreakNode(
+                    stepper.Step(),
+                    GetLogLevel(stepper)
+                ));
+            }
+
             if (stepper.Cur.TokenType is TokenType.ClosedCurly)
             {
                 // hopefully at the end of the block ??? please work <3
@@ -239,6 +270,11 @@ public class RapidsParser
         }
 
         return root;
+    }
+
+    public static bool IsCurValidAssignPrefix(ListStepper<Token> stepper)
+    {
+        return stepper.Cur is { TokenType: TokenType.Plus or TokenType.Minus or TokenType.Slash or TokenType.Star or TokenType.Modulo or TokenType.Assignment };
     }
 
     public static FunctionCallExpressionNode ParseFunctionCall(ListStepper<Token> stepper, ExpressionNode initialExpression)
@@ -321,7 +357,7 @@ public class RapidsParser
 
 
 
-        while (!stepper.AtEnd && Token.GetPrecedence(stepper.Cur.TokenType) >= minPrecedence)
+        while (!stepper.AtEnd && Token.GetPrecedence(stepper.Cur.TokenType) >= minPrecedence && stepper.Next?.TokenType != TokenType.Assignment)
         {
             if (stepper.Cur.TokenType is TokenType.Dot)
             {
@@ -393,7 +429,7 @@ public class RapidsParser
             case TokenType.LiteralNumber:
                 return new LiteralNumberNode(start, double.Parse(start.Value));
             case TokenType.StartString:
-                return ParseString(stepper);
+                return ParseString(start, stepper);
             case TokenType.True or TokenType.False:
                 return new BooleanNode(start);
             case TokenType.OpenParen:
@@ -424,7 +460,7 @@ public class RapidsParser
                         arguments.Add(new ArgumentNode(name, null));
                     }
                     stepper.Increment(); // closed paren
-                    stepper.Increment(); // open triangle
+                    var openTriangle = stepper.Step(); // open triangle
                     stepper.Increment(); // open curly
 
                     var functionBody = Parse(stepper);
@@ -436,7 +472,7 @@ public class RapidsParser
                         debugBody = Parse(stepper);
                     }
 
-                    return new FunctionNode(arguments, functionBody, debugBody);
+                    return new FunctionNode(openTriangle, arguments, functionBody, debugBody);
                 }
                 
                 // not function just normal expression.
@@ -461,15 +497,15 @@ public class RapidsParser
                     list.Add(ParseExpression(stepper));
                 }
                 stepper.Increment();
-                return new ListNode(list);
+                return new ListNode(start, list);
             default:
                 throw new Exception("Unexpected end of expression");
         }
     }
 
-    public static StringNode ParseString(ListStepper<Token> stepper)
+    public static StringNode ParseString(Token startString, ListStepper<Token> stepper)
     {
-        StringNode stringNode = new();
+        StringNode stringNode = new(startString);
 
         while (stepper is { Cur.TokenType: not TokenType.EndString, AtEnd: false })
         {

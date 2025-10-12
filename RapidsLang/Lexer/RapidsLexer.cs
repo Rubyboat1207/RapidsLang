@@ -21,6 +21,7 @@ public enum TokenType
     True,
     False,
     Return,
+    Break,
 
     // -- Symbols
     Dot,
@@ -91,6 +92,7 @@ public class Token(TokenType type, int index, string? value = null)
             TokenType.True => "true",
             TokenType.False => "false",
             TokenType.Return => "return",
+            TokenType.Break => "break",
             TokenType.Dot => ".",
             TokenType.Comma => ",",
             TokenType.Colon => ":",
@@ -184,7 +186,8 @@ public static class RapidsLexer
         TokenType.Use,
         TokenType.True,
         TokenType.False,
-        TokenType.Return
+        TokenType.Return,
+        TokenType.Break
     ];
 
     private static readonly TokenType[] Symbols =
@@ -238,8 +241,12 @@ public static class RapidsLexer
                 continue;
             }
             
-            if (char.IsNumber(stepper.Cur) || (stepper.Cur == '.' && char.IsNumber(stepper.Next)))
+            if (char.IsNumber(stepper.Cur) || (stepper.Cur == '.' && char.IsNumber(stepper.Next)) || (stepper.Cur == '-' && char.IsNumber(stepper.Next)))
             {
+                if(stepper.Cur == '-')
+                {
+                    stepper.Append();
+                }
                 var hasHadDecimal = stepper.Cur == '.';
                 while (!stepper.AtEnd)
                 {
@@ -269,25 +276,28 @@ public static class RapidsLexer
                 continue;
             }
 
-            if (stepper.Cur == '`')
+            if (stepper.Cur == '`' && !stepper.CurIsEscaped())
             {
-                stepper.Append();
+                stepper.Append(); 
                 stepper.FlushBufferToToken(TokenType.StartString);
+
+                if (stepper.AtEnd)
+                {
+                    stepper.FlushBufferToToken(TokenType.EndString);
+                    continue;
+                }
 
                 while (!stepper.AtEnd)
                 {
-                    if (stepper is { Prev: not '\\', Cur: not '\\', Next: '`' })
+                    if (stepper.Cur == '`' && !stepper.CurIsEscaped())
                     {
-                        stepper.Append();
-                        stepper.FlushBufferToToken(TokenType.StringContent);
                         stepper.Append();
                         stepper.FlushBufferToToken(TokenType.EndString);
                         break;
                     }
 
-                    if (stepper is { Prev: not '\\', Cur: not '\\', Next: '{' })
+                    if (stepper.Cur == '{' && !stepper.CurIsEscaped())
                     {
-                        stepper.Append();
                         stepper.FlushBufferToToken(TokenType.StringContent);
 
                         stepper.Append();
@@ -297,14 +307,11 @@ public static class RapidsLexer
                         bool inString = false;
                         stepper.ClearBuffer();
 
-                        while (true)
+                        while (!stepper.AtEnd)
                         {
-                            if (stepper.AtEnd)
-                                throw new Exception("Unterminated { in template string");
-
                             char c = stepper.Cur;
 
-                            if (c == '`' && stepper.Prev != '\\')
+                            if (c == '`' && !stepper.CurIsEscaped())
                             {
                                 inString = !inString;
                                 stepper.Append();
@@ -313,20 +320,16 @@ public static class RapidsLexer
 
                             if (!inString)
                             {
-                                if (c == '{')
+                                if (c == '{' && !stepper.CurIsEscaped())
                                 {
                                     depth++;
                                     stepper.Append();
                                     continue;
                                 }
-
-                                if (c == '}')
+                                if (c == '}' && !stepper.CurIsEscaped())
                                 {
                                     depth--;
-                                    if (depth == 0)
-                                    {
-                                        break;
-                                    }
+                                    if (depth == 0) break;
                                     stepper.Append();
                                     continue;
                                 }
@@ -334,6 +337,9 @@ public static class RapidsLexer
 
                             stepper.Append();
                         }
+
+                        if (stepper.AtEnd)
+                            throw new Exception("Unterminated { in template string");
 
                         var innerCode = stepper.Buffer;
                         var innerTokens = Lex(innerCode);
@@ -343,23 +349,21 @@ public static class RapidsLexer
                         stepper.Append();
                         stepper.FlushBufferToToken(TokenType.ClosedCurly);
 
-                        if (stepper is { AtEnd: false, Cur: '`' })
-                        {
-                            stepper.Append();
-                            stepper.FlushBufferToToken(TokenType.EndString);
-                            break;
-                        }
-
-                        continue;
+                        continue; 
                     }
 
-
-                    
                     stepper.Append();
                 }
-                
+
+                if (stepper.AtEnd && (stepper.Tokens.LastOrDefault()?.TokenType != TokenType.EndString))
+                {
+                    stepper.FlushBufferToToken(TokenType.StringContent);
+                    stepper.FlushBufferToToken(TokenType.EndString);
+                }
+
                 continue;
             }
+
 
             if (!char.IsLetter(stepper.Cur)) continue;
             stepper.Append();

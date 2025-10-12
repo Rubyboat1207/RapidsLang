@@ -8,4 +8,4 @@ public record PipeStatement(
     ExpressionNode FormatExpression,
     ExpressionNode Target,
     int DebugLevel
-) : StatementNode(DebugLevel);
+) : StatementNode(Pipe, DebugLevel);

@@ -4,4 +4,4 @@ namespace RapidsLang.Parser.Nodes;
 
 public record IdentifierNode(
     Token Token
-) : ExpressionNode;
+) : ExpressionNode(Token);
