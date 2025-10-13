@@ -4,7 +4,7 @@ using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter.Work;
 
-public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interpreter) : InterpreterWork(Interpreter)
+public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interpreter, CodeBlockRunWork? Parent) : InterpreterWork(Interpreter, Parent)
 {
     private StatementsNode Block => Scope.Block;
     
@@ -13,6 +13,12 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
         get => Scope.ProgramCounter;
         set => Scope.ProgramCounter = value;
     }
+
+    protected void EvaluateExpression(ExpressionNode expressionNode, Action<RapidsVariable> callback) =>
+        EvaluateExpression(expressionNode, callback, this);
+
+    protected void EvaluateExpressions(List<ExpressionNode> expressionNodes, Action<List<RapidsVariable>> callback) =>
+        EvaluateExpressions(expressionNodes, callback, this);
     
     public override void Execute()
     {
@@ -44,11 +50,20 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
 
                     if (function is RapidsFunctionReferenceVariable func)
                     {
-                        func.Function!.EnqueueExecution(Context);
+                        func.Function.OnCompleted += OnFuncCompleted;
+                        
+                        func.Function!.EnqueueExecution(Context, this);
+                        
+
+                        void OnFuncCompleted()
+                        {
+                            func.Function.OnCompleted -= OnFuncCompleted;
+                            ProgramCounter++;
+                        }
                     }
                 });
 
-                ProgramCounter++;
+                
             });
 
             
@@ -65,10 +80,11 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
                 );
 
                 Scope.ScopedVariables.Add(declaration.Name.Value);
+                ProgramCounter++;
             });
             
 
-            ProgramCounter++;
+            
             return;
         }
 
@@ -95,11 +111,12 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
                         throw new Exception(
                             $"Operation {assignment.Operator.GetOperator()} is not compatible with types {variable!.Variable.VariableTypeName} and {evaluatedExpression.VariableTypeName}");
                     }
+                    
 
                     variable!.Variable = result;
+                    ProgramCounter++;
                 });
-            });
-            ProgramCounter++;
+            }, this);
             return;
         }
 
@@ -109,7 +126,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             {
                 if (exprValue.Truthy)
                 {
-                    Interpreter.StartNewBlock(whileLoopNode.Block, BlockType.Loop);
+                    Interpreter.StartNewBlock(whileLoopNode.Block, BlockType.Loop, this);
                 }
                 else
                 {
@@ -125,10 +142,11 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             {
                 if (exprValue.Truthy)
                 {
-                    Interpreter.StartNewBlock(ifNode.Block, BlockType.Statement);
+                    Interpreter.StartNewBlock(ifNode.Block, BlockType.Statement, this);
                 }
+                ProgramCounter++;
             });
-            ProgramCounter++;
+            
             return;
         }
         
@@ -138,6 +156,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
                 new RapidsFunctionReferenceVariable(new RapidsUserFunction(functionDeclaration.Function, Interpreter)),
                 true
             ));
+            Scope.ScopedVariables.Add(functionDeclaration.Name.Value);
             ProgramCounter++;
             return;
         }
@@ -146,16 +165,29 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
         {
             EvaluateExpression(returnNode.Value, ret =>
             {
-                Scope.ProgramCounter = Block.Statements.Count;
                 Scope.Return = ret;
-                
-                Interpreter.PushWork(new ResumeExecutionWork(BlockType.Function, Interpreter));
+                Scope.ProgramCounter = Block.Statements.Count;
+
+                if(!IsDone())
+                {
+                    Interpreter.PushWork(new ResumeExecutionWork(BlockType.Function, Interpreter, this));
+                }
+
             });
+            return;
         }
 
         if (ActiveNode is BreakNode)
         {
-            Interpreter.PushWork(new ResumeExecutionWork(BlockType.Loop, Interpreter));
+            Interpreter.PushWork(new ResumeExecutionWork(BlockType.Loop, Interpreter, this));
+            ProgramCounter++;
+            return;
+        }
+
+        if (ActiveNode is ContinueNode)
+        {
+            ProgramCounter = Block.Statements.Count;
+            return;
         }
 
         if (ActiveNode is ListItemAssignmentNode listItemAssignmentNode)
@@ -183,15 +215,19 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
                             
                             list.List[(int)num.Value] = result;
                         }
+                        else if (assignee is RapidsObjectVariable obj)
+                        {
+                            obj.ObjectValues[Utils.StringifyVariable(idx)] = value;
+                        }
                         else
                         {
                             throw new Exception("Invalid array assignment");
                         }
-
+                        ProgramCounter++;
                     });
                 });
             });
-            ProgramCounter++;
+            
         }
     }
 

@@ -3,8 +3,8 @@ using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter.Work;
 
-public record StringExpressionEvaluateWork(StringNode Expression, Action<RapidsVariable> Callback, RapidsInterpreter Interpreter)
-    : ExpressionEvaluateWork<StringNode>(Expression, Callback, Interpreter)
+public record StringExpressionEvaluateWork(StringNode Expression, Action<RapidsVariable> Callback, RapidsInterpreter Interpreter, CodeBlockRunWork? Parent)
+    : ExpressionEvaluateWork<StringNode>(Expression, Callback, Interpreter, Parent)
 {
     private string _str = "";
     private int partIndex;

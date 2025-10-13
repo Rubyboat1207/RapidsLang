@@ -2,25 +2,36 @@ using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter.Work;
 
-public record ResumeExecutionWork(BlockType Type, RapidsInterpreter Interpreter) : InterpreterWork(Interpreter)
+public record ResumeExecutionWork(BlockType Type, RapidsInterpreter Interpreter, CodeBlockRunWork? Parent) : InterpreterWork(Interpreter, Parent)
 {
     private bool _done;
     public override void Execute()
     {
-        Interpreter.WorkStack.Pop(); // just pop myself off.
+        Interpreter.WorkStack.Pop();
         Interpreter.CollapseStack();
-        while (Interpreter.WorkStack.TryPeek(out var work))
-        {
-            ActiveNode = work.ActiveNode;
-            if (work is not CodeBlockRunWork block)
-            {
-                Interpreter.WorkStack.Pop();
-                continue;
-            }
 
-            if (block.Scope.BlockType == Type)
+        var codeBlock = Parent;
+
+        while (codeBlock.Scope.BlockType != Type)
+        {
+            codeBlock = codeBlock.Parent;
+        }
+
+        if (Interpreter.WorkStack.Contains(codeBlock))
+        {
+            while (Interpreter.WorkStack.TryPeek(out var work))
             {
-                break;
+                ActiveNode = work.ActiveNode;
+                if (work is not CodeBlockRunWork block)
+                {
+                    Interpreter.WorkStack.Pop();
+                    continue;
+                }
+
+                if (block.Scope.BlockType == Type)
+                {
+                    break;
+                }
             }
         }
 

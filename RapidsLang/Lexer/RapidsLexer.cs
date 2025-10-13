@@ -22,6 +22,7 @@ public enum TokenType
     False,
     Return,
     Break,
+    Continue,
 
     // -- Symbols
     Dot,
@@ -93,6 +94,7 @@ public class Token(TokenType type, int index, string? value = null)
             TokenType.False => "false",
             TokenType.Return => "return",
             TokenType.Break => "break",
+            TokenType.Continue => "continue",
             TokenType.Dot => ".",
             TokenType.Comma => ",",
             TokenType.Colon => ":",
@@ -187,7 +189,8 @@ public static class RapidsLexer
         TokenType.True,
         TokenType.False,
         TokenType.Return,
-        TokenType.Break
+        TokenType.Break,
+        TokenType.Continue
     ];
 
     private static readonly TokenType[] Symbols =
@@ -291,6 +294,7 @@ public static class RapidsLexer
                 {
                     if (stepper.Cur == '`' && !stepper.CurIsEscaped())
                     {
+                        stepper.FlushBufferToToken(TokenType.StringContent);
                         stepper.Append();
                         stepper.FlushBufferToToken(TokenType.EndString);
                         break;
@@ -365,7 +369,7 @@ public static class RapidsLexer
             }
 
 
-            if (!char.IsLetter(stepper.Cur)) continue;
+            if (!char.IsLetter(stepper.Cur) && stepper.Cur != '_') continue;
             stepper.Append();
 
             while (!stepper.AtEnd)

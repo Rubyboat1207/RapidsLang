@@ -22,7 +22,7 @@ public class InterpreterContext
 
 public class VariableHolder(RapidsVariable Variable, bool Constant, TypeNode? TypeNode = null)
 {
-    public RapidsVariable Variable { get; set; } = Variable;
+    public virtual RapidsVariable Variable { get; set; } = Variable;
     public bool Constant { get; } = Constant;
     public TypeNode? TypeNode { get; } = TypeNode;
 }

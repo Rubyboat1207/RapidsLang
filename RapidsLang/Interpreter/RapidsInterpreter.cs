@@ -40,11 +40,11 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
         return RapidsPreproc.GetRowCol(sourceCode, token.Index, preprocessorMetadata);
     }
 
-    public CodeBlockRunWork StartNewBlock(StatementsNode block, BlockType type)
+    public CodeBlockRunWork StartNewBlock(StatementsNode block, BlockType type, CodeBlockRunWork? Parent)
     {
         CollapseStack();
         var progress = new BlockProgress(block, type);
-        var work = new CodeBlockRunWork(progress, this);
+        var work = new CodeBlockRunWork(progress, this, Parent);
         WorkStack.Push(work);
 
         return work;
@@ -52,7 +52,7 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
 
     public void Interpret()
     {
-        StartNewBlock(root, BlockType.Module);
+        StartNewBlock(root, BlockType.Module, null);
         while (true)
         {
             CollapseStack();
@@ -64,7 +64,7 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
                 }
                 catch(Exception e)
                 {
-                    throw new Exception($"At {GetLineCol(work.ActiveNode.BaseToken)}: {e}");
+                    throw new Exception($"At {GetLineCol(work.ActiveNode.BaseToken)}", e);
                 }
             }
             else

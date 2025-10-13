@@ -55,7 +55,7 @@ public class RapidsStringVariable : RapidsVariable
     {
         if (memberName == "length")
         {
-            return new RapidsNumberVariable(memberName.Length);
+            return new RapidsNumberVariable(Value.Length);
         }
 
         if (memberName == "substr")

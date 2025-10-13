@@ -1,6 +1,8 @@
+using RapidsLang.Parser.Nodes;
+
 namespace RapidsLang.Interpreter.Variables;
 
-public class RapidsObjectVariable(Dictionary<string, RapidsVariable>? initialValues) : RapidsVariable
+public class RapidsObjectVariable(Dictionary<string, RapidsVariable>? initialValues=null) : RapidsVariable
 {
     public override string VariableTypeName => "object";
     public override bool Truthy => ObjectValues.Count > 0;
@@ -10,8 +12,17 @@ public class RapidsObjectVariable(Dictionary<string, RapidsVariable>? initialVal
     {
         if (other is RapidsStringVariable rString)
         {
-            return new RapidsStringVariable(Utils.StringifyVariable(this) + rString.Value);
+            if (op is RapidsOperator.Add)
+            {
+                return new RapidsStringVariable(Utils.StringifyVariable(this) + rString.Value);
+            }
+            
+            if(op is RapidsOperator.Index)
+            {
+                return ObjectValues[rString.Value];
+            }
         }
+        
         
         if (op is RapidsOperator.Equality or RapidsOperator.Inequal)
         {
@@ -37,6 +48,9 @@ public class RapidsObjectVariable(Dictionary<string, RapidsVariable>? initialVal
 
         if (memberName == "__keys__")
         {
+            return new RapidsListVariable(ObjectValues.Keys.Select(k => (RapidsVariable) new RapidsStringVariable(k)).ToList());
+        }else if (memberName == "__values__")
+        {
             return new RapidsListVariable(ObjectValues.Values.ToList());
         }
 
@@ -46,5 +60,30 @@ public class RapidsObjectVariable(Dictionary<string, RapidsVariable>? initialVal
     public override RapidsVariable ShallowCopy()
     {
         return new RapidsObjectVariable(ObjectValues);
+    }
+
+    public VariableHolder? GetMemberReference(string memberName)
+    {
+        if (ObjectValues.ContainsKey(memberName))
+        {
+            return new ObjectMemberVariableHolder(ObjectValues[memberName], this, memberName);
+        }else
+        {
+            var member = GetMember(memberName);
+            if (member is null)
+            {
+                return new ObjectMemberVariableHolder(new RapidsNullVariable(), this, memberName);
+            }
+            return new VariableHolder(member, true, null);
+        }
+    }
+}
+
+public class ObjectMemberVariableHolder(RapidsVariable InitialValue, RapidsObjectVariable Object, string Key) : VariableHolder(InitialValue, false)
+{
+    public override RapidsVariable Variable
+    {
+        get => Object.ObjectValues[Key];
+        set => Object.ObjectValues[Key] = value;
     }
 }

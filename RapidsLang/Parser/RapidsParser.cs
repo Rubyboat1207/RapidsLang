@@ -48,7 +48,7 @@ public class RapidsParser
                     }
                     else
                     {
-                        throw new Exception("todo");
+                        throw new Exception("I dont know.");
                     }
 
                     continue;
@@ -64,7 +64,7 @@ public class RapidsParser
                 if (expression is MemberAccessNode access && IsCurValidAssignPrefix(stepper))
                 {
                     Token op = stepper.Step();
-                    if (stepper.Cur.TokenType != TokenType.Equality)
+                    if (op.TokenType != TokenType.Assignment)
                     {
                         stepper.Increment();
                     }
@@ -192,7 +192,7 @@ public class RapidsParser
                     throw new Exception("Expected open curly");
                 }
 
-                var block = Parse(stepper);
+                var block = Parse(stepper, new StatementsNode(whileToken));
 
                 root.Statements.Add(new WhileLoopNode(
                     whileToken,
@@ -230,7 +230,7 @@ public class RapidsParser
                     throw new Exception("Expected open curly");
                 }
 
-                var block = Parse(stepper);
+                var block = Parse(stepper, new StatementsNode(ifNode));
 
                 root.Statements.Add(new IfNode(
                     ifNode,
@@ -260,6 +260,14 @@ public class RapidsParser
                     GetLogLevel(stepper)
                 ));
             }
+            
+            if (stepper.Cur.TokenType is TokenType.Continue)
+            {
+                root.Statements.Add(new ContinueNode(
+                    stepper.Step(),
+                    GetLogLevel(stepper)
+                ));
+            }
 
             if (stepper.Cur.TokenType is TokenType.ClosedCurly)
             {
@@ -270,6 +278,48 @@ public class RapidsParser
         }
 
         return root;
+    }
+
+    public static Tuple<StringNode, ExpressionNode> GetObjectPair(ListStepper<Token> stepper)
+    {
+        var startString = stepper.Step();
+        if (startString.TokenType != TokenType.StartString)
+        {
+            throw new Exception("Object key must be string, if you tried to pass an expression, try `{expression}`.");
+        }
+
+        var str = ParseString(startString, stepper);
+        if (stepper.Step().TokenType != TokenType.Colon)
+        {
+            throw new Exception("Object key value pair is defined as `string`: value. Expected Colon.");
+        }
+
+        var expr = ParseExpression(stepper);
+
+        return new Tuple<StringNode, ExpressionNode>(str, expr);
+    }
+
+    public static List<Tuple<StringNode, ExpressionNode>> ParseObjectKeyValues(ListStepper<Token> stepper)
+    {
+        List<Tuple<StringNode, ExpressionNode>> kvp = [];
+        while (stepper.Cur.TokenType != TokenType.ClosedCurly)
+        {
+            kvp.Add(GetObjectPair(stepper));
+
+            if (stepper.Cur.TokenType != TokenType.Comma)
+            {
+                break;
+            }
+        }
+
+        if (stepper.Cur.TokenType != TokenType.ClosedCurly)
+        {
+            throw new Exception("Expected Closed curly");
+        }
+        
+        stepper.Increment();
+
+        return kvp;
     }
 
     public static bool IsCurValidAssignPrefix(ListStepper<Token> stepper)
@@ -355,7 +405,13 @@ public class RapidsParser
             return left;
         }
 
-
+        if (stepper.Cur.TokenType == TokenType.OpenParen)
+        {
+            if (!CheckIfIsFunctionDeclaration(stepper))
+            {
+                left = ParseFunctionCall(stepper, left);
+            }
+        }
 
         while (!stepper.AtEnd && Token.GetPrecedence(stepper.Cur.TokenType) >= minPrecedence && stepper.Next?.TokenType != TokenType.Assignment)
         {
@@ -373,6 +429,13 @@ public class RapidsParser
             var op = stepper.Step();
             var precedence = Token.GetPrecedence(op.TokenType);
             var right = ParseExpression(stepper, precedence + 1);
+            if (stepper.Cur.TokenType == TokenType.OpenParen)
+            {
+                if (!CheckIfIsFunctionDeclaration(stepper))
+                {
+                    right = ParseFunctionCall(stepper, left);
+                }
+            }
             if (op.TokenType is TokenType.OpenSquare)
                 stepper.Increment();
 
@@ -432,6 +495,8 @@ public class RapidsParser
                 return ParseString(start, stepper);
             case TokenType.True or TokenType.False:
                 return new BooleanNode(start);
+            case TokenType.OpenCurly:
+                return new ObjectNode(start, ParseObjectKeyValues(stepper));
             case TokenType.OpenParen:
             {
                 if (CheckIfIsFunctionDeclaration(stepper))
@@ -463,13 +528,13 @@ public class RapidsParser
                     var openTriangle = stepper.Step(); // open triangle
                     stepper.Increment(); // open curly
 
-                    var functionBody = Parse(stepper);
+                    var functionBody = Parse(stepper, new StatementsNode(openTriangle));
                     StatementsNode? debugBody = null;
 
                     if (stepper.Cur.TokenType is TokenType.QuestionMark)
                     {
                         stepper.Increment();
-                        debugBody = Parse(stepper);
+                        debugBody = Parse(stepper, new StatementsNode(openTriangle));
                     }
 
                     return new FunctionNode(openTriangle, arguments, functionBody, debugBody);

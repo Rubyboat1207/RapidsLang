@@ -5,11 +5,17 @@ public class RapidsListVariable : RapidsVariable
     public override string VariableTypeName => "array";
     public override bool Truthy => List.Count > 0;
     private readonly RapidsFunction _addFunction;
+    private readonly RapidsFunction _insertFunction;
+    private readonly RapidsFunction _removeAtFunction;
+    private readonly RapidsFunction _popFunction;
 
     public RapidsListVariable(List<RapidsVariable>? list=null)
     {
         List = list ?? [];
         _addFunction = new RapidsNativeFunction(Add);
+        _insertFunction = new RapidsNativeFunction(Insert);
+        _removeAtFunction = new RapidsNativeFunction(RemoveAt);
+        _popFunction = new RapidsNativeFunction(Pop);
     }
 
     public override RapidsVariable? GetMember(string memberName)
@@ -22,6 +28,21 @@ public class RapidsListVariable : RapidsVariable
         if (memberName == "length")
         {
             return new RapidsNumberVariable(List.Count);
+        }
+
+        if (memberName == "insert")
+        {
+            return new RapidsFunctionReferenceVariable(_insertFunction);
+        }
+
+        if (memberName == "removeAt")
+        {
+            return new RapidsFunctionReferenceVariable(_removeAtFunction);
+        }
+
+        if (memberName == "pop")
+        {
+            return new RapidsFunctionReferenceVariable(_popFunction);
         }
 
         return null;
@@ -70,4 +91,53 @@ public class RapidsListVariable : RapidsVariable
         }
         List.Add(result!);
     }
+
+    public void Insert(InterpreterContext ctx)
+    {
+        if (!ctx.FunctionCallStack.TryPop(out var value))
+        {
+            // todo: exceptions
+            // return RapidsFunctionResult.Err("Expected 1 argument, found 0.");
+            return;
+        }
+        if (!ctx.FunctionCallStack.TryPop(out var indexVar) || indexVar is not RapidsNumberVariable index)
+        {
+            // todo: exceptions
+            // return RapidsFunctionResult.Err("Expected 1 argument, found 0.");
+            return;
+        }
+        
+        
+        List.Insert((int) index.Value, value);
+    }
+
+    public void RemoveAt(InterpreterContext ctx)
+    {
+        if (!ctx.FunctionCallStack.TryPop(out var indexVar) || indexVar is not RapidsNumberVariable index)
+        {
+            // todo: exceptions
+            // return RapidsFunctionResult.Err("Expected 1 argument, found 0.");
+            return;
+        }
+        
+        List.RemoveAt((int) index.Value);
+    }
+
+    public void Pop(InterpreterContext ctx)
+    {
+        if (List.Count == 0)
+        {
+            ctx.FunctionCallStack.Push(new RapidsNullVariable());
+            return;
+        }
+        ctx.FunctionCallStack.Push(List.Last());
+        List.RemoveAt(List.Count - 1);
+    }
 }
+
+
+
+
+
+
+

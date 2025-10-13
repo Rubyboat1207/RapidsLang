@@ -4,8 +4,8 @@ using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter.Work;
 
-public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<RapidsVariable> Callback, RapidsInterpreter Interpreter)
-    : ExpressionEvaluateWork<ExpressionNode>(Expression, Callback, Interpreter)
+public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<RapidsVariable> Callback, RapidsInterpreter Interpreter, CodeBlockRunWork? Parent)
+    : ExpressionEvaluateWork<ExpressionNode>(Expression, Callback, Interpreter, Parent)
 {
     public bool _done = false;
     
@@ -69,13 +69,41 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                     }
                     
                     Callback.Invoke(holder.Variable);
-                });
+                }, Parent!);
 
                 _done = true;
                 break;
             case FunctionNode functionNode:
                 _done = true;
                 Callback.Invoke(new RapidsFunctionReferenceVariable(new RapidsUserFunction(functionNode, Interpreter)));
+                break;
+            case ObjectNode objectNode:
+                Dictionary<string, RapidsVariable> keyValues = [];
+                _done = true;
+                if (objectNode.keyValues.Count == 0)
+                {
+                    Callback.Invoke(new RapidsObjectVariable());
+                }
+                
+                objectNode.keyValues.ForEach(kv =>
+                {
+                    EvaluateExpression(kv.Item1, key =>
+                    {
+                        if (key is not RapidsStringVariable str)
+                        {
+                            throw new Exception("Key must be a string");
+                        }
+                        EvaluateExpression(kv.Item2, value =>
+                        {
+                            keyValues[str.Value] = value;
+
+                            if (keyValues.Count == objectNode.keyValues.Count)
+                            {
+                                Callback.Invoke(new RapidsObjectVariable(keyValues));
+                            } 
+                        });
+                    });
+                });
                 break;
             default:
                 throw new NotImplementedException("Expression not supported");

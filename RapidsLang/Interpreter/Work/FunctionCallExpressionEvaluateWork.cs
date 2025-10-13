@@ -3,8 +3,8 @@ using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter.Work;
 
-public record FunctionCallExpressionEvaluateWork(FunctionCallExpressionNode Expression, Action<RapidsVariable> Callback, RapidsInterpreter Interpreter) 
-    : ExpressionEvaluateWork<FunctionCallExpressionNode>(Expression, Callback, Interpreter)
+public record FunctionCallExpressionEvaluateWork(FunctionCallExpressionNode Expression, Action<RapidsVariable> Callback, RapidsInterpreter Interpreter, CodeBlockRunWork? Parent) 
+    : ExpressionEvaluateWork<FunctionCallExpressionNode>(Expression, Callback, Interpreter, Parent)
 {
     private bool _enqueued;
     private bool _done;
@@ -23,13 +23,16 @@ public record FunctionCallExpressionEvaluateWork(FunctionCallExpressionNode Expr
                 {
                     args.ForEach(Context.FunctionCallStack.Push);
 
-                    func.Function.OnCompleted += () =>
+                    void OnFunctionOnOnCompleted()
                     {
+                        func.Function.OnCompleted -= OnFunctionOnOnCompleted;
                         _done = true;
                         Callback.Invoke(Context.FunctionCallStack.Pop());
-                    };
+                    }
 
-                    func.Function.EnqueueExecution(Context);
+                    func.Function.OnCompleted += OnFunctionOnOnCompleted;
+
+                    func.Function.EnqueueExecution(Context, Parent);
                 });
             });
             _enqueued = true;

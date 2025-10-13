@@ -48,293 +48,217 @@ public static class TestPrograms
     """;
 
     public static readonly string ListTest = """
-     use console;
-     
-     let array = [];
-     
-     array.add(`Hello, World!`);
-     
-     print(array[0]);
-     
-     array.add(`Test123`);
-     
-     print(array[1]);
-     
-     let i = 0;
-     while(i < 10) {
-        array.add(i);
-        
-        i += 1;
-     }
-     
-     while(i >= 0) {
-        print(array[i]);
-        
-        i -= 1;
-     }
-     
-     """;
-
-   public static readonly string FunctionTest = """
-     use console;
-     
-     do()> {
-        print(`Hello, Functions`);
-     }
-     
-     do();
+    use console;
+    
+    let array = [];
+    
+    array.add(`Hello, World!`);
+    
+    print(array[0]);
+    
+    array.add(`Test123`);
+    
+    print(array[1]);
+    
+    let i = 0;
+    while(i < 10) {
+    array.add(i);
+    
+    i += 1;
+    }
+    
+    while(i >= 0) {
+    print(array[i]);
+    
+    i -= 1;
+    }
+    
     """;
 
-   public static readonly string FunctionExpressionTest = """
-   use console;
-   
-   get_number()> {
-      return 5;
-   }
-   
-   print(get_number());
-   """;
+    public static readonly string FunctionTest = """
+    use console;
+    
+    do()> {
+        print(`Hello, Functions`);
+    }
+    
+    do();
+    """;
 
-   public static readonly string AddFunctionTest = """
-   use console;
-   
-   add(a, b)> {
-      return a + b;
-   }
+    public static readonly string FunctionExpressionTest = """
+    use console;
+    
+    get_number()> {
+       return 5;
+    }
+    
+    print(get_number());
+    """;
 
+    public static readonly string AddFunctionTest = """
+    use console;
+    
+    add(a, b)> {
+       return a + b;
+    }
+    
+    
+    //test
+    //test
+    //test
+    //test
+    //test
+    
+    print(add(0.5, 1));
+    """;
 
-   //test
-   //test
-   //test
-   //test
-   //test
-   
-   print(add(0.5, 1));
-   """;
+    public static readonly string ArrayModuleTest = """
+    use console;
+    use arrays;
+    
+    // returns array with 16 ones.
+    let arr = filledArray(1, 16);
+    
+    let i = 0;
+    while(i < arr.length) {
+       print(`{i + 1}: {arr[i]}`);
+       
+       i += 1;
+    }
+    """;
 
-  public static readonly string ArrayModuleTest = """
-   use console;
-   use arrays;
-   
-   // returns array with 16 ones.
-   let arr = filledArray(1, 16);
-   
-   let i = 0;
-   while(i < arr.length) {
-      print(`{i + 1}: {arr[i]}`);
-      
+    public static readonly string ArrayAssignmentTest = """
+    use console;
+    use arrays;
+  
+    let arr = filledArray(1, 16);
+  
+    arr[0] = 15;
+  
+    let i = 0;
+    while(i < arr.length) {
+      arr[i] += 1;
+      print(arr[i]);
       i += 1;
-   }
-   """;
+    }
+  
+    """;
 
-  public static readonly string ArrayAssignmentTest = """
-  use console;
-  use arrays;
+    public static readonly string ObjectTest = """
+    use console;
+    
+    const obj = {
+        `test`: `Hello, Objects`
+    };
 
-  let arr = filledArray(1, 16);
+    obj.testAgain = `Hello, Assignments`;
+    
+    print(obj.test);
+    print(obj.testAgain);
+    
+    obj.test = `Hello, Reassignments`;
+    print(obj.test);
+    """;
 
-  arr[0] = 15;
+    public static readonly string RemoveArrayElements = """
+    use console;
+    
+    const arr = [1,2,3,4,5,6,7,8,9,10];
+    
+    arr.removeAt(0);
+    arr.removeAt(arr.length - 1);
+    
+    print(arr);
+    
+    """;
 
-  let i = 0;
-  while(i < arr.length) {
-    arr[i] += 1;
-    print(arr[i]);
-    i += 1;
-  }
-
-  """;
-
-   public static readonly string BrainFuckInterpreterByChatgpt = """
-    // Brainfuck Interpreter (Rapids-style, fully compatible)
-    // -----------------------------------------------------
-    // Required:
-    //   use console;
-    //   use strings; // charFromCode, codeFromChar, substr(start[, end])
-
+    public static readonly string RedefineWhileCheck = """
+    use console;
+    
+    let arr = [5, 10, 15, 20];
+    let i = 0;
+    
+    while(i < arr.length) {
+        let element = arr[i];
+        
+        print(element);
+        
+        i += 1;
+    }
+    """;
+    
+    public static readonly string BrainFuckInterpreter = """
     use console;
     use strings;
-
-    // 1) Brainfuck program string (edit as needed)
-    let program = `++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>++.<<+++++++++++++++.>.+++.------.--------.>+.>.`;
-    // Classic "Hello World!\n"
-
-    // -----------------------------------------------------
-    // Utility: ensure tape index exists
-    ensureIndex(arr, idx)>
-    {
-        while (arr.length <= idx) {
-            arr.add(0);
-        }
-    }
-
-    // Get value from tape
-    tapeGet(arr, idx)>
-    {
-        ensureIndex(arr, idx);
-        return arr[idx];
-    }
-
-    // Set value on tape with 0..255 wrap
-    tapeSet(arr, idx, value)>
-    {
-        ensureIndex(arr, idx);
-        let v = value % 256;
-        if (v < 0) {
-            v += 256;
-        }
-        arr[idx] = v;
-    }
-
-    // Output one cell as character
-    emit(value)>
-    {
-        print(charFromCode(value));
-    }
-
-    // Build bracket jump table (linked pairs of '[' and ']')
-    buildJumpTable(prog)>
-    {
-        let jump = [];
+    use arrays;
+    
+    // Hello, World!
+    let program = `>>+<--[[<++>->-->+++>+<<<]-->++++]<<.<<-.<<..+++.>.<<-.>.+++.------.>>-.<+.>>.`;
+    let ptr = 0;
+    
+    // build jumptable
+    buildJumpTable()> {
+        let table = {};
+        
+        let loopStack = [];
+        
         let i = 0;
-        while (i < prog.length) {
-            jump.add(-1);
+        while(i < program.length) {
+            // print(program[i]);
+            if(program[i] == `[`) {
+                loopStack.insert(0, i);
+            }
+            if(program[i] == `]`) {
+                table[i] = loopStack.pop();
+            }
+            
             i += 1;
         }
-
-        let openStack = [];
-        let top = 0;
-
-        i = 0;
-        while (i < prog.length) {
-            let ch = prog[i];
-
-            if (ch == `[`) {
-                openStack.add(i);
-                top += 1;
-            }
-
-            if (ch == `]`) {
-                if (top == 0) {
-                    print(`Unmatched ']' at {i}`);
-                }
-                if (top > 0) {
-                    top -= 1;
-                    let j = openStack[top];
-                    jump[i] = j;
-                    jump[j] = i;
-                }
-            }
-
-            i += 1;
-        }
-
-        if (top > 0) {
-            let temp = top - 1;
-            let last = openStack[temp];
-            print(`Unmatched '[' at {last}`);
-        }
-
-        return jump;
+        
+        return table;
     }
-
-    // -----------------------------------------------------
-    // Run Brainfuck
-    runBF(prog)>
-    {
-        let jump = buildJumpTable(prog);
-
-        let tape = [];
-        let ptr = 0;
-        let pc = 0;
-
-        let inbuf = ``;
-
-        // On-demand input for ','
-        getInputByte()>
-        {
-            if (inbuf.length == 0) {
-                inbuf = input();
+    
+    const jumptable = buildJumpTable();
+    
+    const tape = filledArray(0, 3000);
+    let tapePtr = 0;
+    
+    let programPointer = 0;
+    
+    while(programPointer < program.length) {
+        let command = program[programPointer];
+    
+        if(command == `+`) {
+            tape[tapePtr] += 1;
+            if(tape[tapePtr] > 255) {
+                tape[tapePtr] = 0;
             }
-
-            if (inbuf.length == 0) {
-                return 0;
-            }
-
-            let ch = inbuf[0];
-            let tempagain = codeFromChar(ch);
-            let code = tempagain % 256;
-            if (code < 0) {
-                code += 256;
-            }
-
-            inbuf = inbuf.substr(1);
-            return code;
         }
-
-        while (pc < prog.length) {
-            let op = prog[pc];
-
-            if (op == `>`) {
-                ptr += 1;
+        if(command == `-`) {
+            tape[tapePtr] -= 1;
+            if(tape[tapePtr] < 0) {
+                tape[tapePtr] = 255;
             }
-
-            if (op == `<`) {
-                ptr -= 1;
-                if (ptr < 0) {
-                    print(`Error: pointer moved left of tape at pc {pc}`);
-                    break;
-                }
-            }
-
-            if (op == `+`) {
-                let v = tapeGet(tape, ptr);
-                tapeSet(tape, ptr, v + 1);
-            }
-
-            if (op == `-`) {
-                let v = tapeGet(tape, ptr);
-                tapeSet(tape, ptr, v - 1);
-            }
-
-            if (op == `.`) {
-                let v = tapeGet(tape, ptr);
-                emit(v);
-            }
-
-            if (op == `,`) {
-                let v = getInputByte();
-                tapeSet(tape, ptr, v);
-            }
-
-            if (op == `[`) {
-                let v = tapeGet(tape, ptr);
-                if (v == 0) {
-                    let mate = jump[pc];
-                    if (mate < 0) {
-                        print(`Error: no matching ']' for '[' at {pc}`);
-                        break;
-                    }
-                    pc = mate;
-                }
-            }
-
-            if (op == `]`) {
-                let v = tapeGet(tape, ptr);
-                if (v != 0) {
-                    let mate = jump[pc];
-                    if (mate < 0) {
-                        print(`Error: no matching '[' for ']' at {pc}`);
-                        break;
-                    }
-                    pc = mate;
-                }
-            }
-
-            pc += 1;
         }
+        if(command == `>`) {
+            tapePtr += 1;
+        }
+        if(command == `<`) {
+            tapePtr -= 1;
+        }
+        if(command == `.`) {
+            putChar(charFromCode(tape[tapePtr]));
+        }
+        if(command == `]`) {
+            if(tape[tapePtr] > 0) {
+                
+                programPointer = jumptable[`{programPointer}`] - 1;
+            }
+        }
+    
+        programPointer += 1;
     }
-
-    // 3) Execute
-    runBF(program);
+    
+    
     """;
 }

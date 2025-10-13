@@ -1,3 +1,4 @@
+using RapidsLang.Interpreter.Work;
 using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter;
@@ -5,7 +6,12 @@ namespace RapidsLang.Interpreter;
 public abstract class RapidsFunction
 {
     public event Action? OnCompleted = null;
-    public virtual void EnqueueExecution(InterpreterContext ctx)
+    public virtual void EnqueueExecution(InterpreterContext ctx, CodeBlockRunWork? parentCodeBlock)
+    {
+        MarkComplete();
+    }
+
+    protected void MarkComplete()
     {
         OnCompleted?.Invoke();
     }
@@ -14,11 +20,11 @@ public abstract class RapidsFunction
 public class RapidsNativeFunction(Action<InterpreterContext> func) : RapidsFunction
 {
     public Action<InterpreterContext> Function { get; } = func;
-    public override void EnqueueExecution(InterpreterContext ctx)
+    public override void EnqueueExecution(InterpreterContext ctx, CodeBlockRunWork? parentCodeBlock)
     {
         Function.Invoke(ctx);
 
-        base.EnqueueExecution(ctx);
+        base.EnqueueExecution(ctx, parentCodeBlock);
     }
 }
 
@@ -27,9 +33,9 @@ public class RapidsUserFunction(FunctionNode func, RapidsInterpreter interpreter
     public FunctionNode Func { get; } = func;
     public RapidsInterpreter Interpreter { get; } = interpreter;
 
-    public override void EnqueueExecution(InterpreterContext ctx)
+    public override void EnqueueExecution(InterpreterContext ctx, CodeBlockRunWork? parentCodeBlock)
     {
-        var body = Interpreter.StartNewBlock(func.Body, BlockType.Function);
+        var body = Interpreter.StartNewBlock(func.Body, BlockType.Function, parentCodeBlock);
 
         var oldVariables = new List<Tuple<string, VariableHolder>>();
         
@@ -60,7 +66,7 @@ public class RapidsUserFunction(FunctionNode func, RapidsInterpreter interpreter
                 ctx.FunctionCallStack.Push(body.Scope.Return);
             }
 
-            base.EnqueueExecution(ctx);
+            base.EnqueueExecution(ctx, parentCodeBlock);
 
         });
         

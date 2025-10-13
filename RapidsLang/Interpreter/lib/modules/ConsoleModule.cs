@@ -28,9 +28,20 @@ public class ConsoleModule : Module
         context.FunctionCallStack.Push(input != null ? new RapidsStringVariable(input) : new RapidsNullVariable());
     }
 
+    public static void PutChar(InterpreterContext ctx)
+    {
+        ctx.FunctionCallStack.TryPop(out var variable);
+
+        if (variable is not null)
+        {
+            Console.Write(Utils.StringifyVariable(variable));
+        }
+    }
+
     public override void Import(InterpreterContext context)
     {
         context.AddNativeFunction("print", Print);
+        context.AddNativeFunction("putChar", PutChar);
         context.AddNativeFunction("input", Input);
     }
 }
