@@ -3,7 +3,7 @@ using RapidsLang.Lexer;
 namespace RapidsLang.Parser.Nodes;
 
 public record UseStatementNode(
-    Token Use,
+    Token BaseToken,
     string ModuleIdentifier,
     int DebugLevel
-) : StatementNode(Use, DebugLevel);
+) : StatementNode(BaseToken, DebugLevel);

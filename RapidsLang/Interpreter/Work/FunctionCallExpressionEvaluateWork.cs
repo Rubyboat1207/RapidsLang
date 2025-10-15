@@ -36,17 +36,11 @@ public record FunctionCallExpressionEvaluateWork(FunctionCallExpressionNode Expr
                 });
             });
             _enqueued = true;
-            return;
         }
     }
 
     public override bool IsDone()
     {
         return _done;
-    }
-
-    public override void Cleanup()
-    {
-        
     }
 }

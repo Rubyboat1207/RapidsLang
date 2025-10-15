@@ -23,6 +23,7 @@ public class BlockProgress(StatementsNode block, BlockType blockType, int progra
     public StatementsNode Block { get; } = block;
     public RapidsVariable? Return = null;
     public BlockType BlockType { get; } = blockType;
+    public bool ShouldBreakOut { get; set; }
 }
 
 public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preprocessorMetadata, StatementsNode root)
@@ -64,7 +65,12 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
                 }
                 catch(Exception e)
                 {
-                    throw new Exception($"At {GetLineCol(work.ActiveNode.BaseToken)}", e);
+                    if (work.ActiveNode is not null)
+                    {
+                        throw new Exception($"At {GetLineCol(work.ActiveNode.BaseToken)}", e);
+                    }
+
+                    throw;
                 }
             }
             else
@@ -74,14 +80,12 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
 
         }
     }
-    
+
     public void CollapseStack()
     {
         while(WorkStack.TryPeek(out var work) && work.IsDone())
         {
             WorkStack.Pop().Cleanup();
-            work.CompletedListeners.ForEach(l => l.Invoke());
-            continue;
         }
     }
 }

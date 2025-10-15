@@ -3,8 +3,8 @@ using RapidsLang.Lexer;
 namespace RapidsLang.Parser.Nodes;
 
 public record DefineTargetStatement(
-    Token Define,
+    Token BaseToken,
     Token Name,
     TypeNode? Type,
     int DebugLevel
-) : StatementNode(Define, DebugLevel);
+) : StatementNode(BaseToken, DebugLevel);

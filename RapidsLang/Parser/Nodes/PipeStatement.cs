@@ -3,9 +3,9 @@ using RapidsLang.Lexer;
 namespace RapidsLang.Parser.Nodes;
 
 public record PipeStatement(
-    Token Pipe,
+    Token BaseToken,
     ExpressionNode Source,
     ExpressionNode FormatExpression,
     ExpressionNode Target,
     int DebugLevel
-) : StatementNode(Pipe, DebugLevel);
+) : StatementNode(BaseToken, DebugLevel);

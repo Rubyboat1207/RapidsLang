@@ -3,8 +3,9 @@ using RapidsLang.Lexer;
 namespace RapidsLang.Parser.Nodes;
 
 public record IfNode(
-    Token If,
+    Token BaseToken,
     ExpressionNode Condition,
     StatementsNode Block,
+    List<ElseNode> ElseNodes,
     int DebugLevel
-) : StatementNode(If, DebugLevel);
+) : StatementNode(BaseToken, DebugLevel);

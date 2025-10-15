@@ -17,10 +17,12 @@ public class RapidsObjectVariable(Dictionary<string, RapidsVariable>? initialVal
                 return new RapidsStringVariable(Utils.StringifyVariable(this) + rString.Value);
             }
             
-            if(op is RapidsOperator.Index)
-            {
-                return ObjectValues[rString.Value];
-            }
+            
+        }
+        
+        if(op is RapidsOperator.Index)
+        {
+            return ObjectValues[Utils.StringifyVariable(other)];
         }
         
         

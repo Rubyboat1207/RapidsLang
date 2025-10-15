@@ -101,14 +101,7 @@ public static class TestPrograms
     add(a, b)> {
        return a + b;
     }
-    
-    
-    //test
-    //test
-    //test
-    //test
-    //test
-    
+
     print(add(0.5, 1));
     """;
 
@@ -186,6 +179,29 @@ public static class TestPrograms
         i += 1;
     }
     """;
+
+    public static readonly string IfElseTest = """"
+    use console;
+    
+    let str = input(`What's your name?`);
+    
+    if(str == `ruby`) {
+        print(`Hello... you.`);
+    }else if(str == `your mom`) {
+        print(`thats not nice...`);
+    }
+    
+    """";
+
+    public static readonly string ReturnFromIfStatementTest = """
+    use console;
+    
+    print(()> {
+        if(true) {
+            return 2;
+        }
+    }());
+    """;
     
     public static readonly string BrainFuckInterpreter = """
     use console;
@@ -204,7 +220,6 @@ public static class TestPrograms
         
         let i = 0;
         while(i < program.length) {
-            // print(program[i]);
             if(program[i] == `[`) {
                 loopStack.insert(0, i);
             }
@@ -234,25 +249,24 @@ public static class TestPrograms
                 tape[tapePtr] = 0;
             }
         }
-        if(command == `-`) {
+        else if(command == `-`) {
             tape[tapePtr] -= 1;
             if(tape[tapePtr] < 0) {
                 tape[tapePtr] = 255;
             }
         }
-        if(command == `>`) {
+        else if(command == `>`) {
             tapePtr += 1;
         }
-        if(command == `<`) {
+        else if(command == `<`) {
             tapePtr -= 1;
         }
-        if(command == `.`) {
+        else if(command == `.`) {
             putChar(charFromCode(tape[tapePtr]));
         }
-        if(command == `]`) {
+        else if(command == `]`) {
             if(tape[tapePtr] > 0) {
-                
-                programPointer = jumptable[`{programPointer}`] - 1;
+                programPointer = jumptable[programPointer] - 1;
             }
         }
     

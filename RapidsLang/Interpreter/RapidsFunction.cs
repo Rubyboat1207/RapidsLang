@@ -54,7 +54,7 @@ public class RapidsUserFunction(FunctionNode func, RapidsInterpreter interpreter
             }
         }
 
-        body.CompletedListeners.Add(() =>
+        body.OnCompleted += (_) =>
         {
             foreach (var oldVariable in oldVariables)
             {
@@ -68,7 +68,7 @@ public class RapidsUserFunction(FunctionNode func, RapidsInterpreter interpreter
 
             base.EnqueueExecution(ctx, parentCodeBlock);
 
-        });
+        };
         
     }
 }
