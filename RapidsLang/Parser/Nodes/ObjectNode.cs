@@ -3,6 +3,6 @@ using RapidsLang.Lexer;
 namespace RapidsLang.Parser.Nodes;
 
 public record ObjectNode(
-    Token OpenCurlyBrace,
+    Token BaseToken,
     List<Tuple<StringNode, ExpressionNode>> keyValues
-) : ExpressionNode(OpenCurlyBrace);
+) : ExpressionNode(BaseToken);

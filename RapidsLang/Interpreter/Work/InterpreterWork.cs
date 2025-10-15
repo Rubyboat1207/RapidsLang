@@ -4,18 +4,21 @@ using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter.Work;
 
-public abstract record InterpreterWork(RapidsInterpreter interpreter, CodeBlockRunWork? Parent)
+public abstract record InterpreterWork(RapidsInterpreter Interpreter, CodeBlockRunWork? Parent)
 {
-    public RapidsInterpreter Interpreter = interpreter;
-    
     protected InterpreterContext Context => Interpreter.Context;
     protected string GetLineCol(Token token) => Interpreter.GetLineCol(token);
     
     public abstract void Execute();
     public abstract bool IsDone();
-    public abstract Node ActiveNode { get; protected set; }
-    public virtual void Cleanup() {}
-    public List<Action> CompletedListeners = [];
+    public abstract Node? ActiveNode { get; }
+
+    public virtual void Cleanup()
+    {
+        // Console.WriteLine("Invoking listeners on block " + this.GetHashCode());
+        OnCompleted?.Invoke(this);
+    }
+    public event Action<InterpreterWork>? OnCompleted;
 
     protected void EvaluateExpression(ExpressionNode expressionNode, Action<RapidsVariable> callback, CodeBlockRunWork parent)
     {
@@ -99,7 +102,7 @@ public abstract record ExpressionEvaluateWork<T>(
 )
     : InterpreterWork(Interpreter, Parent) where T : ExpressionNode
 {
-    public override Node ActiveNode { get; protected set; } = Expression;
+    public override Node? ActiveNode { get; } = Expression;
     
     protected void EvaluateExpression(ExpressionNode expressionNode, Action<RapidsVariable> callback) =>
         EvaluateExpression(expressionNode, callback, Parent!);

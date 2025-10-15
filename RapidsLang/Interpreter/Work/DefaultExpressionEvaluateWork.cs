@@ -7,7 +7,7 @@ namespace RapidsLang.Interpreter.Work;
 public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<RapidsVariable> Callback, RapidsInterpreter Interpreter, CodeBlockRunWork? Parent)
     : ExpressionEvaluateWork<ExpressionNode>(Expression, Callback, Interpreter, Parent)
 {
-    public bool _done = false;
+    private bool _done;
     
     public override void Execute()
     {
@@ -113,10 +113,5 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
     public override bool IsDone()
     {
         return _done;
-    }
-
-    public override void Cleanup()
-    {
-        
     }
 }

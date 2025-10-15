@@ -14,15 +14,15 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
         set => Scope.ProgramCounter = value;
     }
 
-    protected void EvaluateExpression(ExpressionNode expressionNode, Action<RapidsVariable> callback) =>
+    private void EvaluateExpression(ExpressionNode expressionNode, Action<RapidsVariable> callback) =>
         EvaluateExpression(expressionNode, callback, this);
 
-    protected void EvaluateExpressions(List<ExpressionNode> expressionNodes, Action<List<RapidsVariable>> callback) =>
+    private void EvaluateExpressions(List<ExpressionNode> expressionNodes, Action<List<RapidsVariable>> callback) =>
         EvaluateExpressions(expressionNodes, callback, this);
     
     public override void Execute()
     {
-        ActiveNode = Block.Statements[ProgramCounter];
+        CurrentlyEvaluatingNode = Block.Statements[ProgramCounter];
 
         if (ActiveNode is UseStatementNode useNode)
         {
@@ -30,7 +30,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
 
             if (module is null)
             {
-                Console.WriteLine($"Module {useNode.ModuleIdentifier} at {GetLineCol(useNode.Use)} was not found.");
+                Console.WriteLine($"Module {useNode.ModuleIdentifier} at {GetLineCol(useNode.BaseToken)} was not found.");
             }
             else
             {
@@ -48,22 +48,19 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
                 {
                     variables.ForEach(Interpreter.Context.FunctionCallStack.Push);
 
-                    if (function is RapidsFunctionReferenceVariable func)
-                    {
-                        func.Function.OnCompleted += OnFuncCompleted;
+                    if (function is not RapidsFunctionReferenceVariable func) return;
+                    func.Function.OnCompleted += OnFuncCompleted;
                         
-                        func.Function!.EnqueueExecution(Context, this);
-                        
+                    func.Function.EnqueueExecution(Context, this);
+                    return;
 
-                        void OnFuncCompleted()
-                        {
-                            func.Function.OnCompleted -= OnFuncCompleted;
-                            ProgramCounter++;
-                        }
+
+                    void OnFuncCompleted()
+                    {
+                        func.Function.OnCompleted -= OnFuncCompleted;
+                        ProgramCounter++;
                     }
                 });
-
-                
             });
 
             
@@ -94,7 +91,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             {
                 if (variable is null)
                     throw new Exception("Variable was undefined");
-                if (variable!.Constant)
+                if (variable.Constant)
                     throw new Exception($"attempted to assign to a constant variable at {GetLineCol(assignment.Operator)}.");
 
                 EvaluateExpression(assignment.Expression, evaluatedExpression =>
@@ -103,17 +100,17 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
                 
                     if(assignment.Operator.TokenType != TokenType.Assignment)
                     {
-                        result = variable!.Variable.GetResult(assignment.Operator.GetOperator(), evaluatedExpression);
+                        result = variable.Variable.GetResult(assignment.Operator.GetOperator(), evaluatedExpression);
                     }
 
                     if(result is null)
                     {
                         throw new Exception(
-                            $"Operation {assignment.Operator.GetOperator()} is not compatible with types {variable!.Variable.VariableTypeName} and {evaluatedExpression.VariableTypeName}");
+                            $"Operation {assignment.Operator.GetOperator()} is not compatible with types {variable.Variable.VariableTypeName} and {evaluatedExpression.VariableTypeName}");
                     }
                     
 
-                    variable!.Variable = result;
+                    variable.Variable = result;
                     ProgramCounter++;
                 });
             }, this);
@@ -126,7 +123,23 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             {
                 if (exprValue.Truthy)
                 {
-                    Interpreter.StartNewBlock(whileLoopNode.Block, BlockType.Loop, this);
+                    var block = Interpreter.StartNewBlock(whileLoopNode.Block, BlockType.Loop, this);
+                    // Console.WriteLine("Adding listener to block " + block.GetHashCode());
+                    
+                    block.OnCompleted += BlockOnCompletedListeners;
+
+                    void BlockOnCompletedListeners(InterpreterWork work)
+                    {
+                        if(work is not CodeBlockRunWork codeWork)
+                        {
+                            throw new Exception("how");
+                        }
+
+                        if (codeWork.Scope.ShouldBreakOut)
+                        {
+                            ProgramCounter++;
+                        }
+                    }
                 }
                 else
                 {
@@ -138,15 +151,25 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
 
         if (ActiveNode is IfNode ifNode)
         {
-            EvaluateExpression(ifNode.Condition, exprValue =>
-            {
-                if (exprValue.Truthy)
-                {
-                    Interpreter.StartNewBlock(ifNode.Block, BlockType.Statement, this);
-                }
-                ProgramCounter++;
-            });
+            // EvaluateExpression(ifNode.Condition, exprValue =>
+            // {
+            //     if (exprValue.Truthy)
+            //     {
+            //         Interpreter.StartNewBlock(ifNode.Block, BlockType.Statement, this);
+            //     }
+            //     ProgramCounter++;
+            // });
+            var work = new IfStatementWork(Interpreter, this, ifNode);
+            Interpreter.PushWork(work);
             
+            work.OnCompleted += WorkOnOnCompleted;
+
+            void WorkOnOnCompleted(InterpreterWork obj)
+            {
+                work.OnCompleted -= WorkOnOnCompleted;
+                ProgramCounter++;
+            }
+
             return;
         }
         
@@ -165,22 +188,43 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
         {
             EvaluateExpression(returnNode.Value, ret =>
             {
-                Scope.Return = ret;
-                Scope.ProgramCounter = Block.Statements.Count;
-
-                if(!IsDone())
+                var codeBlock = this;
+            
+                while (codeBlock is { Scope.BlockType: not BlockType.Function })
                 {
-                    Interpreter.PushWork(new ResumeExecutionWork(BlockType.Function, Interpreter, this));
+                    codeBlock.Scope.ShouldBreakOut = true;
+                    codeBlock = codeBlock.Parent;
                 }
 
+                if (codeBlock == null)
+                {
+                    throw new Exception("Return can only be used under a while loop");
+                }
+            
+                codeBlock.Scope.ShouldBreakOut = true;
+                Context.FunctionCallStack.Push(ret);
             });
             return;
         }
 
         if (ActiveNode is BreakNode)
         {
-            Interpreter.PushWork(new ResumeExecutionWork(BlockType.Loop, Interpreter, this));
-            ProgramCounter++;
+            // Interpreter.PushWork(new ResumeExecutionWork(BlockType.Loop, Interpreter, this));
+            // ProgramCounter++;
+            var codeBlock = this;
+            
+            while (codeBlock is { Scope.BlockType: not BlockType.Loop })
+            {
+                codeBlock.Scope.ShouldBreakOut = true;
+                codeBlock = codeBlock.Parent;
+            }
+
+            if (codeBlock == null)
+            {
+                throw new Exception("Return can only be used under a while loop");
+            }
+            
+            codeBlock.Scope.ShouldBreakOut = true;
             return;
         }
 
@@ -233,10 +277,11 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
 
     public override bool IsDone()
     {
-        return Scope.ProgramCounter >= Block.Statements.Count;
+        return Scope.ProgramCounter >= Block.Statements.Count || Scope.ShouldBreakOut;
     }
 
-    public override Node ActiveNode { get; protected set; }
+    public Node? CurrentlyEvaluatingNode { get; set; }
+    public override Node? ActiveNode { get => CurrentlyEvaluatingNode; }
 
     public override void Cleanup()
     {
@@ -244,5 +289,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
         {
             Interpreter.Context.variables.Remove(variable);
         }
+        
+        base.Cleanup();
     }
 }

@@ -23,6 +23,7 @@ public enum TokenType
     Return,
     Break,
     Continue,
+    Else,
 
     // -- Symbols
     Dot,
@@ -95,6 +96,7 @@ public class Token(TokenType type, int index, string? value = null)
             TokenType.Return => "return",
             TokenType.Break => "break",
             TokenType.Continue => "continue",
+            TokenType.Else => "else",
             TokenType.Dot => ".",
             TokenType.Comma => ",",
             TokenType.Colon => ":",
@@ -180,6 +182,7 @@ public static class RapidsLexer
         TokenType.Target,
         TokenType.Source,
         TokenType.If,
+        TokenType.Else,
         TokenType.For,
         TokenType.While,
         TokenType.Let,

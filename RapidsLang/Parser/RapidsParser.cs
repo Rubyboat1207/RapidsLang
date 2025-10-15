@@ -4,7 +4,7 @@ using RapidsLang.Utils;
 
 namespace RapidsLang.Parser;
 
-public class RapidsParser
+public static class RapidsParser
 {
     public static StatementsNode Parse(List<Token> tokens)
     {
@@ -13,7 +13,7 @@ public class RapidsParser
         return Parse(stepper);
     }
 
-    public static StatementsNode Parse(ListStepper<Token> stepper, StatementsNode? activeBlock=null)
+    private static StatementsNode Parse(ListStepper<Token> stepper, StatementsNode? activeBlock=null)
     {
         var root = activeBlock ?? new StatementsNode(stepper.Cur);
         
@@ -204,10 +204,9 @@ public class RapidsParser
                 continue;
             }
             
-            
             if (stepper.Cur.TokenType is TokenType.If )
             {
-                var ifNode = stepper.Step();
+                var ifToken = stepper.Step();
                 var paren = stepper.Step();
                 if (paren is not { TokenType: TokenType.OpenParen })
                 {
@@ -230,12 +229,42 @@ public class RapidsParser
                     throw new Exception("Expected open curly");
                 }
 
-                var block = Parse(stepper, new StatementsNode(ifNode));
+                var block = Parse(stepper, new StatementsNode(ifToken));
+                List<ElseNode> elseNodes = [];
+
+                while (stepper is { AtEnd: false, Cur.TokenType: TokenType.Else })
+                {
+                    var el = stepper.Step();
+                    var final = true;
+                    ExpressionNode? expressionNode = null;
+                    if (stepper.Cur.TokenType == TokenType.If)
+                    {
+                        stepper.Increment();
+                        
+                        stepper.Increment(); // open paren
+                        expressionNode = ParseExpression(stepper);
+                        stepper.Increment(); // close paren
+                        
+                        final = false;
+                    }
+                    
+                    stepper.Increment(); // open curly
+                    
+                    elseNodes.Add(new ElseNode(
+                        el,
+                        expressionNode,
+                        Parse(stepper, new StatementsNode(el))
+                    ));
+
+                    if (final)
+                        break;
+                }
 
                 root.Statements.Add(new IfNode(
-                    ifNode,
+                    ifToken,
                     expression,
                     block,
+                    elseNodes,
                     0
                 ));
 
@@ -280,7 +309,7 @@ public class RapidsParser
         return root;
     }
 
-    public static Tuple<StringNode, ExpressionNode> GetObjectPair(ListStepper<Token> stepper)
+    private static Tuple<StringNode, ExpressionNode> GetObjectPair(ListStepper<Token> stepper)
     {
         var startString = stepper.Step();
         if (startString.TokenType != TokenType.StartString)
@@ -299,7 +328,7 @@ public class RapidsParser
         return new Tuple<StringNode, ExpressionNode>(str, expr);
     }
 
-    public static List<Tuple<StringNode, ExpressionNode>> ParseObjectKeyValues(ListStepper<Token> stepper)
+    private static List<Tuple<StringNode, ExpressionNode>> ParseObjectKeyValues(ListStepper<Token> stepper)
     {
         List<Tuple<StringNode, ExpressionNode>> kvp = [];
         while (stepper.Cur.TokenType != TokenType.ClosedCurly)
@@ -322,14 +351,14 @@ public class RapidsParser
         return kvp;
     }
 
-    public static bool IsCurValidAssignPrefix(ListStepper<Token> stepper)
+    private static bool IsCurValidAssignPrefix(ListStepper<Token> stepper)
     {
         return stepper.Cur is { TokenType: TokenType.Plus or TokenType.Minus or TokenType.Slash or TokenType.Star or TokenType.Modulo or TokenType.Assignment };
     }
 
-    public static FunctionCallExpressionNode ParseFunctionCall(ListStepper<Token> stepper, ExpressionNode initialExpression)
+    private static FunctionCallExpressionNode ParseFunctionCall(ListStepper<Token> stepper, ExpressionNode initialExpression)
     {
-        if (initialExpression is not (MemberAccessNode or IdentifierNode))
+        if (initialExpression is not (MemberAccessNode or IdentifierNode or FunctionNode))
         {
             throw new Exception("Unexpected Function Call");
         }
@@ -347,7 +376,7 @@ public class RapidsParser
         );
     }
 
-    public static List<ExpressionNode> ParseParams(ListStepper<Token> stepper)
+    private static List<ExpressionNode> ParseParams(ListStepper<Token> stepper)
     {
         List<ExpressionNode> parameters = [];
         while (stepper is { AtEnd: false, Cur.TokenType: not TokenType.ClosedParen })
@@ -362,10 +391,11 @@ public class RapidsParser
         }
 
         return parameters;
-    } 
+    }
 
-    public static int GetLogLevel(ListStepper<Token> stepper)
+    private static int GetLogLevel(ListStepper<Token> stepper)
     {
+        // ReSharper disable once SwitchStatementHandlesSomeKnownEnumValuesWithDefault
         switch (stepper.Cur.TokenType)
         {
             case TokenType.SemiColon:
@@ -388,28 +418,24 @@ public class RapidsParser
         }
     }
 
-    public static ExpressionNode ParseExpression(ListStepper<Token> stepper, int minPrecedence = 0)
+    private static ExpressionNode ParseExpression(ListStepper<Token> stepper, int minPrecedence = 0)
     {
-        // Array
-        ExpressionNode left;
-        
-        left = ParseSimpleExpression(stepper);
-        
+        var left = ParseSimpleExpression(stepper);
 
-        if(stepper.Cur.TokenType is TokenType.Plus or TokenType.Minus or TokenType.Slash or TokenType.Star or TokenType.Modulo && stepper.Next?.TokenType == TokenType.Assignment)
+        switch (stepper.Cur.TokenType)
         {
-            if (left is not (MemberAccessNode or IdentifierNode))
+            case TokenType.Plus or TokenType.Minus or TokenType.Slash or TokenType.Star or TokenType.Modulo when stepper.Next?.TokenType == TokenType.Assignment:
             {
-                throw new Exception("Cannot assign to literals");
+                return left is not (MemberAccessNode or IdentifierNode) ? throw new Exception("Cannot assign to literals") : left;
             }
-            return left;
-        }
-
-        if (stepper.Cur.TokenType == TokenType.OpenParen)
-        {
-            if (!CheckIfIsFunctionDeclaration(stepper))
+            case TokenType.OpenParen:
             {
-                left = ParseFunctionCall(stepper, left);
+                if (!CheckIfIsFunctionDeclaration(stepper))
+                {
+                    left = ParseFunctionCall(stepper, left);
+                }
+
+                break;
             }
         }
 
@@ -442,6 +468,7 @@ public class RapidsParser
             left = new OperationNode(left, op, right);
         }
         
+        // ReSharper disable once InvertIf
         if (stepper.Cur.TokenType == TokenType.OpenParen)
         {
             if (!CheckIfIsFunctionDeclaration(stepper))
@@ -453,7 +480,7 @@ public class RapidsParser
         return left;
     }
 
-    public static bool CheckIfIsFunctionDeclaration(ListStepper<Token> stepper)
+    private static bool CheckIfIsFunctionDeclaration(ListStepper<Token> stepper)
     {
         var openParens = 1;
         var explorer = new ListStepper<Token>(stepper.FromIndex());
@@ -476,14 +503,14 @@ public class RapidsParser
         }
         // so in theory this is ambiguous in the exact situation where you are trying to compare the result of a function with a property of an object declared inline
         // like so: function() > {test: 5}.test
-        // but I dont want to deal with this situation, so developers are gonna have to do this:
+        // but I don't want to deal with this situation, so developers have to do this:
         // function() > ({test: 5}).test
-        return explorer.Cur.TokenType is TokenType.ClosedTriangle && explorer.Next.TokenType is TokenType.OpenCurly;
+        return explorer.Cur.TokenType is TokenType.ClosedTriangle && explorer.Next is { TokenType: TokenType.OpenCurly };
     }
 
-    public static ExpressionNode ParseSimpleExpression(ListStepper<Token> stepper)
+    private static ExpressionNode ParseSimpleExpression(ListStepper<Token> stepper)
     {
-        Token start = stepper.Step();
+        var start = stepper.Step();
 
         switch (start.TokenType)
         {
@@ -568,7 +595,7 @@ public class RapidsParser
         }
     }
 
-    public static StringNode ParseString(Token startString, ListStepper<Token> stepper)
+    private static StringNode ParseString(Token startString, ListStepper<Token> stepper)
     {
         StringNode stringNode = new(startString);
 
