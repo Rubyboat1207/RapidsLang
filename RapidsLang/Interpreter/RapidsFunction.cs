@@ -35,7 +35,7 @@ public class RapidsUserFunction(FunctionNode func, RapidsInterpreter interpreter
 
     public override void EnqueueExecution(InterpreterContext ctx, CodeBlockRunWork? parentCodeBlock)
     {
-        var body = Interpreter.StartNewBlock(func.Body, BlockType.Function, parentCodeBlock);
+        var body = Interpreter.StartNewBlock(Func.Body, BlockType.Function, parentCodeBlock);
 
         var oldVariables = new List<Tuple<string, VariableHolder>>();
         

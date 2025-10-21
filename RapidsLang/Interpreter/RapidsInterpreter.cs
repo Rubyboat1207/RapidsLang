@@ -1,3 +1,4 @@
+using RapidsLang.Extensions;
 using RapidsLang.Interpreter.Variables;
 using RapidsLang.Interpreter.Work;
 using RapidsLang.Lexer;
@@ -87,5 +88,10 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
         {
             WorkStack.Pop().Cleanup();
         }
+    }
+
+    public void AddExtensionModule(ManifestContainer manifestContainer)
+    {
+        
     }
 }

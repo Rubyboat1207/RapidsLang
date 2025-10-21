@@ -7,6 +7,7 @@ public class InterpreterContext
 {
     public Stack<RapidsVariable> FunctionCallStack = [];
     public Dictionary<string, VariableHolder> variables { get; init; } = [];
+    public ModuleRegistry ModuleRegistry = new();
 
     public void AddNativeFunction(string name, Action<InterpreterContext> func)
     {

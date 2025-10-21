@@ -141,7 +141,7 @@ public static class TestPrograms
     use console;
     
     const obj = {
-        `test`: `Hello, Objects`
+        test: `Hello, Objects`
     };
 
     obj.testAgain = `Hello, Assignments`;

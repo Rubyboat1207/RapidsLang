@@ -1,11 +1,23 @@
 using RapidsLang.Lexer;
 using RapidsLang.Parser.Nodes;
+using RapidsLang.PreProcessor;
 using RapidsLang.Utils;
 
 namespace RapidsLang.Parser;
 
 public static class RapidsParser
 {
+    public static StatementsNode Parse(string code)
+    {
+        var preprocRes = RapidsPreproc.Preprocess(code);
+
+        var lexResult = RapidsLexer.Lex(preprocRes.Output);
+        
+        var parseResult = Parse(lexResult);
+
+        return parseResult;
+    }
+    
     public static StatementsNode Parse(List<Token> tokens)
     {
         ListStepper<Token> stepper = new(tokens);
@@ -312,12 +324,24 @@ public static class RapidsParser
     private static Tuple<StringNode, ExpressionNode> GetObjectPair(ListStepper<Token> stepper)
     {
         var startString = stepper.Step();
-        if (startString.TokenType != TokenType.StartString)
+
+        StringNode str;
+        
+        if (startString.TokenType is TokenType.StartString)
+        {
+            str = ParseString(startString, stepper);
+        }else if (startString.TokenType is TokenType.Identifier)
+        {
+            // this is a bit of a hack, but ultimately it works.
+            str = new StringNode(startString, [new LiteralStringPart(startString)]);
+        }
+        else
         {
             throw new Exception("Object key must be string, if you tried to pass an expression, try `{expression}`.");
         }
+        
+        
 
-        var str = ParseString(startString, stepper);
         if (stepper.Step().TokenType != TokenType.Colon)
         {
             throw new Exception("Object key value pair is defined as `string`: value. Expected Colon.");

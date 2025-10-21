@@ -1,4 +1,5 @@
-﻿using RapidsLang.Interpreter;
+﻿using RapidsLang.Extensions;
+using RapidsLang.Interpreter;
 using RapidsLang.Lexer;
 using RapidsLang.Parser;
 using RapidsLang.PreProcessor;
@@ -10,14 +11,18 @@ public class RapidLangEntry
 {
     public static void Main(string[] args)
     {
-        var code = TestPrograms.BrainFuckInterpreter;
+        var code = TestPrograms.ObjectTest;
         var preprocRes = RapidsPreproc.Preprocess(code);
 
         var lexResult = RapidsLexer.Lex(preprocRes.Output);
         
         var parseResult = RapidsParser.Parse(lexResult);
-
+        
         var interpreter = new RapidsInterpreter(code, preprocRes.Metadata, parseResult);
+        
+        var extensions = ExtensionLoader.GetExtensionManifests();
+
+        
 
         interpreter.Interpret();
     }

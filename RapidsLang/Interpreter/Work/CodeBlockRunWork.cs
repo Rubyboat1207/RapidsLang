@@ -26,7 +26,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
 
         if (ActiveNode is UseStatementNode useNode)
         {
-            Modules.RegisteredModules.TryGetValue(useNode.ModuleIdentifier, out var module);
+            Context.ModuleRegistry.TryGetModule(useNode.ModuleIdentifier, out var module);
 
             if (module is null)
             {
