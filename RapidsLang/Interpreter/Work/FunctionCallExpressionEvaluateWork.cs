@@ -32,7 +32,7 @@ public record FunctionCallExpressionEvaluateWork(FunctionCallExpressionNode Expr
 
                     func.Function.OnCompleted += OnFunctionOnOnCompleted;
 
-                    func.Function.EnqueueExecution(Context, Parent);
+                    func.Function.EnqueueExecution(Interpreter, Parent);
                 });
             });
             _enqueued = true;

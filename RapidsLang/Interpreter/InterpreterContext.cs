@@ -6,14 +6,15 @@ namespace RapidsLang.Interpreter;
 public class InterpreterContext
 {
     public Stack<RapidsVariable> FunctionCallStack = [];
-    public Dictionary<string, VariableHolder> variables { get; init; } = [];
+    public Dictionary<string, VariableHolder> variables { get; } = [];
     public ModuleRegistry ModuleRegistry = new();
+    public ModuleExports Exports = new();
 
-    public void AddNativeFunction(string name, Action<InterpreterContext> func)
+    public void AddNativeFunction(string name, Action<RapidsInterpreter> func)
     {
         variables.Add(
             name,
-            new(
+            new VariableHolder(
                 new RapidsFunctionReferenceVariable(new RapidsNativeFunction(func)),
                 true
             )

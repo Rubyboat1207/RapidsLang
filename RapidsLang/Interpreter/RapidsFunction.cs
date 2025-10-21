@@ -6,7 +6,7 @@ namespace RapidsLang.Interpreter;
 public abstract class RapidsFunction
 {
     public event Action? OnCompleted = null;
-    public virtual void EnqueueExecution(InterpreterContext ctx, CodeBlockRunWork? parentCodeBlock)
+    public virtual void EnqueueExecution(RapidsInterpreter interpreter, CodeBlockRunWork? parentCodeBlock)
     {
         MarkComplete();
     }
@@ -17,25 +17,24 @@ public abstract class RapidsFunction
     }
 }
 
-public class RapidsNativeFunction(Action<InterpreterContext> func) : RapidsFunction
+public class RapidsNativeFunction(Action<RapidsInterpreter> func) : RapidsFunction
 {
-    public Action<InterpreterContext> Function { get; } = func;
-    public override void EnqueueExecution(InterpreterContext ctx, CodeBlockRunWork? parentCodeBlock)
+    public Action<RapidsInterpreter> Function { get; } = func;
+    public override void EnqueueExecution(RapidsInterpreter interpreter, CodeBlockRunWork? parentCodeBlock)
     {
-        Function.Invoke(ctx);
+        Function.Invoke(interpreter);
 
-        base.EnqueueExecution(ctx, parentCodeBlock);
+        base.EnqueueExecution(interpreter, parentCodeBlock);
     }
 }
 
-public class RapidsUserFunction(FunctionNode func, RapidsInterpreter interpreter)  : RapidsFunction
+public class RapidsUserFunction(FunctionNode func)  : RapidsFunction
 {
     public FunctionNode Func { get; } = func;
-    public RapidsInterpreter Interpreter { get; } = interpreter;
-
-    public override void EnqueueExecution(InterpreterContext ctx, CodeBlockRunWork? parentCodeBlock)
+    public override void EnqueueExecution(RapidsInterpreter interpreter, CodeBlockRunWork? parentCodeBlock)
     {
-        var body = Interpreter.StartNewBlock(Func.Body, BlockType.Function, parentCodeBlock);
+        var ctx = interpreter.Context;
+        var body = interpreter.StartNewBlock(Func.Body, BlockType.Function, parentCodeBlock);
 
         var oldVariables = new List<Tuple<string, VariableHolder>>();
         
@@ -66,7 +65,7 @@ public class RapidsUserFunction(FunctionNode func, RapidsInterpreter interpreter
                 ctx.FunctionCallStack.Push(body.Scope.Return);
             }
 
-            base.EnqueueExecution(ctx, parentCodeBlock);
+            base.EnqueueExecution(interpreter, parentCodeBlock);
 
         };
         

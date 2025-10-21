@@ -8,7 +8,7 @@ public enum TokenType
     // -- Keywords
     On,
     Pipe,
-    Define,
+    Export,
     Target,
     Source,
     If,
@@ -81,7 +81,7 @@ public class Token(TokenType type, int index, string? value = null)
         {
             TokenType.On => "on",
             TokenType.Pipe => "pipe",
-            TokenType.Define => "define",
+            TokenType.Export => "export",
             TokenType.Target => "target",
             TokenType.Source => "source",
             TokenType.If => "if",
@@ -178,7 +178,7 @@ public static class RapidsLexer
     [
         TokenType.On,
         TokenType.Pipe,
-        TokenType.Define,
+        TokenType.Export,
         TokenType.Target,
         TokenType.Source,
         TokenType.If,

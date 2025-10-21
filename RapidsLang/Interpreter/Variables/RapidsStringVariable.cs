@@ -66,8 +66,9 @@ public class RapidsStringVariable : RapidsVariable
         return null;
     }
 
-    public void SubStr(InterpreterContext ctx)
+    public void SubStr(RapidsInterpreter interpreter)
     {
+        var ctx = interpreter.Context;
         if (!ctx.FunctionCallStack.TryPop(out var index) || index is not RapidsNumberVariable start)
         {
             // todo error

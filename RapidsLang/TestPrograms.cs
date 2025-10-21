@@ -204,8 +204,8 @@ public static class TestPrograms
     """;
     
     public static readonly string BrainFuckInterpreter = """
-    use console;
-    use strings;
+    use console: putChar;
+    use strings: charFromCode;
     use arrays;
     
     // Hello, World!

@@ -11,7 +11,7 @@ public class RapidLangEntry
 {
     public static void Main(string[] args)
     {
-        var code = TestPrograms.ObjectTest;
+        var code = TestPrograms.BrainFuckInterpreter;
         var preprocRes = RapidsPreproc.Preprocess(code);
 
         var lexResult = RapidsLexer.Lex(preprocRes.Output);
@@ -19,10 +19,6 @@ public class RapidLangEntry
         var parseResult = RapidsParser.Parse(lexResult);
         
         var interpreter = new RapidsInterpreter(code, preprocRes.Metadata, parseResult);
-        
-        var extensions = ExtensionLoader.GetExtensionManifests();
-
-        
 
         interpreter.Interpret();
     }

@@ -75,7 +75,7 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                 break;
             case FunctionNode functionNode:
                 _done = true;
-                Callback.Invoke(new RapidsFunctionReferenceVariable(new RapidsUserFunction(functionNode, Interpreter)));
+                Callback.Invoke(new RapidsFunctionReferenceVariable(new RapidsUserFunction(functionNode)));
                 break;
             case ObjectNode objectNode:
                 Dictionary<string, RapidsVariable> keyValues = [];

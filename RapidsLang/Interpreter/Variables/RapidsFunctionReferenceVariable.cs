@@ -37,4 +37,17 @@ public class RapidsFunctionReferenceVariable(RapidsFunction function) : RapidsVa
     {
         return null;
     }
+
+    private static Dictionary<Action<RapidsInterpreter>, RapidsNativeFunction> NativeFunctions = [];
+
+    public static RapidsFunctionReferenceVariable ofNative(Action<RapidsInterpreter> nativeFunc)
+    {
+        if (!NativeFunctions.TryGetValue(nativeFunc, out RapidsNativeFunction? value))
+        {
+            value = new RapidsNativeFunction(nativeFunc);
+            NativeFunctions[nativeFunc] = value;
+        }
+        
+        return new RapidsFunctionReferenceVariable(value);
+    }
 }

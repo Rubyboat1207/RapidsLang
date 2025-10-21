@@ -4,8 +4,9 @@ namespace RapidsLang.Interpreter.Lib.Modules;
 
 public class ArraysModule : Module
 {
-    public void MakeArrayOfSizeWithValue(InterpreterContext ctx)
+    private static void MakeArrayOfSizeWithValue(RapidsInterpreter interpreter)
     {
+        var ctx = interpreter.Context;
         if (!ctx.FunctionCallStack.TryPop(out var sizeVal))
         {
             return;
@@ -29,9 +30,8 @@ public class ArraysModule : Module
         
         ctx.FunctionCallStack.Push(list);
     }
-    
-    public override void Import(InterpreterContext context)
-    {
-        context.AddNativeFunction("filledArray", MakeArrayOfSizeWithValue);
-    }
+
+    protected override ModuleExports Exports { get; } = new (new Dictionary<string, RapidsVariable> {
+        {"filledArray", RapidsFunctionReferenceVariable.ofNative(MakeArrayOfSizeWithValue)}
+    });
 }

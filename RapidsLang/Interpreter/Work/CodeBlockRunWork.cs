@@ -31,12 +31,32 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             if (module is null)
             {
                 Console.WriteLine($"Module {useNode.ModuleIdentifier} at {GetLineCol(useNode.BaseToken)} was not found.");
+                
+                
             }
             else
             {
-                module.Import(Context);
+                module.Import(Context, useNode.ImportNodes);
             }
             ProgramCounter++;
+            return;
+        }
+
+        if (ActiveNode is ExportStatement exportStatement)
+        {
+            if (exportStatement.ExportNode is ExpressionExportable exprExport)
+            {
+                EvaluateExpression(exprExport.Expression, val =>
+                {
+                    Context.Exports.Add(exprExport.BaseToken.Value, val);
+                });
+            }
+
+            if (exportStatement.ExportNode is FunctionExportable funcExportable)
+            {
+                Context.Exports.Add(funcExportable.BaseToken.Value, new RapidsFunctionReferenceVariable(new RapidsUserFunction(funcExportable.FunctionNode)));
+            }
+
             return;
         }
 
@@ -51,7 +71,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
                     if (function is not RapidsFunctionReferenceVariable func) return;
                     func.Function.OnCompleted += OnFuncCompleted;
                         
-                    func.Function.EnqueueExecution(Context, this);
+                    func.Function.EnqueueExecution(Interpreter, this);
                     return;
 
 
@@ -176,7 +196,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
         if(ActiveNode is FunctionDeclarationNode functionDeclaration)
         {
             Context.variables.Add(functionDeclaration.Name.Value, new VariableHolder(
-                new RapidsFunctionReferenceVariable(new RapidsUserFunction(functionDeclaration.Function, Interpreter)),
+                new RapidsFunctionReferenceVariable(new RapidsUserFunction(functionDeclaration.Function)),
                 true
             ));
             Scope.ScopedVariables.Add(functionDeclaration.Name.Value);
