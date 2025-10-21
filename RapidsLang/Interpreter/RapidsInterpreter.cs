@@ -27,10 +27,11 @@ public class BlockProgress(StatementsNode block, BlockType blockType, int progra
     public bool ShouldBreakOut { get; set; }
 }
 
-public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preprocessorMetadata, StatementsNode root)
+public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preprocessorMetadata, string? mainSourceCodePath=null)
 {
     public InterpreterContext Context { get; } = new();
     public Stack<InterpreterWork> WorkStack { get; }  = [];
+    public string? MainSourceCodePath { get; } = mainSourceCodePath;
 
     public void PushWork(InterpreterWork work)
     {
@@ -52,7 +53,7 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
         return work;
     }
 
-    public void Interpret()
+    public void Interpret(StatementsNode root)
     {
         StartNewBlock(root, BlockType.Module, null);
         while (true)
@@ -68,7 +69,7 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
                 {
                     if (work.ActiveNode is not null)
                     {
-                        throw new Exception($"At {GetLineCol(work.ActiveNode.BaseToken)}", e);
+                        throw new Exception($"At {mainSourceCodePath} {GetLineCol(work.ActiveNode.BaseToken)}", e);
                     }
 
                     throw;

@@ -30,9 +30,29 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
 
             if (module is null)
             {
+                if (Interpreter.MainSourceCodePath is not null)
+                {
+                    var relativePath = Path.GetRelativePath(Interpreter.MainSourceCodePath, useNode.ModuleIdentifier);
+
+                    string? filePath = null;
+                    if (File.Exists(relativePath))
+                    {
+                        filePath = relativePath;
+                    }else if (File.Exists(relativePath + ".rpd"))
+                    {
+                        filePath = relativePath + ".rpd";
+                    }
+
+                    if (filePath is not null)
+                    {
+                        module = new CodeModule(File.ReadAllText(relativePath), filePath);
+                    }
+                }
+            }
+
+            if (module is null)
+            {
                 Console.WriteLine($"Module {useNode.ModuleIdentifier} at {GetLineCol(useNode.BaseToken)} was not found.");
-                
-                
             }
             else
             {
