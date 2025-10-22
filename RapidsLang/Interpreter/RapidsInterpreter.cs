@@ -118,7 +118,7 @@ public class RapidsInterpreter
         }
     }
 
-    public void AddExtensionModule(ManifestContainer manifestContainer)
+    public void AddExtensionModule(ExtensionData extensionData)
     {
         
     }

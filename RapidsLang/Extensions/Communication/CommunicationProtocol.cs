@@ -10,8 +10,6 @@ namespace RapidsLang.Extensions.Communication;
 [JsonDerivedType(typeof(WebsocketProtocol), "ws")]
 public abstract class CommunicationProtocol
 {
-    public required string Type { get; set; }
-
     public abstract PipeWriteResult WriteToInput(Identifier identifier, RapidsVariable? value);
     public abstract void SubscribeToOutput(Identifier identifier, PipeSubscriber subscriber);
     public abstract void UnsubscribeToOutput(Identifier identifier, Guid guid);

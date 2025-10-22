@@ -50,7 +50,12 @@ public class RapidLangEntry
         var lexResult = RapidsLexer.Lex(preprocRes.Output);
         var parseResult = RapidsParser.Parse(lexResult);
     
+        var extensions = ExtensionLoader.GetExternalExtensions();
+
         var interpreter = new RapidsInterpreter(code, preprocRes.Metadata, filePath);
+        
+        extensions.ForEach(d => interpreter.Context.ModuleRegistry.AddModule(d.ExtensionManifest.ModuleName, new ExtensionModule(d)));
+        
         interpreter.Interpret(parseResult);
     }
 }

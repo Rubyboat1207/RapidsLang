@@ -18,6 +18,6 @@ public class ModuleRegistry
 
     public void AddModule(string identifier, Module module)
     {
-        
+        RegisteredModules[identifier] = module;
     }
 }

@@ -44,7 +44,7 @@ public class WebsocketProtocol : CommunicationProtocol
             _server = new HttpListener();
             // Rider says http is insecure
             // however, most connections happen on localhost
-            _server.Prefixes.Add($"ws://*:{port}/"); 
+            _server.Prefixes.Add($"http://*:{port}/"); 
             
             _server.Start();
             Servers[port] = _server;

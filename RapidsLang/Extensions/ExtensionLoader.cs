@@ -5,10 +5,11 @@ namespace RapidsLang.Extensions;
 
 public static class ExtensionLoader
 {
-    public static List<ManifestContainer> GetExtensionManifests()
+    public static List<ExtensionData> GetExternalExtensions()
     {
-        List<ManifestContainer> list = [];
-        var folderPath = Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "extensions/");
+        List<ExtensionData> list = [];
+        var folderPath = Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "rapids/extensions/");
+        Console.WriteLine(folderPath);
         if (!Directory.Exists(folderPath))
         {
             Directory.CreateDirectory(folderPath);
@@ -21,7 +22,7 @@ public static class ExtensionLoader
 
             if (files.Any(f => Path.GetFileName(f) == "manifest.rpd.json"))
             {
-                var text = Path.Join(directory, "manifest.rpd.json");
+                var text = File.ReadAllText(Path.Join(directory, "manifest.rpd.json"));
 
                 try
                 {
@@ -32,11 +33,11 @@ public static class ExtensionLoader
                         continue;
                     }
                     
-                    list.Add(new ManifestContainer(manifest.MigrateToLatest(), directory));
+                    list.Add(new ExtensionData(manifest.MigrateToLatest(), directory));
                 }
-                catch
+                catch(Exception e)
                 {
-                    // ignored
+                    throw new Exception($"Failed parse manifest for module at {directory}", e);
                 }
             }
 
@@ -45,8 +46,3 @@ public static class ExtensionLoader
         return list;
     }
 }
-
-public record ManifestContainer(
-    ExtensionManifest ExtensionManifest,
-    string DirectoryPath
-);

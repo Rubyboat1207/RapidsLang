@@ -14,11 +14,8 @@ public class ExtensionManifest : BaseManifest
     [JsonPropertyName("submodules")] 
     public List<string>? Submodules { get; set; } 
     
-    [JsonPropertyName("definitions")]
-    public string? Definitions { get; set; }
-    
-    [JsonPropertyName("init_script")] 
-    public string? InitScript { get; set; }
+    [JsonPropertyName("main")] 
+    public string? MainSourcePath { get; set; }
 
     [JsonPropertyName("protocol")]
     public CommunicationProtocol? Protocol { get; set; }
