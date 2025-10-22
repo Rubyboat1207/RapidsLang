@@ -32,21 +32,25 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             {
                 if (Interpreter.MainSourceCodePath is not null)
                 {
-                    var relativePath = Path.GetRelativePath(Interpreter.MainSourceCodePath, useNode.ModuleIdentifier);
+                    var sourceDir = Path.GetDirectoryName(Path.GetFullPath(Interpreter.MainSourceCodePath));
+                    if (sourceDir is not null)
+                    {
+                        var relativePath = Path.GetRelativePath(sourceDir, useNode.ModuleIdentifier);
+                        string? filePath = null;
+                        if (File.Exists(relativePath))
+                        {
+                            filePath = relativePath;
+                        }else if (File.Exists(relativePath + ".rpd"))
+                        {
+                            filePath = relativePath + ".rpd";
+                        }
 
-                    string? filePath = null;
-                    if (File.Exists(relativePath))
-                    {
-                        filePath = relativePath;
-                    }else if (File.Exists(relativePath + ".rpd"))
-                    {
-                        filePath = relativePath + ".rpd";
+                        if (filePath is not null)
+                        {
+                            module = new CodeModule(File.ReadAllText(relativePath), filePath);
+                        }
                     }
-
-                    if (filePath is not null)
-                    {
-                        module = new CodeModule(File.ReadAllText(relativePath), filePath);
-                    }
+                    
                 }
             }
 
@@ -69,12 +73,17 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
                 EvaluateExpression(exprExport.Expression, val =>
                 {
                     Context.Exports.Add(exprExport.BaseToken.Value, val);
+                    ProgramCounter++;
                 });
             }
 
             if (exportStatement.ExportNode is FunctionExportable funcExportable)
             {
-                Context.Exports.Add(funcExportable.BaseToken.Value, new RapidsFunctionReferenceVariable(new RapidsUserFunction(funcExportable.FunctionNode)));
+                Context.Exports.Add(funcExportable.BaseToken.Value,
+                    new RapidsFunctionReferenceVariable(
+                        new RapidsUserFunction(funcExportable.FunctionNode, new InterpreterContext(Context)
+                )));
+                ProgramCounter++;
             }
 
             return;
@@ -86,14 +95,13 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             {
                 EvaluateExpressions(functionCallStatementNode.Function.Arguments, variables =>
                 {
-                    variables.ForEach(Interpreter.Context.FunctionCallStack.Push);
+                    variables.ForEach(Context.FunctionCallStack.Push);
 
                     if (function is not RapidsFunctionReferenceVariable func) return;
                     func.Function.OnCompleted += OnFuncCompleted;
                         
                     func.Function.EnqueueExecution(Interpreter, this);
                     return;
-
 
                     void OnFuncCompleted()
                     {
@@ -111,12 +119,10 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
         {
             EvaluateExpression(declaration.Expression, val =>
             {
-                Context.variables.Add(
+                Context.AddVariable(
                     declaration.Name.Value,
                     new VariableHolder(val, declaration.Constant, declaration.Type)
                 );
-
-                Scope.ScopedVariables.Add(declaration.Name.Value);
                 ProgramCounter++;
             });
             
@@ -215,11 +221,10 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
         
         if(ActiveNode is FunctionDeclarationNode functionDeclaration)
         {
-            Context.variables.Add(functionDeclaration.Name.Value, new VariableHolder(
-                new RapidsFunctionReferenceVariable(new RapidsUserFunction(functionDeclaration.Function)),
+            Context.AddVariable(functionDeclaration.Name.Value, new VariableHolder(
+                new RapidsFunctionReferenceVariable(new RapidsUserFunction(functionDeclaration.Function, new InterpreterContext(Context))),
                 true
             ));
-            Scope.ScopedVariables.Add(functionDeclaration.Name.Value);
             ProgramCounter++;
             return;
         }
@@ -325,11 +330,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
 
     public override void Cleanup()
     {
-        foreach (var variable in Scope.ScopedVariables)
-        {
-            Interpreter.Context.variables.Remove(variable);
-        }
-        
+        Context.Active = false;
         base.Cleanup();
     }
 }

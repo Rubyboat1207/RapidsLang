@@ -22,6 +22,7 @@ public class CodeModule(string code, string? path=null) : Module
             var interpreter = new RapidsInterpreter(Code, preprocMetaData, Path);
 
             interpreter.Context.Exports = Exports;
+            interpreter.Context.ModuleRegistry = context.ModuleRegistry;
             
             interpreter.Interpret(program);
 

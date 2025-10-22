@@ -12,10 +12,10 @@ public abstract class Module
         {
             foreach (var exportedVariable in Exports.Exports)
             {
-                context.variables[exportedVariable.Key] = new VariableHolder(
+                context.AddVariable(exportedVariable.Key, new VariableHolder(
                     exportedVariable.Value,
                     true
-                );
+                ));
             }
 
             return;
@@ -31,7 +31,7 @@ public abstract class Module
                     contextName = import.AsName.Value;
                 }
                 
-                context.variables[contextName] = new VariableHolder(value, true);
+                context.AddVariable(contextName, new VariableHolder(value, true));
             }
             else
             {

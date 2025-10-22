@@ -28,45 +28,34 @@ public class RapidsNativeFunction(Action<RapidsInterpreter> func) : RapidsFuncti
     }
 }
 
-public class RapidsUserFunction(FunctionNode func)  : RapidsFunction
+public class RapidsUserFunction(FunctionNode func, InterpreterContext closure)  : RapidsFunction
 {
     public FunctionNode Func { get; } = func;
     public override void EnqueueExecution(RapidsInterpreter interpreter, CodeBlockRunWork? parentCodeBlock)
     {
         var ctx = interpreter.Context;
-        var body = interpreter.StartNewBlock(Func.Body, BlockType.Function, parentCodeBlock);
-
-        var oldVariables = new List<Tuple<string, VariableHolder>>();
+        var newContext = closure.Clone();
         
         if (Func.Arguments is not null)
         {
             foreach(var arg in Func.Arguments.ToArray().Reverse())
             {
                 var name = arg.Name.Value;
-                body.Scope.ScopedVariables.Add(name);
-                if (ctx.variables.TryGetValue(name, out var value))
-                {
-                    oldVariables.Add(new Tuple<string, VariableHolder>(name, value));
-                    ctx.variables.Remove(name);
-                }
-                ctx.variables.Add(name, new VariableHolder(ctx.FunctionCallStack.Pop(), false, arg.Type ?? null));
+                newContext.AddVariable(name, new VariableHolder(ctx.FunctionCallStack.Pop(), false, arg.Type ?? null));
             }
         }
+        
+        var body = interpreter.StartNewBlock(Func.Body, BlockType.Function, parentCodeBlock, newContext);
+
 
         body.OnCompleted += (_) =>
         {
-            foreach (var oldVariable in oldVariables)
-            {
-                ctx.variables.Add(oldVariable.Item1, oldVariable.Item2);
-            }
-
             if (body.Scope.Return is not null)
             {
                 ctx.FunctionCallStack.Push(body.Scope.Return);
             }
 
             base.EnqueueExecution(interpreter, parentCodeBlock);
-
         };
         
     }

@@ -19,19 +19,31 @@ public enum BlockType
 public class BlockProgress(StatementsNode block, BlockType blockType, int programCounter=0)
 {
     public int ProgramCounter { get; set; } = programCounter;
-    public readonly List<string> ScopedVariables = [];
-    // Todo: Closures
     public StatementsNode Block { get; } = block;
     public RapidsVariable? Return = null;
     public BlockType BlockType { get; } = blockType;
     public bool ShouldBreakOut { get; set; }
 }
 
-public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preprocessorMetadata, string? mainSourceCodePath=null)
+public class RapidsInterpreter
 {
-    public InterpreterContext Context { get; } = new();
+    private readonly string _sourceCode;
+    private readonly RapidsPreprocMetaData _preprocessorMetadata;
+
+    public RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preprocessorMetadata, string? mainSourceCodePath=null)
+    {
+        _sourceCode = sourceCode;
+        _preprocessorMetadata = preprocessorMetadata;
+
+        MainSourceCodePath = mainSourceCodePath;
+        
+        ContextStack.Push(new InterpreterContext(sourceCode, preprocessorMetadata, mainSourceCodePath));
+    }
+
+    public Stack<InterpreterContext> ContextStack { get; } = new();
+    public InterpreterContext Context => ContextStack.Peek();
     public Stack<InterpreterWork> WorkStack { get; }  = [];
-    public string? MainSourceCodePath { get; } = mainSourceCodePath;
+    public string? MainSourceCodePath { get; }
 
     public void PushWork(InterpreterWork work)
     {
@@ -40,11 +52,12 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
 
     public string GetLineCol(Token token)
     {
-        return RapidsPreproc.GetRowCol(sourceCode, token.Index, preprocessorMetadata);
+        return RapidsPreproc.GetRowCol(Context.SourceCode, token.Index, Context.PreprocMetaData);
     }
 
-    public CodeBlockRunWork StartNewBlock(StatementsNode block, BlockType type, CodeBlockRunWork? Parent)
+    public CodeBlockRunWork StartNewBlock(StatementsNode block, BlockType type, CodeBlockRunWork? Parent, InterpreterContext? ctx=null)
     {
+        ContextStack.Push(ctx ?? new InterpreterContext(Context));
         CollapseStack();
         var progress = new BlockProgress(block, type);
         var work = new CodeBlockRunWork(progress, this, Parent);
@@ -69,7 +82,16 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
                 {
                     if (work.ActiveNode is not null)
                     {
-                        throw new Exception($"At {mainSourceCodePath} {GetLineCol(work.ActiveNode.BaseToken)}", e);
+                        string message = "An error occurred";
+                        try
+                        {
+                            message = $"At {Context.SourcePath} {GetLineCol(work.ActiveNode.BaseToken)}";
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
+                        throw new Exception(message, e);
                     }
 
                     throw;
@@ -88,6 +110,11 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
         while(WorkStack.TryPeek(out var work) && work.IsDone())
         {
             WorkStack.Pop().Cleanup();
+        }
+
+        while (ContextStack.TryPeek(out var ctx) && !ctx.Active)
+        {
+            ContextStack.Pop();
         }
     }
 

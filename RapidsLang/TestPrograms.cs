@@ -202,6 +202,28 @@ public static class TestPrograms
         }
     }());
     """;
+
+    public static readonly string ClosureTests = """
+    use console;
+    
+    let abc = 1;
+    
+    test()> {
+        print(abc);
+        
+        let color = `red`;
+        
+        print(color);
+    }
+    
+    print(abc);
+    
+    abc += 5;
+    
+    test();
+    
+    print(color); // crash
+    """;
     
     public static readonly string BrainFuckInterpreter = """
     use console: putChar;

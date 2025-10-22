@@ -681,7 +681,7 @@ public static class RapidsParser
                     var functionBody = Parse(stepper, new StatementsNode(openTriangle));
                     StatementsNode? debugBody = null;
 
-                    if (stepper.Cur.TokenType is TokenType.QuestionMark)
+                    if (stepper is { HasNext: true, Cur.TokenType: TokenType.QuestionMark })
                     {
                         stepper.Increment();
                         debugBody = Parse(stepper, new StatementsNode(openTriangle));
