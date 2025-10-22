@@ -47,7 +47,7 @@ public class RapidsDataInputOutputVariable : RapidsVariable
     {
         return new RapidsDataInputOutputVariable(DataInputOutput);
     }
-
+    
     public void SendData(RapidsInterpreter interpreter)
     {
         var data = interpreter.Context.FunctionCallStack.Pop();

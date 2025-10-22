@@ -2,9 +2,8 @@ using RapidsLang.Lexer;
 
 namespace RapidsLang.Parser.Nodes;
 
-public record DefineTargetStatement(
+public record DefineTargetOrSourceStatement(
     Token BaseToken,
-    Token Name,
-    TypeNode? Type,
+    DefineTargetOrSourceNode TargetOrSourceNode,
     int DebugLevel
 ) : StatementNode(BaseToken, DebugLevel);

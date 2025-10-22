@@ -1,3 +1,5 @@
+using RapidsLang.Extensions;
+using RapidsLang.Extensions.Pipes;
 using RapidsLang.Interpreter.Variables;
 using RapidsLang.Lexer;
 using RapidsLang.Parser.Nodes;
@@ -23,6 +25,8 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
     public override void Execute()
     {
         CurrentlyEvaluatingNode = Block.Statements[ProgramCounter];
+        
+        Context.ModuleRegistry.TickExternalModules(Context.GetRoot());
 
         if (ActiveNode is UseStatementNode useNode)
         {
@@ -82,11 +86,23 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
                 Context.Exports.Add(funcExportable.BaseToken.Value,
                     new RapidsFunctionReferenceVariable(
                         new RapidsUserFunction(funcExportable.FunctionNode, new InterpreterContext(Context)
-                )));
+                        )));
+                ProgramCounter++;
+            }
+            
+            if (exportStatement.ExportNode is TargetOrSourceExportable targetOrSourceExportable)
+            {
+                Context.Exports.Add(targetOrSourceExportable.TargetOrSourceNode.Name.Value, AddTargetOrSource(targetOrSourceExportable.TargetOrSourceNode).Variable);
                 ProgramCounter++;
             }
 
             return;
+        }
+
+        if (ActiveNode is DefineTargetOrSourceNode targetOrSourceNode)
+        {
+            AddTargetOrSource(targetOrSourceNode);
+            ProgramCounter++;
         }
 
         if (ActiveNode is FunctionCallStatementNode functionCallStatementNode)
@@ -318,6 +334,33 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             });
             
         }
+    }
+
+    private VariableHolder AddTargetOrSource(DefineTargetOrSourceNode node)
+    {
+        if (Context.CurrentModule is not ExtensionModule extensionModule)
+        {
+            throw new Exception("Attempted to define target or source outside of extension module");
+        }
+
+        if (extensionModule.Extension.ExtensionManifest.Protocol == null)
+        {
+            throw new Exception("Attempted to define target or source, but extension does not define a protocol.");
+        }
+
+        var holder = new VariableHolder(new RapidsDataInputOutputVariable(
+            new DataInputOutput(
+                extensionModule.Extension.ExtensionManifest.Protocol,
+                new Identifier(extensionModule.Extension.ExtensionManifest.ModuleName,
+                    node.Name.Value),
+                false,
+                true
+            )
+        ), false);
+            
+        Context.AddVariable(node.Name.Value, holder);
+
+        return holder;
     }
 
     public override bool IsDone()

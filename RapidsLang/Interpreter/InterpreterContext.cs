@@ -12,6 +12,7 @@ public class InterpreterContext
     private Dictionary<string, VariableHolder> Variables { get; init; } = [];
     public ModuleRegistry ModuleRegistry = new();
     public ModuleExports Exports = new();
+    public Module? CurrentModule;
     
     // todo: this sucks
     public string SourceCode { get; }
@@ -25,7 +26,7 @@ public class InterpreterContext
         SourcePath = sourcePath;
     }
     
-    public InterpreterContext(InterpreterContext parent)
+    public InterpreterContext(InterpreterContext parent, Module? currentModule=null)
     {
         Parent = parent;
         
@@ -36,6 +37,7 @@ public class InterpreterContext
         SourceCode = parent.SourceCode;
         PreprocMetaData = parent.PreprocMetaData;
         SourcePath = parent.SourcePath;
+        CurrentModule = currentModule ?? parent.CurrentModule;
     }
 
     public InterpreterContext Clone()
@@ -64,6 +66,18 @@ public class InterpreterContext
     public void AddVariable(string name, VariableHolder variableHolder)
     {
         Variables[name] = variableHolder;
+    }
+
+    public InterpreterContext GetRoot()
+    {
+        var root = this;
+
+        while (root.Parent is not null)
+        {
+            root = root.Parent!;
+        }
+
+        return root;
     }
 }
 

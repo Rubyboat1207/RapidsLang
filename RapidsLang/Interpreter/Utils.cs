@@ -37,6 +37,6 @@ public static class Utils
             return "null";
         }
 
-        return "[Invalid Object]";
+        return v.VariableTypeName;
     } 
 }

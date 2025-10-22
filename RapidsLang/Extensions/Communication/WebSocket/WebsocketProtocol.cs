@@ -58,6 +58,12 @@ public class WebsocketProtocol : CommunicationProtocol
 
     public override PipeWriteResult WriteToInput(Identifier identifier, RapidsVariable? value)
     {
+        var options = new JsonSerializerOptions()
+        {
+            Converters = { new RapidsVariableJsonConverter() }
+        };
+        Task.Run(() => BroadcastMessage(new S2CWriteToTarget(value ?? new RapidsNullVariable())));
+        
         return new GoodPipeWriteResult();
     }
 
@@ -170,7 +176,12 @@ public class WebsocketProtocol : CommunicationProtocol
     {
         foreach (var webSocket in _webSockets)
         {
-            var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(req));
+            var options = new JsonSerializerOptions()
+            {
+                Converters = { new RapidsVariableJsonConverter() }
+            };
+            
+            var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(req, options));
             
             await webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
         }

@@ -7,15 +7,15 @@ namespace RapidsLang.Extensions;
 
 public class ExtensionModule : Module
 {
-    private ExtensionData _manifest;
+    public ExtensionData Extension { get; }
     protected override ModuleExports Exports { get; } = new();
 
     private bool _hasRun;
     private bool _isRunning;
 
-    public ExtensionModule(ExtensionData manifest)
+    public ExtensionModule(ExtensionData extension)
     {
-        _manifest = manifest;
+        Extension = extension;
     }
     
     public override void Import(InterpreterContext context, List<ImportNode>? importNodes)
@@ -23,14 +23,15 @@ public class ExtensionModule : Module
         if (!_hasRun && !_isRunning)
         {
             _isRunning = true;
-            var program = RapidsParser.Parse(_manifest.GetMainCodeString(), out var preprocMetaData);
+            var program = RapidsParser.Parse(Extension.GetMainCodeString(), out var preprocMetaData);
 
-            var interpreter = new RapidsInterpreter(_manifest.GetMainCodeString(), preprocMetaData, _manifest.MainCodePath)
+            var interpreter = new RapidsInterpreter(Extension.GetMainCodeString(), preprocMetaData, Extension.MainCodePath)
                 {
                     Context =
                     {
                         Exports = Exports,
-                        ModuleRegistry = context.ModuleRegistry
+                        ModuleRegistry = context.ModuleRegistry,
+                        CurrentModule = this
                     }
                 };
 

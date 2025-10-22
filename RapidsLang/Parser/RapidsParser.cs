@@ -231,8 +231,31 @@ public static class RapidsParser
                     ));
                     continue;
                 }
+
+                if (stepper.Cur.TokenType is TokenType.Define)
+                {
+                    var define = stepper.Cur;
+                    root.Statements.Add(new ExportStatement(
+                        export,
+                        new TargetOrSourceExportable(
+                            define,
+                            ParseTargetOrSourceDefinition(stepper)
+                        ),
+                        GetLogLevel(stepper)
+                    ));
+                    continue;
+                }
                 
                 // todo: sources & targets
+            }
+
+            if (stepper.Cur.TokenType is TokenType.Define)
+            {
+                root.Statements.Add(new DefineTargetOrSourceStatement(
+                    stepper.Cur,
+                    ParseTargetOrSourceDefinition(stepper),
+                    GetLogLevel(stepper)
+                ));
             }
 
             if (stepper.Cur.TokenType is TokenType.While )
@@ -406,6 +429,41 @@ public static class RapidsParser
         var expr = ParseExpression(stepper);
 
         return new Tuple<StringNode, ExpressionNode>(str, expr);
+    }
+    
+    private static DefineTargetOrSourceNode ParseTargetOrSourceDefinition(ListStepper<Token> stepper)
+    {
+        // This function assumes the stepper.Cur is TokenType.Define
+        var defineToken = stepper.Step();
+
+        if (stepper.Cur.TokenType is not (TokenType.Target or TokenType.Source))
+        {
+            throw new Exception("Expected 'target' or 'source' after 'define'.");
+        }
+
+        var typeToken = stepper.Step();
+        bool isTarget = typeToken.TokenType == TokenType.Target;
+
+        if (stepper.Cur.TokenType is not TokenType.Identifier)
+        {
+            throw new Exception($"Expected name (identifier) after 'define {typeToken.Value}'.");
+        }
+        
+        var nameToken = stepper.Step();
+        
+        TypeNode? type = null;
+        if (stepper.Cur.TokenType is TokenType.OpenTriangle)
+        {
+            // TODO: Implement type parsing
+            throw new NotImplementedException("Types not yet implemented for target/source definitions.");
+        }
+        
+        return new DefineTargetOrSourceNode(
+            defineToken,
+            nameToken,
+            isTarget,
+            type
+        );
     }
 
     private static List<ImportNode>? ParseImportNodes(ListStepper<Token> stepper)

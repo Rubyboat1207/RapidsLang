@@ -1,3 +1,4 @@
+using RapidsLang.Extensions;
 using RapidsLang.Interpreter.Lib.Modules;
 
 namespace RapidsLang.Interpreter;
@@ -8,8 +9,11 @@ public class ModuleRegistry
     {
         {"console", new ConsoleModule()},
         {"arrays", new ArraysModule()},
-        {"strings", new StringsModule()}
+        {"strings", new StringsModule()},
+        {"time", new TimeModule()}
     };
+
+    private readonly HashSet<ExtensionModule> _tickingModules = [];
 
     public bool TryGetModule(string identifier, out Module? module)
     {
@@ -19,5 +23,22 @@ public class ModuleRegistry
     public void AddModule(string identifier, Module module)
     {
         RegisteredModules[identifier] = module;
+    }
+
+    public void MarkModuleAsTicking(ExtensionModule module)
+    {
+        if (!_tickingModules.Contains(module))
+        {
+            module.Extension.ExtensionManifest.Protocol?.Init();
+        }
+        _tickingModules.Add(module);
+    }
+
+    public void TickExternalModules(InterpreterContext ctx)
+    {
+        foreach (var extensionModule in _tickingModules)
+        {
+            extensionModule.Extension.ExtensionManifest.Protocol?.Tick(ctx);
+        }
     }
 }

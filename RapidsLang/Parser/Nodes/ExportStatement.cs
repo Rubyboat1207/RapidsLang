@@ -17,13 +17,8 @@ public record FunctionExportable(
 
 public record TargetOrSourceExportable(
     Token BaseToken,
-    bool IsTarget,
-    Token Name,
-    TypeNode? Type=null
-) : Exportable(BaseToken)
-{
-    public bool IsSource => !IsTarget;
-}
+    DefineTargetOrSourceNode TargetOrSourceNode
+) : Exportable(BaseToken);
 public record ExpressionExportable(
     Token BaseToken,
     ExpressionNode Expression

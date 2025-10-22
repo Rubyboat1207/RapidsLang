@@ -9,7 +9,6 @@ public static class ExtensionLoader
     {
         List<ExtensionData> list = [];
         var folderPath = Path.Join(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "rapids/extensions/");
-        Console.WriteLine(folderPath);
         if (!Directory.Exists(folderPath))
         {
             Directory.CreateDirectory(folderPath);
