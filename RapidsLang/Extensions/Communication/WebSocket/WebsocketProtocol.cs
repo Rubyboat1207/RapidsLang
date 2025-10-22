@@ -58,11 +58,7 @@ public class WebsocketProtocol : CommunicationProtocol
 
     public override PipeWriteResult WriteToInput(Identifier identifier, RapidsVariable? value)
     {
-        var options = new JsonSerializerOptions()
-        {
-            Converters = { new RapidsVariableJsonConverter() }
-        };
-        Task.Run(() => BroadcastMessage(new S2CWriteToTarget(value ?? new RapidsNullVariable())));
+        Task.Run(() => BroadcastMessage(new S2CWriteToTarget(identifier, value ?? new RapidsNullVariable())));
         
         return new GoodPipeWriteResult();
     }

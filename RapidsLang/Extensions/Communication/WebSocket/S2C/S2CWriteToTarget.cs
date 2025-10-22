@@ -1,10 +1,15 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using RapidsLang.Extensions.Pipes;
 using RapidsLang.Interpreter.Variables;
 
 namespace RapidsLang.Extensions.Communication.WebSocket.S2C;
 
-public class S2CWriteToTarget(RapidsVariable data) : S2CWebsocketRequest
+public class S2CWriteToTarget(Identifier targetIdentifier, RapidsVariable data) : S2CWebsocketRequest
 {
-    [JsonPropertyName("data")] public RapidsVariable Data { get; set; } = data;
+    [JsonPropertyName("target_identifier")]
+    public Identifier TargetIdentifier { get; set; } = targetIdentifier;
+    
+    [JsonPropertyName("data")] 
+    public RapidsVariable Data { get; set; } = data;
 }
