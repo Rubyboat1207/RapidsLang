@@ -30,8 +30,8 @@ public class ModuleRegistry
         if (!_tickingModules.Contains(module))
         {
             module.Extension.ExtensionManifest.Protocol?.Init();
+            _tickingModules.Add(module);
         }
-        _tickingModules.Add(module);
     }
 
     public void TickExternalModules(InterpreterContext ctx)

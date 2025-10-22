@@ -5,16 +5,18 @@ namespace RapidsLang.Extensions.Pipes;
 
 public class DataInputOutput
 {
-    public DataInputOutput(CommunicationProtocol protocol, Identifier sourceIdentifier, bool readable, bool writable)
+    public DataInputOutput(ExtensionModule module, Identifier sourceIdentifier, bool readable, bool writable)
     {
-        Protocol = protocol;
+        Module = module;
+        Protocol = module.Extension.ExtensionManifest.Protocol!;
         SourceIdentifier = sourceIdentifier;
         Readable = readable;
         Writable = writable;
         
-        protocol.SubscribeToOutput(sourceIdentifier, new PipeSubscriber(DataListener));
+        Protocol.SubscribeToOutput(sourceIdentifier, new PipeSubscriber(DataListener));
     }
 
+    private ExtensionModule Module { get; }
     private CommunicationProtocol Protocol { get; }
     private Identifier SourceIdentifier { get; }
     public event Action<RapidsVariable>? OnData;

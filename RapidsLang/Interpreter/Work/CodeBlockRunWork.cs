@@ -350,14 +350,16 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
 
         var holder = new VariableHolder(new RapidsDataInputOutputVariable(
             new DataInputOutput(
-                extensionModule.Extension.ExtensionManifest.Protocol,
+                extensionModule,
                 new Identifier(extensionModule.Extension.ExtensionManifest.ModuleName,
                     node.Name.Value),
                 false,
                 true
             )
         ), false);
-            
+        
+        Context.ModuleRegistry.MarkModuleAsTicking(extensionModule);
+        
         Context.AddVariable(node.Name.Value, holder);
 
         return holder;
