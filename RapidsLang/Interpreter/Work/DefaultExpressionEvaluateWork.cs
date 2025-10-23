@@ -38,7 +38,7 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                 break;
             case IdentifierNode identifierNode:
                 // ReSharper disable once ConvertIfStatementToReturnStatement
-                if (!Context.variables.TryGetValue(identifierNode.Token.Value, out var variable))
+                if (!Context.TryFindVariable(identifierNode.Token.Value, out var variable))
                 {
                     throw new Exception($"Attempted to access variable \"{identifierNode.Token.Value}\" which is not defined at {GetLineCol(identifierNode.Token)}.");
                 }
@@ -75,7 +75,7 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                 break;
             case FunctionNode functionNode:
                 _done = true;
-                Callback.Invoke(new RapidsFunctionReferenceVariable(new RapidsUserFunction(functionNode, Interpreter)));
+                Callback.Invoke(new RapidsFunctionReferenceVariable(new RapidsUserFunction(functionNode, new InterpreterContext(Context))));
                 break;
             case ObjectNode objectNode:
                 Dictionary<string, RapidsVariable> keyValues = [];

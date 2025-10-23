@@ -8,6 +8,7 @@ public enum TokenType
     // -- Keywords
     On,
     Pipe,
+    Export,
     Define,
     Target,
     Source,
@@ -81,6 +82,7 @@ public class Token(TokenType type, int index, string? value = null)
         {
             TokenType.On => "on",
             TokenType.Pipe => "pipe",
+            TokenType.Export => "export",
             TokenType.Define => "define",
             TokenType.Target => "target",
             TokenType.Source => "source",
@@ -178,7 +180,7 @@ public static class RapidsLexer
     [
         TokenType.On,
         TokenType.Pipe,
-        TokenType.Define,
+        TokenType.Export,
         TokenType.Target,
         TokenType.Source,
         TokenType.If,
@@ -193,7 +195,8 @@ public static class RapidsLexer
         TokenType.False,
         TokenType.Return,
         TokenType.Break,
-        TokenType.Continue
+        TokenType.Continue,
+        TokenType.Define
     ];
 
     private static readonly TokenType[] Symbols =
@@ -242,7 +245,7 @@ public static class RapidsLexer
                 continue;
             }
             
-            if (Keywords.Any(kw => stepper.CaptureIfNextHas(Token.GetDefaultValueForTokenType(kw), kw)))
+            if (Keywords.Any(kw => stepper.CaptureIfNextHas(Token.GetDefaultValueForTokenType(kw), kw, true)))
             {
                 continue;
             }

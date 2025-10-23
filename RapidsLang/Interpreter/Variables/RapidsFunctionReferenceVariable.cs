@@ -1,3 +1,5 @@
+using RapidsLang.Interpreter.Work;
+
 namespace RapidsLang.Interpreter.Variables;
 
 public class RapidsFunctionReferenceVariable(RapidsFunction function) : RapidsVariable
@@ -36,5 +38,30 @@ public class RapidsFunctionReferenceVariable(RapidsFunction function) : RapidsVa
     public override RapidsVariable? GetMember(string memberName)
     {
         return null;
+    }
+
+    private static Dictionary<Action<RapidsInterpreter>, RapidsNativeFunction> NativeFunctions = [];
+    private static Dictionary<Action<RapidsInterpreter, CodeBlockRunWork?>, RapidsNativeFunctionWithCodeBlock> NativeFunctionsWithCodeBlocks = [];
+
+    public static RapidsFunctionReferenceVariable ofNative(Action<RapidsInterpreter> nativeFunc)
+    {
+        if (!NativeFunctions.TryGetValue(nativeFunc, out RapidsNativeFunction? value))
+        {
+            value = new RapidsNativeFunction(nativeFunc);
+            NativeFunctions[nativeFunc] = value;
+        }
+        
+        return new RapidsFunctionReferenceVariable(value);
+    }
+    
+    public static RapidsFunctionReferenceVariable ofNative(Action<RapidsInterpreter, CodeBlockRunWork?> nativeFunc)
+    {
+        if (!NativeFunctionsWithCodeBlocks.TryGetValue(nativeFunc, out RapidsNativeFunctionWithCodeBlock? value))
+        {
+            value = new RapidsNativeFunctionWithCodeBlock(nativeFunc);
+            NativeFunctionsWithCodeBlocks[nativeFunc] = value;
+        }
+        
+        return new RapidsFunctionReferenceVariable(value);
     }
 }

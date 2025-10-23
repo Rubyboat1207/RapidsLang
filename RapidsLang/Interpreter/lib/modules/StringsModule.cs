@@ -4,8 +4,9 @@ namespace RapidsLang.Interpreter.Lib.Modules;
 
 public class StringsModule : Module
 {
-    public void CharFromCode(InterpreterContext ctx)
+    private static void CharFromCode(RapidsInterpreter interpreter)
     {
+        var ctx = interpreter.Context;
         if (!ctx.FunctionCallStack.TryPop(out var variable) || variable is not RapidsNumberVariable charCode)
         {
             // todo error
@@ -16,8 +17,9 @@ public class StringsModule : Module
         ctx.FunctionCallStack.Push(new RapidsStringVariable(Convert.ToChar((byte) charCode.Value).ToString()));
     }
 
-    public void CodeFromChar(InterpreterContext ctx)
+    private static void CodeFromChar(RapidsInterpreter interpreter)
     {
+        var ctx = interpreter.Context;
         if (!ctx.FunctionCallStack.TryPop(out var variable) || variable is not RapidsStringVariable str)
         {
             // todo error
@@ -27,10 +29,9 @@ public class StringsModule : Module
         
         ctx.FunctionCallStack.Push(new RapidsNumberVariable(str.Value[0]));
     }
-    
-    public override void Import(InterpreterContext context)
-    {
-        context.AddNativeFunction("charFromCode", CharFromCode);
-        context.AddNativeFunction("codeFromChar", CodeFromChar);
-    }
+
+    protected override ModuleExports Exports { get; } = new ModuleExports(new Dictionary<string, RapidsVariable> {
+        {"charFromCode", RapidsFunctionReferenceVariable.ofNative(CharFromCode)},
+        {"codeFromChar", RapidsFunctionReferenceVariable.ofNative(CodeFromChar)},
+    });
 }

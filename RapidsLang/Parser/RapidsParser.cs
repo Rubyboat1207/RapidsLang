@@ -1,11 +1,25 @@
 using RapidsLang.Lexer;
 using RapidsLang.Parser.Nodes;
+using RapidsLang.PreProcessor;
 using RapidsLang.Utils;
 
 namespace RapidsLang.Parser;
 
 public static class RapidsParser
 {
+    public static StatementsNode Parse(string code, out RapidsPreprocMetaData metaData)
+    {
+        var preprocRes = RapidsPreproc.Preprocess(code);
+
+        metaData = preprocRes.Metadata;
+
+        var lexResult = RapidsLexer.Lex(preprocRes.Output);
+        
+        var parseResult = Parse(lexResult);
+
+        return parseResult;
+    }
+    
     public static StatementsNode Parse(List<Token> tokens)
     {
         ListStepper<Token> stepper = new(tokens);
@@ -125,21 +139,33 @@ public static class RapidsParser
             if (stepper.Cur.TokenType is TokenType.Use)
             {
                 var use = stepper.Step();
-
+                
                 var moduleName = "";
 
-                while (stepper.Cur is { TokenType: TokenType.Identifier or TokenType.Dot })
+                if (stepper.Cur.TokenType is TokenType.StartString)
                 {
-                    moduleName += stepper.Step().Value;
-                }
+                    var str = ParseString(stepper.Step(), stepper);
 
-                if (stepper.Cur is not { TokenType: TokenType.SemiColon or TokenType.QuestionMark })
+                    if (str.Parts.Count != 1 || str.Parts[0] is not LiteralStringPart litStr)
+                    {
+                        throw new Exception("Formatted strings are not allowed in use statement module path");
+                    }
+
+                    moduleName = litStr.Value.Value;
+                }
+                else
                 {
-                    throw new Exception("Expected end of statement.");
+                    while (stepper.Cur is { TokenType: TokenType.Identifier or TokenType.Dot })
+                    {
+                        moduleName += stepper.Step().Value;
+                    }
                 }
 
                 root.Statements.Add(new UseStatementNode(
-                    use, moduleName, GetLogLevel(stepper)
+                    use,
+                    moduleName,
+                    ParseImportNodes(stepper),
+                    GetLogLevel(stepper)
                 ));
 
                 continue;
@@ -165,6 +191,69 @@ public static class RapidsParser
                 ));
 
                 continue;
+            }
+
+            if (stepper.Cur.TokenType is TokenType.Export)
+            {
+                var export = stepper.Step();
+
+                if (stepper.Cur.TokenType is TokenType.Identifier)
+                {
+                    var name = stepper.Step();
+
+                    if (stepper.Cur.TokenType is TokenType.Assignment)
+                    {
+                        stepper.Increment();
+                        
+                        root.Statements.Add(new ExportStatement(
+                            export,
+                            new ExpressionExportable(name, ParseExpression(stepper)),
+                            GetLogLevel(stepper)
+                        ));
+                        continue;
+                    }
+                    if (!CheckIfIsFunctionDeclaration(stepper))
+                    {
+                        throw new Exception("Expected a function declaration or assignment after export");
+                    }
+
+                    var func = ParseExpression(stepper);
+
+                    if (func is not FunctionNode funcNode)
+                    {
+                        throw new Exception("I dun messed up again.");
+                    }
+                    
+                    root.Statements.Add(new ExportStatement(
+                        export,
+                        new FunctionExportable(name, funcNode),
+                        GetLogLevel(stepper)
+                    ));
+                    continue;
+                }
+
+                if (stepper.Cur.TokenType is TokenType.Define)
+                {
+                    var define = stepper.Cur;
+                    root.Statements.Add(new ExportStatement(
+                        export,
+                        new TargetOrSourceExportable(
+                            define,
+                            ParseTargetOrSourceDefinition(stepper)
+                        ),
+                        GetLogLevel(stepper)
+                    ));
+                    continue;
+                }
+            }
+
+            if (stepper.Cur.TokenType is TokenType.Define)
+            {
+                root.Statements.Add(new DefineTargetOrSourceStatement(
+                    stepper.Cur,
+                    ParseTargetOrSourceDefinition(stepper),
+                    GetLogLevel(stepper)
+                ));
             }
 
             if (stepper.Cur.TokenType is TokenType.While )
@@ -312,12 +401,24 @@ public static class RapidsParser
     private static Tuple<StringNode, ExpressionNode> GetObjectPair(ListStepper<Token> stepper)
     {
         var startString = stepper.Step();
-        if (startString.TokenType != TokenType.StartString)
+
+        StringNode str;
+        
+        if (startString.TokenType is TokenType.StartString)
+        {
+            str = ParseString(startString, stepper);
+        }else if (startString.TokenType is TokenType.Identifier)
+        {
+            // this is a bit of a hack, but ultimately it works.
+            str = new StringNode(startString, [new LiteralStringPart(startString)]);
+        }
+        else
         {
             throw new Exception("Object key must be string, if you tried to pass an expression, try `{expression}`.");
         }
+        
+        
 
-        var str = ParseString(startString, stepper);
         if (stepper.Step().TokenType != TokenType.Colon)
         {
             throw new Exception("Object key value pair is defined as `string`: value. Expected Colon.");
@@ -326,6 +427,84 @@ public static class RapidsParser
         var expr = ParseExpression(stepper);
 
         return new Tuple<StringNode, ExpressionNode>(str, expr);
+    }
+    
+    private static DefineTargetOrSourceNode ParseTargetOrSourceDefinition(ListStepper<Token> stepper)
+    {
+        // This function assumes the stepper.Cur is TokenType.Define
+        var defineToken = stepper.Step();
+
+        if (stepper.Cur.TokenType is not (TokenType.Target or TokenType.Source))
+        {
+            throw new Exception("Expected 'target' or 'source' after 'define'.");
+        }
+
+        var typeToken = stepper.Step();
+        bool isTarget = typeToken.TokenType == TokenType.Target;
+
+        if (stepper.Cur.TokenType is not TokenType.Identifier)
+        {
+            throw new Exception($"Expected name (identifier) after 'define {typeToken.Value}'.");
+        }
+        
+        var nameToken = stepper.Step();
+        
+        TypeNode? type = null;
+        if (stepper.Cur.TokenType is TokenType.OpenTriangle)
+        {
+            // TODO: Implement type parsing
+            throw new NotImplementedException("Types not yet implemented for target/source definitions.");
+        }
+        
+        return new DefineTargetOrSourceNode(
+            defineToken,
+            nameToken,
+            isTarget,
+            type
+        );
+    }
+
+    private static List<ImportNode>? ParseImportNodes(ListStepper<Token> stepper)
+    {
+        if (stepper.Cur.TokenType is not TokenType.Colon)
+        {
+            return null;
+        }
+
+        stepper.Increment();
+        List<ImportNode> imports = [];
+        while (stepper.Cur.TokenType is not (TokenType.SemiColon or TokenType.QuestionMark) && !stepper.AtEnd)
+        {
+            var name = stepper.Step();
+            if (name.TokenType is not TokenType.Identifier)
+            {
+                throw new Exception("Imported item should be an identifier");
+            }
+
+            if (stepper.Cur.Value == "as")
+            {
+                stepper.Increment();
+
+                if (stepper.Cur.TokenType is not TokenType.Identifier)
+                {
+                    throw new Exception("Import as name should be an identifier");
+                }
+                
+                imports.Add(new ImportNode(name, stepper.Step()));
+            }
+            else
+            {
+                imports.Add(new ImportNode(name, null));
+            }
+
+            if (stepper.Cur.TokenType is not TokenType.Comma)
+            {
+                break;
+            }
+            stepper.Increment();
+        }
+        
+        return imports;
     }
 
     private static List<Tuple<StringNode, ExpressionNode>> ParseObjectKeyValues(ListStepper<Token> stepper)
@@ -558,7 +737,7 @@ public static class RapidsParser
                     var functionBody = Parse(stepper, new StatementsNode(openTriangle));
                     StatementsNode? debugBody = null;
 
-                    if (stepper.Cur.TokenType is TokenType.QuestionMark)
+                    if (stepper is { HasNext: true, Cur.TokenType: TokenType.QuestionMark })
                     {
                         stepper.Increment();
                         debugBody = Parse(stepper, new StatementsNode(openTriangle));

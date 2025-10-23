@@ -1,3 +1,4 @@
+using RapidsLang.Extensions;
 using RapidsLang.Interpreter.Variables;
 using RapidsLang.Interpreter.Work;
 using RapidsLang.Lexer;
@@ -18,31 +19,71 @@ public enum BlockType
 public class BlockProgress(StatementsNode block, BlockType blockType, int programCounter=0)
 {
     public int ProgramCounter { get; set; } = programCounter;
-    public readonly List<string> ScopedVariables = [];
-    // Todo: Closures
     public StatementsNode Block { get; } = block;
     public RapidsVariable? Return = null;
     public BlockType BlockType { get; } = blockType;
     public bool ShouldBreakOut { get; set; }
 }
 
-public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preprocessorMetadata, StatementsNode root)
+public class RapidsInterpreter
 {
-    public InterpreterContext Context { get; } = new();
-    public Stack<InterpreterWork> WorkStack { get; }  = [];
+    private readonly string _sourceCode;
+    private readonly RapidsPreprocMetaData _preprocessorMetadata;
+
+    private bool _done;
+    public bool Done
+    {
+        private get => _done;
+        set
+        {
+            _done = value;
+            if (_done)
+            {
+                WakeUp();
+            }
+        }
+    }
+
+    public RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preprocessorMetadata, string? mainSourceCodePath=null)
+    {
+        _sourceCode = sourceCode;
+        _preprocessorMetadata = preprocessorMetadata;
+
+        MainSourceCodePath = mainSourceCodePath;
+        
+        ContextStack.Push(new InterpreterContext(sourceCode, preprocessorMetadata, mainSourceCodePath));
+    }
+
+    public Stack<InterpreterContext> ContextStack { get; } = new();
+    public InterpreterContext Context => ContextStack.Peek();
+    private Stack<InterpreterWork> WorkStack { get; }  = [];
+    public string? MainSourceCodePath { get; }
+    private readonly SemaphoreSlim _workSignal = new SemaphoreSlim(0);
+
+    public void WakeUp()
+    {
+        if (_workSignal.CurrentCount == 0)
+        {
+            // Console.WriteLine("should wake up interpreter: " + GetHashCode());
+            _workSignal.Release();
+        }
+    }
+    
 
     public void PushWork(InterpreterWork work)
     {
         WorkStack.Push(work);
+        WakeUp();
     }
 
     public string GetLineCol(Token token)
     {
-        return RapidsPreproc.GetRowCol(sourceCode, token.Index, preprocessorMetadata);
+        return RapidsPreproc.GetRowCol(Context.SourceCode, token.Index, Context.PreprocMetaData);
     }
 
-    public CodeBlockRunWork StartNewBlock(StatementsNode block, BlockType type, CodeBlockRunWork? Parent)
+    public CodeBlockRunWork StartNewBlock(StatementsNode block, BlockType type, CodeBlockRunWork? Parent, InterpreterContext? ctx=null)
     {
+        ContextStack.Push(ctx ?? new InterpreterContext(Context));
         CollapseStack();
         var progress = new BlockProgress(block, type);
         var work = new CodeBlockRunWork(progress, this, Parent);
@@ -51,10 +92,11 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
         return work;
     }
 
-    public void Interpret()
+    public async Task Interpret(StatementsNode root, bool topLevel=false)
     {
         StartNewBlock(root, BlockType.Module, null);
-        while (true)
+        Done = false;
+        while (!Done)
         {
             CollapseStack();
             if (WorkStack.TryPeek(out var work))
@@ -67,7 +109,16 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
                 {
                     if (work.ActiveNode is not null)
                     {
-                        throw new Exception($"At {GetLineCol(work.ActiveNode.BaseToken)}", e);
+                        string message = "An error occurred";
+                        try
+                        {
+                            message = $"At {Context.SourcePath} {GetLineCol(work.ActiveNode.BaseToken)}";
+                        }
+                        catch
+                        {
+                            // ignored
+                        }
+                        throw new Exception(message, e);
                     }
 
                     throw;
@@ -75,7 +126,14 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
             }
             else
             {
-                break;
+                if (!topLevel)
+                {
+                    break;
+                }
+                // Console.WriteLine("interpreter: " + GetHashCode() + " is going to sleep");
+                await _workSignal.WaitAsync();
+                Context.ModuleRegistry.TickExternalModules(Context);
+                // Console.WriteLine("interpreter: " + GetHashCode() + " is waking up");
             }
 
         }
@@ -87,5 +145,15 @@ public class RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preproce
         {
             WorkStack.Pop().Cleanup();
         }
+
+        while (ContextStack.TryPeek(out var ctx) && !ctx.Active)
+        {
+            ContextStack.Pop();
+        }
+    }
+
+    public static void Exit(RapidsInterpreter interpreter)
+    {
+        interpreter.Done = true;
     }
 }

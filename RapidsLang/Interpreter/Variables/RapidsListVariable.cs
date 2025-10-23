@@ -82,8 +82,9 @@ public class RapidsListVariable : RapidsVariable
         return null;
     }
 
-    public void Add(InterpreterContext ctx)
+    public void Add(RapidsInterpreter interpreter)
     {
+        var ctx = interpreter.Context;
         if (!ctx.FunctionCallStack.TryPop(out var result))
         {
             // todo: exceptions
@@ -92,8 +93,9 @@ public class RapidsListVariable : RapidsVariable
         List.Add(result!);
     }
 
-    public void Insert(InterpreterContext ctx)
+    public void Insert(RapidsInterpreter interpreter)
     {
+        var ctx = interpreter.Context;
         if (!ctx.FunctionCallStack.TryPop(out var value))
         {
             // todo: exceptions
@@ -111,8 +113,9 @@ public class RapidsListVariable : RapidsVariable
         List.Insert((int) index.Value, value);
     }
 
-    public void RemoveAt(InterpreterContext ctx)
+    public void RemoveAt(RapidsInterpreter interpreter)
     {
+        var ctx = interpreter.Context;
         if (!ctx.FunctionCallStack.TryPop(out var indexVar) || indexVar is not RapidsNumberVariable index)
         {
             // todo: exceptions
@@ -123,8 +126,9 @@ public class RapidsListVariable : RapidsVariable
         List.RemoveAt((int) index.Value);
     }
 
-    public void Pop(InterpreterContext ctx)
+    public void Pop(RapidsInterpreter interpreter)
     {
+        var ctx = interpreter.Context;
         if (List.Count == 0)
         {
             ctx.FunctionCallStack.Push(new RapidsNullVariable());

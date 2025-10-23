@@ -1,3 +1,5 @@
+using RapidsLang.Extensions;
+using RapidsLang.Extensions.Pipes;
 using RapidsLang.Interpreter.Variables;
 using RapidsLang.Lexer;
 using RapidsLang.Parser.Nodes;
@@ -23,10 +25,38 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
     public override void Execute()
     {
         CurrentlyEvaluatingNode = Block.Statements[ProgramCounter];
+        
+        Context.ModuleRegistry.TickExternalModules(Context.GetRoot());
 
         if (ActiveNode is UseStatementNode useNode)
         {
-            Modules.RegisteredModules.TryGetValue(useNode.ModuleIdentifier, out var module);
+            Context.ModuleRegistry.TryGetModule(useNode.ModuleIdentifier, out var module);
+
+            if (module is null)
+            {
+                if (Interpreter.MainSourceCodePath is not null)
+                {
+                    var sourceDir = Path.GetDirectoryName(Path.GetFullPath(Interpreter.MainSourceCodePath));
+                    if (sourceDir is not null)
+                    {
+                        var relativePath = Path.GetRelativePath(sourceDir, useNode.ModuleIdentifier);
+                        string? filePath = null;
+                        if (File.Exists(relativePath))
+                        {
+                            filePath = relativePath;
+                        }else if (File.Exists(relativePath + ".rpd"))
+                        {
+                            filePath = relativePath + ".rpd";
+                        }
+
+                        if (filePath is not null)
+                        {
+                            module = new CodeModule(File.ReadAllText(relativePath), filePath);
+                        }
+                    }
+                    
+                }
+            }
 
             if (module is null)
             {
@@ -34,10 +64,45 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             }
             else
             {
-                module.Import(Context);
+                module.Import(Context, useNode.ImportNodes);
             }
             ProgramCounter++;
             return;
+        }
+
+        if (ActiveNode is ExportStatement exportStatement)
+        {
+            if (exportStatement.ExportNode is ExpressionExportable exprExport)
+            {
+                EvaluateExpression(exprExport.Expression, val =>
+                {
+                    Context.Exports.Add(exprExport.BaseToken.Value, val);
+                    ProgramCounter++;
+                });
+            }
+
+            if (exportStatement.ExportNode is FunctionExportable funcExportable)
+            {
+                Context.Exports.Add(funcExportable.BaseToken.Value,
+                    new RapidsFunctionReferenceVariable(
+                        new RapidsUserFunction(funcExportable.FunctionNode, new InterpreterContext(Context)
+                        )));
+                ProgramCounter++;
+            }
+            
+            if (exportStatement.ExportNode is TargetOrSourceExportable targetOrSourceExportable)
+            {
+                Context.Exports.Add(targetOrSourceExportable.TargetOrSourceNode.Name.Value, AddTargetOrSource(targetOrSourceExportable.TargetOrSourceNode).Variable);
+                ProgramCounter++;
+            }
+
+            return;
+        }
+
+        if (ActiveNode is DefineTargetOrSourceNode targetOrSourceNode)
+        {
+            AddTargetOrSource(targetOrSourceNode);
+            ProgramCounter++;
         }
 
         if (ActiveNode is FunctionCallStatementNode functionCallStatementNode)
@@ -46,14 +111,13 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             {
                 EvaluateExpressions(functionCallStatementNode.Function.Arguments, variables =>
                 {
-                    variables.ForEach(Interpreter.Context.FunctionCallStack.Push);
+                    variables.ForEach(Context.FunctionCallStack.Push);
 
                     if (function is not RapidsFunctionReferenceVariable func) return;
                     func.Function.OnCompleted += OnFuncCompleted;
                         
-                    func.Function.EnqueueExecution(Context, this);
+                    func.Function.EnqueueExecution(Interpreter, this);
                     return;
-
 
                     void OnFuncCompleted()
                     {
@@ -71,12 +135,10 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
         {
             EvaluateExpression(declaration.Expression, val =>
             {
-                Context.variables.Add(
+                Context.AddVariable(
                     declaration.Name.Value,
                     new VariableHolder(val, declaration.Constant, declaration.Type)
                 );
-
-                Scope.ScopedVariables.Add(declaration.Name.Value);
                 ProgramCounter++;
             });
             
@@ -175,11 +237,10 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
         
         if(ActiveNode is FunctionDeclarationNode functionDeclaration)
         {
-            Context.variables.Add(functionDeclaration.Name.Value, new VariableHolder(
-                new RapidsFunctionReferenceVariable(new RapidsUserFunction(functionDeclaration.Function, Interpreter)),
+            Context.AddVariable(functionDeclaration.Name.Value, new VariableHolder(
+                new RapidsFunctionReferenceVariable(new RapidsUserFunction(functionDeclaration.Function, new InterpreterContext(Context))),
                 true
             ));
-            Scope.ScopedVariables.Add(functionDeclaration.Name.Value);
             ProgramCounter++;
             return;
         }
@@ -275,6 +336,61 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
         }
     }
 
+    private VariableHolder AddTargetOrSource(DefineTargetOrSourceNode node)
+    {
+        if (Context.CurrentModule is not ExtensionModule extensionModule)
+        {
+            throw new Exception("Attempted to define target or source outside of extension module");
+        }
+
+        if (extensionModule.Extension.ExtensionManifest.Protocol == null)
+        {
+            throw new Exception("Attempted to define target or source, but extension does not define a protocol.");
+        }
+
+        VariableHolder holder;
+        
+        if (Context.TryFindVariable(node.Name.Value, out var inputOutput))
+        {
+            if (inputOutput!.Variable is RapidsDataInputOutputVariable io)
+            {
+                if (node.IsTarget)
+                {
+                    io.SetWritable();
+                }
+                else
+                {
+                    io.SetReadable();
+                }
+
+                holder = inputOutput;
+            }
+            else
+            {
+                throw new Exception($"variable {node.Name.Value} is already defined in this scope.");
+            }
+        }
+        else
+        {
+            holder = new VariableHolder(new RapidsDataInputOutputVariable(
+                new DataInputOutput(
+                    extensionModule,
+                    new Identifier(
+                        extensionModule.Extension.ExtensionManifest.ModuleName,
+                        node.Name.Value
+                    ),
+                    !node.IsTarget,
+                    node.IsTarget
+                ),
+                extensionModule
+            ), false);
+            
+            Context.AddVariable(node.Name.Value, holder);
+        }
+
+        return holder;
+    }
+
     public override bool IsDone()
     {
         return Scope.ProgramCounter >= Block.Statements.Count || Scope.ShouldBreakOut;
@@ -285,11 +401,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
 
     public override void Cleanup()
     {
-        foreach (var variable in Scope.ScopedVariables)
-        {
-            Interpreter.Context.variables.Remove(variable);
-        }
-        
+        Context.Active = false;
         base.Cleanup();
     }
 }

@@ -4,14 +4,25 @@ using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter.Work;
 
-public abstract record InterpreterWork(RapidsInterpreter Interpreter, CodeBlockRunWork? Parent)
+public abstract record InterpreterWork
 {
-    protected InterpreterContext Context => Interpreter.Context;
+    protected InterpreterWork(RapidsInterpreter Interpreter, CodeBlockRunWork? Parent)
+    {
+        this.Interpreter = Interpreter;
+        this.Parent = Parent;
+        
+        // this should get the current active context, and won't change as it updates.
+        Context = Interpreter.Context; 
+    }
+
+    protected InterpreterContext Context { get; init; }
     protected string GetLineCol(Token token) => Interpreter.GetLineCol(token);
     
     public abstract void Execute();
     public abstract bool IsDone();
     public abstract Node? ActiveNode { get; }
+    public RapidsInterpreter Interpreter { get; init; }
+    public CodeBlockRunWork? Parent { get; init; }
 
     public virtual void Cleanup()
     {
@@ -63,7 +74,7 @@ public abstract record InterpreterWork(RapidsInterpreter Interpreter, CodeBlockR
     {
         if (accessNode.Left is null)
         {
-            Context.variables.TryGetValue(accessNode.MemberName.Value, out var rapidsVariable);
+            Context.TryFindVariable(accessNode.MemberName.Value, out var rapidsVariable);
             rapidsVariableCallback.Invoke(rapidsVariable);
             return;
         }
@@ -86,11 +97,11 @@ public abstract record InterpreterWork(RapidsInterpreter Interpreter, CodeBlockR
             rapidsVariableCallback.Invoke(new VariableHolder(value, false));
         }, parent);
     }
-    
-    protected void TryGetValue(IdentifierNode identifierNode, Action<VariableHolder?> rapidsVariableCallback)
+
+    public void Deconstruct(out RapidsInterpreter Interpreter, out CodeBlockRunWork? Parent)
     {
-        Context.variables.TryGetValue(identifierNode.Token.Value, out var rapidsVariable);
-        rapidsVariableCallback.Invoke(rapidsVariable);
+        Interpreter = this.Interpreter;
+        Parent = this.Parent;
     }
 }
 

@@ -4,9 +4,10 @@ namespace RapidsLang.Interpreter.Lib.Modules;
 
 public class ConsoleModule : Module
 {
-    public static void Print(InterpreterContext context)
+    public static void Print(RapidsInterpreter interpreter)
     {
-        context.FunctionCallStack.TryPop(out var variable);
+        var ctx = interpreter.Context;
+        ctx.FunctionCallStack.TryPop(out var variable);
 
         if (variable is null)
         {
@@ -17,19 +18,21 @@ public class ConsoleModule : Module
         }
     }
 
-    public static void Input(InterpreterContext context)
+    public static void Input(RapidsInterpreter interpreter)
     {
-        if (context.FunctionCallStack.TryPop(out var value))
+        var ctx = interpreter.Context;
+        if (ctx.FunctionCallStack.TryPop(out var value))
         {
             Console.Write(Utils.StringifyVariable(value));
         }
         
         var input = Console.ReadLine();
-        context.FunctionCallStack.Push(input != null ? new RapidsStringVariable(input) : new RapidsNullVariable());
+        ctx.FunctionCallStack.Push(input != null ? new RapidsStringVariable(input) : new RapidsNullVariable());
     }
 
-    public static void PutChar(InterpreterContext ctx)
+    public static void PutChar(RapidsInterpreter interpreter)
     {
+        var ctx = interpreter.Context;
         ctx.FunctionCallStack.TryPop(out var variable);
 
         if (variable is not null)
@@ -38,10 +41,9 @@ public class ConsoleModule : Module
         }
     }
 
-    public override void Import(InterpreterContext context)
-    {
-        context.AddNativeFunction("print", Print);
-        context.AddNativeFunction("putChar", PutChar);
-        context.AddNativeFunction("input", Input);
-    }
+    protected override ModuleExports Exports { get; } = new(new Dictionary<string, RapidsVariable> {
+        {"print", RapidsFunctionReferenceVariable.ofNative(Print)},
+        {"putChar", RapidsFunctionReferenceVariable.ofNative(PutChar)},
+        {"input", RapidsFunctionReferenceVariable.ofNative(Input)},
+    });
 }

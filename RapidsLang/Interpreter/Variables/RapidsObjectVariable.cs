@@ -1,5 +1,3 @@
-using RapidsLang.Parser.Nodes;
-
 namespace RapidsLang.Interpreter.Variables;
 
 public class RapidsObjectVariable(Dictionary<string, RapidsVariable>? initialValues=null) : RapidsVariable

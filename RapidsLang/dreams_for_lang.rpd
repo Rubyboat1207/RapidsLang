@@ -59,8 +59,6 @@ pipe twitch.dono `{user} ({bits}): {text}` -> minecraft.chat
 
 // interfaces
 
-define module twitch;
-
 define target chat<string>
 define source bits<{text, bits: number, user}>
 
