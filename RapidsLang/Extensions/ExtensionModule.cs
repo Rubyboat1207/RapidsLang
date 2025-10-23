@@ -35,7 +35,7 @@ public class ExtensionModule : Module
                     }
                 };
 
-            interpreter.Interpret(program);
+            interpreter.Interpret(program).Wait();
 
             _isRunning = false;
             _hasRun = true;

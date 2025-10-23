@@ -1,4 +1,6 @@
+using RapidsLang.Extensions;
 using RapidsLang.Extensions.Pipes;
+using RapidsLang.Interpreter.Work;
 
 namespace RapidsLang.Interpreter.Variables;
 
@@ -6,11 +8,13 @@ public class RapidsDataInputOutputVariable : RapidsVariable
 {
     private DataInputOutput DataInputOutput { get; }
     private readonly RapidsFunction _sendDataFunction;
+    private readonly ExtensionModule _module;
 
-    public RapidsDataInputOutputVariable(DataInputOutput dataInputOutput)
+    public RapidsDataInputOutputVariable(DataInputOutput dataInputOutput, ExtensionModule module)
     {
         DataInputOutput = dataInputOutput;
         _sendDataFunction = new RapidsNativeFunction(SendData);
+        _module = module;
     }
 
     public override RapidsVariable? GetResult(RapidsOperator op, RapidsVariable other)
@@ -40,17 +44,45 @@ public class RapidsDataInputOutputVariable : RapidsVariable
         {
             return new RapidsFunctionReferenceVariable(_sendDataFunction);
         }
+
+        if (memberName == "on_data")
+        {
+            return RapidsFunctionReferenceVariable.ofNative(OnData);
+        }
         return null;
     }
 
     public override RapidsVariable ShallowCopy()
     {
-        return new RapidsDataInputOutputVariable(DataInputOutput);
+        return new RapidsDataInputOutputVariable(DataInputOutput, _module);
     }
-    
-    public void SendData(RapidsInterpreter interpreter)
+
+    private void SendData(RapidsInterpreter interpreter)
     {
         var data = interpreter.Context.FunctionCallStack.Pop();
         DataInputOutput?.SendData(data);
+    }
+
+    public void SetReadable()
+    {
+        DataInputOutput.Readable = true;
+    }
+
+    public void SetWritable()
+    {
+        DataInputOutput.Writable = true;
+    }
+
+    private void OnData(RapidsInterpreter interpreter, CodeBlockRunWork? parentCodeBlock)
+    {
+        interpreter.Context.GetRoot().ModuleRegistry.MarkModuleAsTicking(_module, interpreter);
+        if (interpreter.Context.FunctionCallStack.TryPop(out var funcVar) && funcVar is RapidsFunctionReferenceVariable func)
+        {
+            DataInputOutput.OnData += rv =>
+            {
+                interpreter.Context.FunctionCallStack.Push(rv);
+                func.Function.EnqueueExecution(interpreter, parentCodeBlock);
+            };
+        }
     }
 }

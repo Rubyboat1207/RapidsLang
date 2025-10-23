@@ -245,7 +245,7 @@ public static class RapidsLexer
                 continue;
             }
             
-            if (Keywords.Any(kw => stepper.CaptureIfNextHas(Token.GetDefaultValueForTokenType(kw), kw)))
+            if (Keywords.Any(kw => stepper.CaptureIfNextHas(Token.GetDefaultValueForTokenType(kw), kw, true)))
             {
                 continue;
             }

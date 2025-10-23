@@ -28,6 +28,17 @@ public class RapidsNativeFunction(Action<RapidsInterpreter> func) : RapidsFuncti
     }
 }
 
+public class RapidsNativeFunctionWithCodeBlock(Action<RapidsInterpreter, CodeBlockRunWork?> func) : RapidsFunction
+{
+    public Action<RapidsInterpreter, CodeBlockRunWork?> Function { get; } = func;
+    public override void EnqueueExecution(RapidsInterpreter interpreter, CodeBlockRunWork? parentCodeBlock)
+    {
+        Function.Invoke(interpreter, parentCodeBlock);
+
+        base.EnqueueExecution(interpreter, parentCodeBlock);
+    }
+}
+
 public class RapidsUserFunction(FunctionNode func, InterpreterContext closure)  : RapidsFunction
 {
     public FunctionNode Func { get; } = func;

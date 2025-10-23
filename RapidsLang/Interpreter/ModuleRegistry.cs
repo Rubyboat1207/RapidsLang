@@ -25,11 +25,11 @@ public class ModuleRegistry
         RegisteredModules[identifier] = module;
     }
 
-    public void MarkModuleAsTicking(ExtensionModule module)
+    public void MarkModuleAsTicking(ExtensionModule module, RapidsInterpreter interpreter)
     {
         if (!_tickingModules.Contains(module))
         {
-            module.Extension.ExtensionManifest.Protocol?.Init();
+            module.Extension.ExtensionManifest.Protocol?.Init(interpreter);
             _tickingModules.Add(module);
         }
     }

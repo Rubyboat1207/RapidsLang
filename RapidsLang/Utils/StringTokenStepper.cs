@@ -57,15 +57,48 @@ public class StringTokenStepper(string str)
             return false;
         }
 
-        return ActiveString[index..(index + str.Length)] == str;
+        var baseEquals = ActiveString.AsSpan(index, str.Length).SequenceEqual(str);
+
+        return baseEquals;
     }
 
-    public bool CaptureIfNextHas(string? str, TokenType tokenType)
+    public bool CaptureIfNextHas(string? str, TokenType tokenType, bool isKeywords=false)
     {
-        if (str is null || !NextHas(str)) return false;
+        if (isKeywords)
+        {
+            if (str is null || !NextHasKeyword(str)) return false;
+        }
+        else
+        {
+            if (str is null || !NextHas(str)) return false;
+        }
         
         Tokens.Add(new Token(tokenType, index));
         Increment(count:str.Length);
+        return true;
+    }
+    
+    public bool NextHasKeyword(string str)
+    {
+        if (!NextHas(str))
+        {
+            return false;
+        }
+
+        int charAfterIndex = index + str.Length;
+        
+        if (charAfterIndex >= ActiveString.Length)
+        {
+            return true;
+        }
+
+        char charAfter = ActiveString[charAfterIndex];
+        
+        if (char.IsLetterOrDigit(charAfter) || charAfter == '_')
+        {
+            return false;
+        }
+        
         return true;
     }
     

@@ -69,6 +69,7 @@ public class WebsocketProtocol : CommunicationProtocol
         {
             value = [];
             _eventListeners[identifier] = value;
+            BroadcastMessage(new S2CSourceBeginListening(identifier)).Wait();
         }
 
         value[subscriber.Guid] = subscriber;
@@ -84,9 +85,9 @@ public class WebsocketProtocol : CommunicationProtocol
         }
     }
 
-    public override void Init()
+    public override void Init(RapidsInterpreter interpreter)
     {
-        base.Init();
+        base.Init(interpreter);
 
         Task.Run(BeginAcceptingClients);
     }
@@ -126,6 +127,14 @@ public class WebsocketProtocol : CommunicationProtocol
                 
                 _webSockets.Add(wsCtx.WebSocket);
 
+                foreach (var listener in _eventListeners)
+                {
+                    if (listener.Value.Count > 0)
+                    {
+                        await BroadcastMessage(new S2CSourceBeginListening(listener.Key));
+                    }
+                }
+
                 _ = HandleWebsocket(wsCtx.WebSocket);
             }
         }
@@ -137,9 +146,8 @@ public class WebsocketProtocol : CommunicationProtocol
         {
             while (ws.State == WebSocketState.Open)
             {
-                var timeout = new CancellationTokenSource();
-                timeout.CancelAfter(TimeSpan.FromSeconds(15));
-                var res = await ReceiveFullMessageAsync(ws, timeout.Token);
+
+                var res = await ReceiveFullMessageAsync(ws, CancellationToken.None);
 
                 var req = JsonSerializer.Deserialize<C2SWebsocketRequest>(res.Data);
                 if (req is null)
@@ -154,10 +162,11 @@ public class WebsocketProtocol : CommunicationProtocol
                 lock (_requestsLock)
                 {
                     _requests.Add(req);
+                    ResponsibleInterpreter?.WakeUp();
                 }
             }
         }
-        catch (WebSocketException ex)
+        catch (Exception ex)
         {
             Console.WriteLine(ex);
         }

@@ -9,7 +9,10 @@ public class InterpreterContext
     public bool Active = true;
     public InterpreterContext? Parent { get; }
     public Stack<RapidsVariable> FunctionCallStack = [];
-    private Dictionary<string, VariableHolder> Variables { get; init; } = [];
+    private Dictionary<string, VariableHolder> Variables { get; init; } = new()
+    {
+        {"exit", new VariableHolder(RapidsFunctionReferenceVariable.ofNative(RapidsInterpreter.Exit), true)} 
+    };
     public ModuleRegistry ModuleRegistry = new();
     public ModuleExports Exports = new();
     public Module? CurrentModule;
@@ -58,9 +61,9 @@ public class InterpreterContext
             return true;
         }
 
-        return Parent != null ?
-            Parent.TryFindVariable(name, out variable) :
-            throw new Exception($"Variable '{name}' not found.");
+        variable = null;
+        
+        return Parent != null && Parent.TryFindVariable(name, out variable);
     }
 
     public void AddVariable(string name, VariableHolder variableHolder)

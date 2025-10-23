@@ -56,6 +56,6 @@ public class RapidLangEntry
         
         extensions.ForEach(d => interpreter.Context.ModuleRegistry.AddModule(d.ExtensionManifest.ModuleName, new ExtensionModule(d)));
         
-        interpreter.Interpret(parseResult);
+        interpreter.Interpret(parseResult, true).Wait();
     }
 }

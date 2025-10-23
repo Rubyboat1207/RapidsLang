@@ -348,19 +348,45 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             throw new Exception("Attempted to define target or source, but extension does not define a protocol.");
         }
 
-        var holder = new VariableHolder(new RapidsDataInputOutputVariable(
-            new DataInputOutput(
-                extensionModule,
-                new Identifier(extensionModule.Extension.ExtensionManifest.ModuleName,
-                    node.Name.Value),
-                false,
-                true
-            )
-        ), false);
+        VariableHolder holder;
         
-        Context.ModuleRegistry.MarkModuleAsTicking(extensionModule);
-        
-        Context.AddVariable(node.Name.Value, holder);
+        if (Context.TryFindVariable(node.Name.Value, out var inputOutput))
+        {
+            if (inputOutput!.Variable is RapidsDataInputOutputVariable io)
+            {
+                if (node.IsTarget)
+                {
+                    io.SetWritable();
+                }
+                else
+                {
+                    io.SetReadable();
+                }
+
+                holder = inputOutput;
+            }
+            else
+            {
+                throw new Exception($"variable {node.Name.Value} is already defined in this scope.");
+            }
+        }
+        else
+        {
+            holder = new VariableHolder(new RapidsDataInputOutputVariable(
+                new DataInputOutput(
+                    extensionModule,
+                    new Identifier(
+                        extensionModule.Extension.ExtensionManifest.ModuleName,
+                        node.Name.Value
+                    ),
+                    !node.IsTarget,
+                    node.IsTarget
+                ),
+                extensionModule
+            ), false);
+            
+            Context.AddVariable(node.Name.Value, holder);
+        }
 
         return holder;
     }

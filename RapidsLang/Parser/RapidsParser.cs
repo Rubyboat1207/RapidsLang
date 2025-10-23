@@ -245,8 +245,6 @@ public static class RapidsParser
                     ));
                     continue;
                 }
-                
-                // todo: sources & targets
             }
 
             if (stepper.Cur.TokenType is TokenType.Define)

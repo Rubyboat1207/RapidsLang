@@ -30,6 +30,20 @@ public class RapidsInterpreter
     private readonly string _sourceCode;
     private readonly RapidsPreprocMetaData _preprocessorMetadata;
 
+    private bool _done;
+    public bool Done
+    {
+        private get => _done;
+        set
+        {
+            _done = value;
+            if (_done)
+            {
+                WakeUp();
+            }
+        }
+    }
+
     public RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preprocessorMetadata, string? mainSourceCodePath=null)
     {
         _sourceCode = sourceCode;
@@ -42,12 +56,24 @@ public class RapidsInterpreter
 
     public Stack<InterpreterContext> ContextStack { get; } = new();
     public InterpreterContext Context => ContextStack.Peek();
-    public Stack<InterpreterWork> WorkStack { get; }  = [];
+    private Stack<InterpreterWork> WorkStack { get; }  = [];
     public string? MainSourceCodePath { get; }
+    private readonly SemaphoreSlim _workSignal = new SemaphoreSlim(0);
+
+    public void WakeUp()
+    {
+        if (_workSignal.CurrentCount == 0)
+        {
+            // Console.WriteLine("should wake up interpreter: " + GetHashCode());
+            _workSignal.Release();
+        }
+    }
+    
 
     public void PushWork(InterpreterWork work)
     {
         WorkStack.Push(work);
+        WakeUp();
     }
 
     public string GetLineCol(Token token)
@@ -66,10 +92,11 @@ public class RapidsInterpreter
         return work;
     }
 
-    public void Interpret(StatementsNode root)
+    public async Task Interpret(StatementsNode root, bool topLevel=false)
     {
         StartNewBlock(root, BlockType.Module, null);
-        while (true)
+        Done = false;
+        while (!Done)
         {
             CollapseStack();
             if (WorkStack.TryPeek(out var work))
@@ -99,7 +126,14 @@ public class RapidsInterpreter
             }
             else
             {
-                break;
+                if (!topLevel)
+                {
+                    break;
+                }
+                // Console.WriteLine("interpreter: " + GetHashCode() + " is going to sleep");
+                await _workSignal.WaitAsync();
+                Context.ModuleRegistry.TickExternalModules(Context);
+                // Console.WriteLine("interpreter: " + GetHashCode() + " is waking up");
             }
 
         }
@@ -118,8 +152,8 @@ public class RapidsInterpreter
         }
     }
 
-    public void AddExtensionModule(ExtensionData extensionData)
+    public static void Exit(RapidsInterpreter interpreter)
     {
-        
+        interpreter.Done = true;
     }
 }
