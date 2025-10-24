@@ -1,6 +1,7 @@
 using RapidsLang.Extensions;
 using RapidsLang.Extensions.Pipes;
 using RapidsLang.Interpreter.Work;
+using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter.Variables;
 
@@ -9,6 +10,13 @@ public class RapidsDataInputOutputVariable : RapidsVariable
     private DataInputOutput DataInputOutput { get; }
     private readonly RapidsFunction _sendDataFunction;
     private readonly ExtensionModule _module;
+    public bool Readable => DataInputOutput.Readable;
+    public bool Writable => DataInputOutput.Writable;
+
+    public string? DataVariableName
+    {
+        set => DataInputOutput.DataVariableName = value;
+    }
 
     public RapidsDataInputOutputVariable(DataInputOutput dataInputOutput, ExtensionModule module)
     {
@@ -80,9 +88,53 @@ public class RapidsDataInputOutputVariable : RapidsVariable
         {
             DataInputOutput.OnData += rv =>
             {
-                interpreter.Context.FunctionCallStack.Push(rv);
+                if (rv is not RapidsNullVariable)
+                {
+                    interpreter.Context.FunctionCallStack.Push(rv);
+                }
+                
                 func.Function.EnqueueExecution(interpreter, parentCodeBlock);
             };
         }
+    }
+
+    private Dictionary<Guid, Action<RapidsVariable>> OnStatementSubscriptions = [];
+
+    public void SubscribeUsingOnStatement(OnSourceStatement node, RapidsInterpreter interpreter, CodeBlockRunWork? parent)
+    {
+        if (!interpreter.SupportsOnStatements)
+        {
+            // eventually create parent interpreters, so that this can find the root interpreter
+            // then register the on in that environment and not here, but for now we're going to ignore it.
+            return;
+        }
+        
+        interpreter.Context.GetRoot().ModuleRegistry.MarkModuleAsTicking(_module, interpreter);
+
+        var closure = new InterpreterContext(interpreter.Context);
+        var subscriptionId = Guid.CreateVersion7();
+
+        void OnTargetStatementCallback(RapidsVariable rv)
+        {
+            var closureInstance = new InterpreterContext(closure);
+            if (DataInputOutput.DataVariableName is not null)
+            {
+                closureInstance.AddVariable(DataInputOutput.DataVariableName, new VariableHolder(rv, true));
+            }
+
+            var block = interpreter.StartNewBlock(node.Body, BlockType.SourceCallback, parent, closureInstance);
+
+            block.Scope.Source = this;
+            block.Scope.SourceSubscriptionId = subscriptionId;
+        }
+
+        DataInputOutput.OnData += OnTargetStatementCallback;
+
+        OnStatementSubscriptions[subscriptionId] = OnTargetStatementCallback;
+    }
+
+    public void UnsubscribeOnStatement(Guid id)
+    {
+        DataInputOutput.OnData -= OnStatementSubscriptions[id];
     }
 }

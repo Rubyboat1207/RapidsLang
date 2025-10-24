@@ -297,4 +297,14 @@ public static class TestPrograms
     
     
     """;
+
+    public static readonly string OnStatementTest = """
+    use minecraft: chat;
+    use console: print;
+    
+    on chat {
+        print(msg.text);
+    };
+    
+    """;
 }

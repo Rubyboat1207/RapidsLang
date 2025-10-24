@@ -268,13 +268,36 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             return;
         }
 
+        if (ActiveNode is OnSourceStatement onSource)
+        {
+            EvaluateExpression(onSource.Source, sourceVariable =>
+            {
+                if (sourceVariable is not RapidsDataInputOutputVariable channel)
+                {
+                    throw new Exception("Attempted to use an on statement with a non channel");
+                }
+                
+                if (!channel.Readable)
+                {
+                    throw new Exception("Attempted to use an on statement with a channel that does not have a source." +
+                                        "\n Either there is no source, and this is the wrong channel" +
+                                        "\n Or the extension developer created an undefined target, which you can access using the .on_data function of the channel");
+                }
+                
+                channel.SubscribeUsingOnStatement(onSource, Interpreter, this);
+                ProgramCounter++;
+            });
+
+            return;
+        }
+
         if (ActiveNode is BreakNode)
         {
             // Interpreter.PushWork(new ResumeExecutionWork(BlockType.Loop, Interpreter, this));
             // ProgramCounter++;
             var codeBlock = this;
             
-            while (codeBlock is { Scope.BlockType: not BlockType.Loop })
+            while (codeBlock is { Scope.BlockType: not (BlockType.Loop or BlockType.SourceCallback) })
             {
                 codeBlock.Scope.ShouldBreakOut = true;
                 codeBlock = codeBlock.Parent;
@@ -286,6 +309,10 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             }
             
             codeBlock.Scope.ShouldBreakOut = true;
+            if (codeBlock.Scope.BlockType is BlockType.SourceCallback)
+            {
+                codeBlock.Scope.Source?.UnsubscribeOnStatement(codeBlock.Scope.SourceSubscriptionId);
+            }
             return;
         }
 
@@ -361,6 +388,11 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
                 else
                 {
                     io.SetReadable();
+
+                    if (node.DataName is not null)
+                    {
+                        io.DataVariableName = node.DataName.Value;
+                    }
                 }
 
                 holder = inputOutput;

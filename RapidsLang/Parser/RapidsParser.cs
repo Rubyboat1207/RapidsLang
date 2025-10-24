@@ -256,6 +256,25 @@ public static class RapidsParser
                 ));
             }
 
+            if (stepper.Cur.TokenType is TokenType.On)
+            {
+                var on = stepper.Step();
+
+                var expr = ParseExpression(stepper);
+
+                var openCurly = stepper.Step();
+
+                var block = Parse(stepper, new StatementsNode(openCurly));
+                
+                root.Statements.Add(new OnSourceStatement(
+                    on,
+                    expr,
+                    block,
+                    GetLogLevel(stepper)
+                ));
+                continue;
+            }
+
             if (stepper.Cur.TokenType is TokenType.While )
             {
                 var whileToken = stepper.Step();
@@ -448,6 +467,19 @@ public static class RapidsParser
         }
         
         var nameToken = stepper.Step();
+
+        Token? dataIdentifier = null;
+
+        if (!isTarget)
+        {
+            // can optionally specify the name for the data object, otherwise it is assumed it has no data object.
+            if (stepper.Cur.TokenType is TokenType.OpenParen)
+            {
+                stepper.Increment();
+                dataIdentifier = stepper.Step();
+                stepper.Increment(); // closed paren
+            }
+        }
         
         TypeNode? type = null;
         if (stepper.Cur.TokenType is TokenType.OpenTriangle)
@@ -460,6 +492,7 @@ public static class RapidsParser
             defineToken,
             nameToken,
             isTarget,
+            dataIdentifier,
             type
         );
     }
@@ -659,34 +692,6 @@ public static class RapidsParser
         return left;
     }
 
-    private static bool CheckIfIsFunctionDeclaration(ListStepper<Token> stepper)
-    {
-        var openParens = 1;
-        var explorer = new ListStepper<Token>(stepper.FromIndex());
-        if(explorer.Cur.TokenType == TokenType.OpenParen)
-        {
-            explorer.Increment();
-        }
-
-        while (openParens > 0)
-        {
-            if (explorer.Cur.TokenType is TokenType.ClosedParen)
-            {
-                openParens--;
-            }
-            if (explorer.Cur.TokenType is TokenType.OpenParen)
-            {
-                openParens++;
-            }
-            explorer.Increment();
-        }
-        // so in theory this is ambiguous in the exact situation where you are trying to compare the result of a function with a property of an object declared inline
-        // like so: function() > {test: 5}.test
-        // but I don't want to deal with this situation, so developers have to do this:
-        // function() > ({test: 5}).test
-        return explorer.Cur.TokenType is TokenType.ClosedTriangle && explorer.Next is { TokenType: TokenType.OpenCurly };
-    }
-
     private static ExpressionNode ParseSimpleExpression(ListStepper<Token> stepper)
     {
         var start = stepper.Step();
@@ -800,5 +805,33 @@ public static class RapidsParser
         stepper.Increment();
 
         return stringNode;
+    }
+    
+    private static bool CheckIfIsFunctionDeclaration(ListStepper<Token> stepper)
+    {
+        var openParens = 1;
+        var explorer = new ListStepper<Token>(stepper.FromIndex());
+        if(explorer.Cur.TokenType == TokenType.OpenParen)
+        {
+            explorer.Increment();
+        }
+
+        while (openParens > 0)
+        {
+            if (explorer.Cur.TokenType is TokenType.ClosedParen)
+            {
+                openParens--;
+            }
+            if (explorer.Cur.TokenType is TokenType.OpenParen)
+            {
+                openParens++;
+            }
+            explorer.Increment();
+        }
+        // so in theory this is ambiguous in the exact situation where you are trying to compare the result of a function with a property of an object declared inline
+        // like so: function() > {test: 5}.test
+        // but I don't want to deal with this situation, so developers have to do this:
+        // function() > ({test: 5}).test
+        return explorer.Cur.TokenType is TokenType.ClosedTriangle && explorer.Next is { TokenType: TokenType.OpenCurly };
     }
 }

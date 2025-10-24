@@ -6,5 +6,6 @@ public record DefineTargetOrSourceNode(
     Token BaseToken,
     Token Name,
     bool IsTarget,
+    Token? DataName,
     TypeNode? Type
 ) : Node(BaseToken);

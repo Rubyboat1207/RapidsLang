@@ -21,6 +21,7 @@ public class DataInputOutput
     private event Action<RapidsVariable>? _onData;
     private int _dataSubscriberCount = 0;
     private PipeSubscriber _subscriber;
+    public string? DataVariableName { get; set; }
     public event Action<RapidsVariable>? OnData
     {
         add

@@ -35,7 +35,7 @@ public class RapidLangEntry
 #if DEBUG
             // We are in Debug mode and have no args, so use the test program.
             Console.WriteLine("No input file specified. Running debug program...");
-            code = TestPrograms.ClosureTests;
+            code = TestPrograms.OnStatementTest;
 #else
         // We are NOT in Debug mode and have no args.
         Console.WriteLine("Error: No input file specified.");
@@ -52,7 +52,7 @@ public class RapidLangEntry
     
         var extensions = ExtensionLoader.GetExternalExtensions();
 
-        var interpreter = new RapidsInterpreter(code, preprocRes.Metadata, filePath);
+        var interpreter = new RapidsInterpreter(code, preprocRes.Metadata, filePath, supportsOnStatements:true);
         
         extensions.ForEach(d => interpreter.Context.ModuleRegistry.AddModule(d.ExtensionManifest.ModuleName, new ExtensionModule(d)));
         

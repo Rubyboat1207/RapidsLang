@@ -1,4 +1,5 @@
 using RapidsLang.Extensions;
+using RapidsLang.Extensions.Pipes;
 using RapidsLang.Interpreter.Variables;
 using RapidsLang.Interpreter.Work;
 using RapidsLang.Lexer;
@@ -13,6 +14,7 @@ public enum BlockType
     Module,
     Function,
     Loop,
+    SourceCallback,
     Statement
 }
 
@@ -22,6 +24,9 @@ public class BlockProgress(StatementsNode block, BlockType blockType, int progra
     public StatementsNode Block { get; } = block;
     public RapidsVariable? Return = null;
     public BlockType BlockType { get; } = blockType;
+    // only used for the "on" statement's callback. Probably a better way to do this.
+    public RapidsDataInputOutputVariable? Source;
+    public Guid SourceSubscriptionId;
     public bool ShouldBreakOut { get; set; }
 }
 
@@ -43,8 +48,9 @@ public class RapidsInterpreter
             }
         }
     }
+    public bool SupportsOnStatements { get; set; }
 
-    public RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preprocessorMetadata, string? mainSourceCodePath=null)
+    public RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preprocessorMetadata, string? mainSourceCodePath=null, bool supportsOnStatements=false)
     {
         _sourceCode = sourceCode;
         _preprocessorMetadata = preprocessorMetadata;
@@ -52,6 +58,8 @@ public class RapidsInterpreter
         MainSourceCodePath = mainSourceCodePath;
         
         ContextStack.Push(new InterpreterContext(sourceCode, preprocessorMetadata, mainSourceCodePath));
+
+        SupportsOnStatements = supportsOnStatements;
     }
 
     public Stack<InterpreterContext> ContextStack { get; } = new();
