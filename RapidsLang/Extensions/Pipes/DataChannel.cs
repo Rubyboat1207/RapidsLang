@@ -3,9 +3,9 @@ using RapidsLang.Interpreter.Variables;
 
 namespace RapidsLang.Extensions.Pipes;
 
-public class DataInputOutput
+public class DataChannel
 {
-    public DataInputOutput(ExtensionModule module, Identifier sourceIdentifier, bool readable, bool writable)
+    public DataChannel(ExtensionModule module, Identifier sourceIdentifier, bool readable, bool writable)
     {
         _subscriber = new PipeSubscriber(DataListener);
         Module = module;

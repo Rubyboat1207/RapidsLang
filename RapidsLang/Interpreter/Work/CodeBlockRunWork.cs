@@ -272,7 +272,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
         {
             EvaluateExpression(onSource.Source, sourceVariable =>
             {
-                if (sourceVariable is not RapidsDataInputOutputVariable channel)
+                if (sourceVariable is not RapidsDataChannelVariable channel)
                 {
                     throw new Exception("Attempted to use an on statement with a non channel");
                 }
@@ -377,25 +377,25 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
 
         VariableHolder holder;
         
-        if (Context.TryFindVariable(node.Name.Value, out var inputOutput))
+        if (Context.TryFindVariable(node.Name.Value, out var channelVariable))
         {
-            if (inputOutput!.Variable is RapidsDataInputOutputVariable io)
+            if (channelVariable!.Variable is RapidsDataChannelVariable channel)
             {
                 if (node.IsTarget)
                 {
-                    io.SetWritable();
+                    channel.SetWritable();
                 }
                 else
                 {
-                    io.SetReadable();
+                    channel.SetReadable();
 
                     if (node.DataName is not null)
                     {
-                        io.DataVariableName = node.DataName.Value;
+                        channel.DataVariableName = node.DataName.Value;
                     }
                 }
 
-                holder = inputOutput;
+                holder = channelVariable;
             }
             else
             {
@@ -404,8 +404,8 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
         }
         else
         {
-            holder = new VariableHolder(new RapidsDataInputOutputVariable(
-                new DataInputOutput(
+            holder = new VariableHolder(new RapidsDataChannelVariable(
+                new DataChannel(
                     extensionModule,
                     new Identifier(
                         extensionModule.Extension.ExtensionManifest.ModuleName,

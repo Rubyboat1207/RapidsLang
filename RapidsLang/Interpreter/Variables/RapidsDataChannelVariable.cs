@@ -5,31 +5,31 @@ using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter.Variables;
 
-public class RapidsDataInputOutputVariable : RapidsVariable
+public class RapidsDataChannelVariable : RapidsVariable
 {
-    private DataInputOutput DataInputOutput { get; }
+    private DataChannel DataChannel { get; }
     private readonly RapidsFunction _sendDataFunction;
     private readonly ExtensionModule _module;
-    public bool Readable => DataInputOutput.Readable;
-    public bool Writable => DataInputOutput.Writable;
+    public bool Readable => DataChannel.Readable;
+    public bool Writable => DataChannel.Writable;
 
     public string? DataVariableName
     {
-        set => DataInputOutput.DataVariableName = value;
+        set => DataChannel.DataVariableName = value;
     }
 
-    public RapidsDataInputOutputVariable(DataInputOutput dataInputOutput, ExtensionModule module)
+    public RapidsDataChannelVariable(DataChannel dataChannel, ExtensionModule module)
     {
-        DataInputOutput = dataInputOutput;
+        DataChannel = dataChannel;
         _sendDataFunction = new RapidsNativeFunction(SendData);
         _module = module;
     }
 
     public override RapidsVariable? GetResult(RapidsOperator op, RapidsVariable other)
     {
-        if (op == RapidsOperator.Equality && other is RapidsDataInputOutputVariable pipe)
+        if (op == RapidsOperator.Equality && other is RapidsDataChannelVariable pipe)
         {
-            return new RapidsBooleanVariable(DataInputOutput.Equals(pipe.DataInputOutput));
+            return new RapidsBooleanVariable(DataChannel.Equals(pipe.DataChannel));
         }
         return null;
     }
@@ -40,12 +40,12 @@ public class RapidsDataInputOutputVariable : RapidsVariable
     {
         if (memberName == "writable")
         {
-            return new RapidsBooleanVariable(DataInputOutput.Writable);
+            return new RapidsBooleanVariable(DataChannel.Writable);
         }
 
         if (memberName == "readable")
         {
-            return new RapidsBooleanVariable(DataInputOutput.Readable);
+            return new RapidsBooleanVariable(DataChannel.Readable);
         }
         
         if (memberName == "send")
@@ -62,23 +62,23 @@ public class RapidsDataInputOutputVariable : RapidsVariable
 
     public override RapidsVariable ShallowCopy()
     {
-        return new RapidsDataInputOutputVariable(DataInputOutput, _module);
+        return new RapidsDataChannelVariable(DataChannel, _module);
     }
 
     private void SendData(RapidsInterpreter interpreter)
     {
         var data = interpreter.Context.FunctionCallStack.Pop();
-        DataInputOutput?.SendData(data);
+        DataChannel?.SendData(data);
     }
 
     public void SetReadable()
     {
-        DataInputOutput.Readable = true;
+        DataChannel.Readable = true;
     }
 
     public void SetWritable()
     {
-        DataInputOutput.Writable = true;
+        DataChannel.Writable = true;
     }
 
     private void OnData(RapidsInterpreter interpreter, CodeBlockRunWork? parentCodeBlock)
@@ -86,7 +86,7 @@ public class RapidsDataInputOutputVariable : RapidsVariable
         interpreter.Context.GetRoot().ModuleRegistry.MarkModuleAsTicking(_module, interpreter);
         if (interpreter.Context.FunctionCallStack.TryPop(out var funcVar) && funcVar is RapidsFunctionReferenceVariable func)
         {
-            DataInputOutput.OnData += rv =>
+            DataChannel.OnData += rv =>
             {
                 if (rv is not RapidsNullVariable)
                 {
@@ -117,9 +117,9 @@ public class RapidsDataInputOutputVariable : RapidsVariable
         void OnTargetStatementCallback(RapidsVariable rv)
         {
             var closureInstance = new InterpreterContext(closure);
-            if (DataInputOutput.DataVariableName is not null)
+            if (DataChannel.DataVariableName is not null)
             {
-                closureInstance.AddVariable(DataInputOutput.DataVariableName, new VariableHolder(rv, true));
+                closureInstance.AddVariable(DataChannel.DataVariableName, new VariableHolder(rv, true));
             }
 
             var block = interpreter.StartNewBlock(node.Body, BlockType.SourceCallback, parent, closureInstance);
@@ -128,13 +128,13 @@ public class RapidsDataInputOutputVariable : RapidsVariable
             block.Scope.SourceSubscriptionId = subscriptionId;
         }
 
-        DataInputOutput.OnData += OnTargetStatementCallback;
+        DataChannel.OnData += OnTargetStatementCallback;
 
         OnStatementSubscriptions[subscriptionId] = OnTargetStatementCallback;
     }
 
     public void UnsubscribeOnStatement(Guid id)
     {
-        DataInputOutput.OnData -= OnStatementSubscriptions[id];
+        DataChannel.OnData -= OnStatementSubscriptions[id];
     }
 }

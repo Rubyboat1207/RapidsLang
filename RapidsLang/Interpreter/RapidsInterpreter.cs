@@ -25,7 +25,7 @@ public class BlockProgress(StatementsNode block, BlockType blockType, int progra
     public RapidsVariable? Return = null;
     public BlockType BlockType { get; } = blockType;
     // only used for the "on" statement's callback. Probably a better way to do this.
-    public RapidsDataInputOutputVariable? Source;
+    public RapidsDataChannelVariable? Source;
     public Guid SourceSubscriptionId;
     public bool ShouldBreakOut { get; set; }
 }

@@ -58,7 +58,7 @@ public class RapidsVariableJsonConverter : JsonConverter<RapidsVariable>
                 break;
             }
             case RapidsFunctionReferenceVariable:
-            case RapidsDataInputOutputVariable:
+            case RapidsDataChannelVariable:
                 break; // emit nothing
         }
     }
