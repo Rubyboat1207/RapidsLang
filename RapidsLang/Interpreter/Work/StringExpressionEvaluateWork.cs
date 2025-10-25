@@ -3,13 +3,13 @@ using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter.Work;
 
-public record StringExpressionEvaluateWork(StringNode Expression, Action<RapidsVariable> Callback, RapidsInterpreter Interpreter, CodeBlockRunWork? Parent)
-    : ExpressionEvaluateWork<StringNode>(Expression, Callback, Interpreter, Parent)
+public record StringExpressionEvaluateWork(StringNode Expression, Action<RapidsVariable> ReturnTicket, RapidsInterpreter Interpreter, CodeBlockRunWork? Parent)
+    : ExpressionEvaluateWork<StringNode>(Expression, ReturnTicket, Interpreter, Parent)
 {
     private string _str = "";
     private int partIndex;
     private bool _done = false;
-    public override void Execute()
+    public override IEnumerable<ReturnTicket> GetExecution()
     {
         for (; partIndex < Expression.Parts.Count; partIndex++)
         {
@@ -29,7 +29,7 @@ public record StringExpressionEvaluateWork(StringNode Expression, Action<RapidsV
             }
         }
         _done = true;
-        Callback.Invoke(new RapidsStringVariable(_str));
+        ReturnTicket.Invoke(new RapidsStringVariable(_str));
     }
 
     public override bool IsDone()

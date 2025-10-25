@@ -67,6 +67,7 @@ public class RapidsInterpreter
     private Stack<InterpreterWork> WorkStack { get; }  = [];
     public string? MainSourceCodePath { get; }
     private readonly SemaphoreSlim _workSignal = new SemaphoreSlim(0);
+    public Dictionary<InterpreterWork, IEnumerator<ReturnTicket>> ExecutionDictionary = [];
 
     public void WakeUp()
     {
@@ -111,7 +112,25 @@ public class RapidsInterpreter
             {
                 try
                 {
-                    work.Execute();
+                    if (!ExecutionDictionary.TryGetValue(work, out var execution))
+                    {
+                        execution = work.GetExecution().GetEnumerator();
+                    }
+
+                    while (execution.MoveNext())
+                    {
+                        var ticket = execution.Current;
+
+                        if (ticket is CompletedReturnTicket)
+                        {
+                            ExecutionDictionary.Remove(work);
+                        }
+
+                        if (ticket is NeedExpressionEvaluationReturnTicket evaluation)
+                        {
+                            
+                        }
+                    }
                 }
                 catch(Exception e)
                 {
@@ -158,6 +177,21 @@ public class RapidsInterpreter
         {
             ContextStack.Pop();
         }
+    }
+
+    public void PushEvaluateExpression(ExpressionNode expressionNode)
+    {
+        if (expressionNode is FunctionCallExpressionNode fcen)
+        {
+            PushWork(new FunctionCallExpressionEvaluateWork(fcen, callback, Interpreter, parent));
+            return;
+        }
+        if (expressionNode is StringNode str)
+        {
+            PushWork(new StringExpressionEvaluateWork(str, callback, Interpreter, parent));
+            return;
+        }
+        PushWork(new DefaultExpressionEvaluateWork(expressionNode, callback, Interpreter, parent));
     }
 
     public static void Exit(RapidsInterpreter interpreter)

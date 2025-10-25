@@ -4,6 +4,20 @@ using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter.Work;
 
+public abstract class ReturnTicket;
+
+public class CompletedReturnTicket : ReturnTicket;
+
+public class ContinueReturnTicket : ReturnTicket;
+
+public class YieldReturnTicket : ReturnTicket;
+
+public class NeedExpressionEvaluationReturnTicket(ExpressionNode expressionNode) : ReturnTicket
+{
+    public ExpressionNode ExpressionNode { get; } = expressionNode;
+    public RapidsVariable? EvaluatedExpression { get; set; }
+}
+
 public abstract record InterpreterWork
 {
     protected InterpreterWork(RapidsInterpreter Interpreter, CodeBlockRunWork? Parent)
@@ -18,7 +32,7 @@ public abstract record InterpreterWork
     protected InterpreterContext Context { get; init; }
     protected string GetLineCol(Token token) => Interpreter.GetLineCol(token);
     
-    public abstract void Execute();
+    public abstract IEnumerable<ReturnTicket> GetExecution();
     public abstract bool IsDone();
     public abstract Node? ActiveNode { get; }
     public RapidsInterpreter Interpreter { get; init; }
@@ -31,52 +45,13 @@ public abstract record InterpreterWork
     }
     public event Action<InterpreterWork>? OnCompleted;
 
-    protected void EvaluateExpression(ExpressionNode expressionNode, Action<RapidsVariable> callback, CodeBlockRunWork parent)
-    {
-        if (expressionNode is FunctionCallExpressionNode fcen)
-        {
-            Interpreter.PushWork(new FunctionCallExpressionEvaluateWork(fcen, callback, Interpreter, parent));
-            return;
-        }
-        if (expressionNode is StringNode str)
-        {
-            Interpreter.PushWork(new StringExpressionEvaluateWork(str, callback, Interpreter, parent));
-            return;
-        }
-        Interpreter.PushWork(new DefaultExpressionEvaluateWork(expressionNode, callback, Interpreter, parent));
-    }
-
-    protected void EvaluateExpressions(List<ExpressionNode> expressionNodes, Action<List<RapidsVariable>> callback, CodeBlockRunWork parent)
-    {
-        List<RapidsVariable> variables = [];
-
-        for (var i = 0; i < expressionNodes.Count; i++)
-        {
-            var node = expressionNodes[expressionNodes.Count - 1 - i];
-
-            EvaluateExpression(node, v =>
-            {
-                variables.Add(v);
-
-                if (variables.Count == expressionNodes.Count)
-                {
-                    callback.Invoke(variables);
-                }
-            }, parent);
-        }
-        if(expressionNodes.Count == 0)
-        {
-            callback.Invoke(variables);
-        }
-    }
-
     protected void TryGetValue(MemberAccessNode accessNode, Action<VariableHolder?> rapidsVariableCallback, CodeBlockRunWork parent)
     {
         if (accessNode.Left is null)
         {
             Context.TryFindVariable(accessNode.MemberName.Value, out var rapidsVariable);
             rapidsVariableCallback.Invoke(rapidsVariable);
-            return;
+            yield break;
         }
         
         EvaluateExpression(accessNode.Left, left =>
@@ -107,17 +82,11 @@ public abstract record InterpreterWork
 
 public abstract record ExpressionEvaluateWork<T>(
     T Expression,
-    Action<RapidsVariable> Callback,
+    NeedExpressionEvaluationReturnTicket ReturnTicket,
     RapidsInterpreter Interpreter,
     CodeBlockRunWork? Parent
 )
     : InterpreterWork(Interpreter, Parent) where T : ExpressionNode
 {
     public override Node? ActiveNode { get; } = Expression;
-    
-    protected void EvaluateExpression(ExpressionNode expressionNode, Action<RapidsVariable> callback) =>
-        EvaluateExpression(expressionNode, callback, Parent!);
-
-    protected void EvaluateExpressions(List<ExpressionNode> expressionNodes, Action<List<RapidsVariable>> callback) =>
-        EvaluateExpressions(expressionNodes, callback, Parent!);
 }

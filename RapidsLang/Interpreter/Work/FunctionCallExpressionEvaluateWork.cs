@@ -3,12 +3,12 @@ using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter.Work;
 
-public record FunctionCallExpressionEvaluateWork(FunctionCallExpressionNode Expression, Action<RapidsVariable> Callback, RapidsInterpreter Interpreter, CodeBlockRunWork? Parent) 
-    : ExpressionEvaluateWork<FunctionCallExpressionNode>(Expression, Callback, Interpreter, Parent)
+public record FunctionCallExpressionEvaluateWork(FunctionCallExpressionNode Expression, Action<RapidsVariable> ReturnTicket, RapidsInterpreter Interpreter, CodeBlockRunWork? Parent) 
+    : ExpressionEvaluateWork<FunctionCallExpressionNode>(Expression, ReturnTicket, Interpreter, Parent)
 {
     private bool _enqueued;
     private bool _done;
-    public override void Execute()
+    public override IEnumerable<ReturnTicket> GetExecution()
     {
         if (!_enqueued)
         {
@@ -27,7 +27,7 @@ public record FunctionCallExpressionEvaluateWork(FunctionCallExpressionNode Expr
                     {
                         func.Function.OnCompleted -= OnFunctionOnOnCompleted;
                         _done = true;
-                        Callback.Invoke(Context.FunctionCallStack.Pop());
+                        ReturnTicket.Invoke(Context.FunctionCallStack.Pop());
                     }
 
                     func.Function.OnCompleted += OnFunctionOnOnCompleted;

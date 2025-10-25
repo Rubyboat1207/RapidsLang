@@ -8,7 +8,7 @@ public record IfStatementWork(RapidsInterpreter Interpreter, CodeBlockRunWork Pa
     private int ElseProgress { get; set; }
     private bool Done { get; set; }
 
-    public override void Execute()
+    public override IEnumerable<ReturnTicket> GetExecution()
     {
         if (ElseProgress == 0)
         {

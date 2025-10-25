@@ -4,18 +4,18 @@ using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter.Work;
 
-public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<RapidsVariable> Callback, RapidsInterpreter Interpreter, CodeBlockRunWork? Parent)
-    : ExpressionEvaluateWork<ExpressionNode>(Expression, Callback, Interpreter, Parent)
+public record DefaultExpressionEvaluateWork(ExpressionNode Expression, NeedExpressionEvaluationReturnTicket ReturnTicket, RapidsInterpreter Interpreter, CodeBlockRunWork? Parent)
+    : ExpressionEvaluateWork<ExpressionNode>(Expression, base.ReturnTicket, Interpreter, Parent)
 {
     private bool _done;
     
-    public override void Execute()
+    public override IEnumerable<ReturnTicket> GetExecution()
     {
         switch (Expression)
         {
             case LiteralNumberNode numNode:
                 _done = true;
-                Callback.Invoke(new RapidsNumberVariable(numNode.Number));
+                ReturnTicket.Invoke(new RapidsNumberVariable(numNode.Number));
                 break;
             case OperationNode operationNode:
                 EvaluateExpression(operationNode.Left, left =>
@@ -30,7 +30,7 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                                 $"Operation {operationNode.Operator.GetOperator()} is not compatible with types {left.VariableTypeName} and {right.VariableTypeName}");
                         }
 
-                        Callback.Invoke(res);
+                        ReturnTicket.Invoke(res);
                     });
                     
                 });
@@ -44,17 +44,17 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                 }
 
                 _done = true;
-                Callback.Invoke(variable.Variable);
+                ReturnTicket.Invoke(variable.Variable);
                 
                 break;
             case BooleanNode booleanNode:
-                Callback.Invoke(new RapidsBooleanVariable(booleanNode.Value.TokenType == TokenType.True));
+                ReturnTicket.Invoke(new RapidsBooleanVariable(booleanNode.Value.TokenType == TokenType.True));
                 _done = true;
                 break;
             case ListNode arrayNode:
                 EvaluateExpressions(arrayNode.Values, expressions =>
                 {
-                    Callback.Invoke(new RapidsListVariable(expressions));
+                    ReturnTicket.Invoke(new RapidsListVariable(expressions));
                     
                 });
                 _done = true;
@@ -68,21 +68,21 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                         throw new Exception($"Variable named {memberAccessNode.MemberName} was not found at {GetLineCol(memberAccessNode.MemberName)}");
                     }
                     
-                    Callback.Invoke(holder.Variable);
+                    ReturnTicket.Invoke(holder.Variable);
                 }, Parent!);
 
                 _done = true;
                 break;
             case FunctionNode functionNode:
                 _done = true;
-                Callback.Invoke(new RapidsFunctionReferenceVariable(new RapidsUserFunction(functionNode, new InterpreterContext(Context))));
+                ReturnTicket.Invoke(new RapidsFunctionReferenceVariable(new RapidsUserFunction(functionNode, new InterpreterContext(Context))));
                 break;
             case ObjectNode objectNode:
                 Dictionary<string, RapidsVariable> keyValues = [];
                 _done = true;
                 if (objectNode.keyValues.Count == 0)
                 {
-                    Callback.Invoke(new RapidsObjectVariable());
+                    ReturnTicket.Invoke(new RapidsObjectVariable());
                 }
                 
                 objectNode.keyValues.ForEach(kv =>
@@ -99,7 +99,7 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
 
                             if (keyValues.Count == objectNode.keyValues.Count)
                             {
-                                Callback.Invoke(new RapidsObjectVariable(keyValues));
+                                ReturnTicket.Invoke(new RapidsObjectVariable(keyValues));
                             } 
                         });
                     });
