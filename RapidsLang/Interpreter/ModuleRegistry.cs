@@ -10,7 +10,8 @@ public class ModuleRegistry
         {"console", new ConsoleModule()},
         {"arrays", new ArraysModule()},
         {"strings", new StringsModule()},
-        {"time", new TimeModule()}
+        {"time", new TimeModule()},
+        {"types", new TypesModule()}
     };
 
     private readonly HashSet<ExtensionModule> _tickingModules = [];

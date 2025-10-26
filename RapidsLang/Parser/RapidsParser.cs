@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using RapidsLang.Lexer;
 using RapidsLang.Parser.Nodes;
 using RapidsLang.PreProcessor;
@@ -708,6 +709,8 @@ public static class RapidsParser
                 return new BooleanNode(start);
             case TokenType.OpenCurly:
                 return new ObjectNode(start, ParseObjectKeyValues(stepper));
+            case TokenType.Null:
+                return new NullExpression(start);
             case TokenType.OpenParen:
             {
                 if (CheckIfIsFunctionDeclaration(stepper))

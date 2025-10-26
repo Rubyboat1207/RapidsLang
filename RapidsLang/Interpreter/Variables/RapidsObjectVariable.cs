@@ -20,7 +20,11 @@ public class RapidsObjectVariable(Dictionary<string, RapidsVariable>? initialVal
         
         if(op is RapidsOperator.Index)
         {
-            return ObjectValues[Utils.StringifyVariable(other)];
+            if (ObjectValues.TryGetValue(Utils.StringifyVariable(other), out var value))
+            {
+                return value;
+            }
+            return new RapidsNullVariable();
         }
         
         

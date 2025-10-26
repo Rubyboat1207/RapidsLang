@@ -1,9 +1,10 @@
+using System.Text.RegularExpressions;
 using RapidsLang.Interpreter.Variables;
 using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter.Work;
 
-public record StringExpressionEvaluateWork(StringNode Expression, Action<RapidsVariable> Callback, RapidsInterpreter Interpreter, CodeBlockRunWork? Parent)
+public partial record StringExpressionEvaluateWork(StringNode Expression, Action<RapidsVariable> Callback, RapidsInterpreter Interpreter, CodeBlockRunWork? Parent)
     : ExpressionEvaluateWork<StringNode>(Expression, Callback, Interpreter, Parent)
 {
     private string _str = "";
@@ -17,7 +18,8 @@ public record StringExpressionEvaluateWork(StringNode Expression, Action<RapidsV
             switch (part)
             {
                 case LiteralStringPart lit:
-                    _str += lit.Value.Value;
+                    var result = NewlineRegex().Replace(lit.Value.Value, "\n");
+                    _str += result;
                     break;
                 case TemplateStringPart template:
                     EvaluateExpression(template.Value, val =>
@@ -36,4 +38,7 @@ public record StringExpressionEvaluateWork(StringNode Expression, Action<RapidsV
     {
         return _done;
     }
+
+    [GeneratedRegex(@"(?<!\\)\\n")]
+    private static partial Regex NewlineRegex();
 }

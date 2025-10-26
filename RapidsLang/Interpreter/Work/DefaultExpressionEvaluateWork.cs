@@ -36,6 +36,10 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                 });
                 _done = true;
                 break;
+            case NullExpression:
+                Callback.Invoke(new RapidsNullVariable());
+                _done = true;
+                break;
             case IdentifierNode identifierNode:
                 // ReSharper disable once ConvertIfStatementToReturnStatement
                 if (!Context.TryFindVariable(identifierNode.Token.Value, out var variable))
