@@ -80,6 +80,7 @@ public class Token(TokenType type, int index, string? value = null)
     public string Value { get; private init; } = value ?? GetDefaultValueForTokenType(type)!;
     [JsonPropertyName("index")]
     public int Index { get; private init; } = index;
+    
 
     public static string? GetDefaultValueForTokenType(TokenType type)
     {

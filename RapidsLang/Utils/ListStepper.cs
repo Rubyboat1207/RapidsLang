@@ -6,7 +6,7 @@ public class ListStepper<T>(List<T> list) where T : class
     public int Index { get; private set; }
     
     public T Cur => ActiveList[Index];
-    public T? Next => Index >= ActiveList.Count ? null : ActiveList[Index + 1];
+    public T? Next => Index + 1 >= ActiveList.Count ? null : ActiveList[Index + 1];
     public T? Prev => Index == 0 ? null : ActiveList[Index - 1];
     
     public bool HasNext => ActiveList.Count > Index + 1;

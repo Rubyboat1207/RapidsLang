@@ -5,6 +5,7 @@ using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server.Capabilities;
+using RapidsLang.Analyzer;
 using RapidsLang.PreProcessor;
 using Range = OmniSharp.Extensions.LanguageServer.Protocol.Models.Range;
 
@@ -88,7 +89,7 @@ public class RapidsTextDocumentHandler : TextDocumentSyncHandlerBase
     private void PublishDiagnostics(DocumentUri uri, string code)
     {
         // 1. Call your core analyzer
-        var (parseResult, metaData) = RapidsAnalyzer.Analyze(code);
+        var (parseResult, metaData) = RapidsStaticAnalysis.Analyze(code);
         
         var lspDiagnostics = new List<Diagnostic>();
 

@@ -21,7 +21,7 @@ public class CodeModule(string code, string? path=null) : Module
 
             if (program.Diagnostics.Count > 0)
             {
-                program.PrintDiagnostics(Path, Code, preprocMetaData);
+                program.PrintDiagnostics(Path ?? "internal", Code, preprocMetaData);
                 throw new Exception($"Failed to parse module at {Path}. See above diagnostics");
             }
 

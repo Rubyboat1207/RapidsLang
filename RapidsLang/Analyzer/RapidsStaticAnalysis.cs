@@ -1,10 +1,11 @@
 using RapidsLang.Lexer;
 using RapidsLang.Parser;
+using RapidsLang.Parser.Nodes;
 using RapidsLang.PreProcessor;
 
-namespace RapidsLang.LanguageServer;
+namespace RapidsLang.Analyzer;
 
-public static class RapidsAnalyzer
+public static class RapidsStaticAnalysis
 {
     public static (RapidsParseResult ParseResult, RapidsPreprocMetaData MetaData) Analyze(string code)
     {

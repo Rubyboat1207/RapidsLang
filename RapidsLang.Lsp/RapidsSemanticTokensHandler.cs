@@ -1,6 +1,7 @@
 using OmniSharp.Extensions.LanguageServer.Protocol.Client.Capabilities;
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
+using RapidsLang.Analyzer;
 
 namespace RapidsLang.LanguageServer;
 
@@ -19,7 +20,8 @@ public class RapidsSemanticTokensHandler(DocumentManager documentManager) : Sema
             SemanticTokenType.Number,     
             SemanticTokenType.Type,       
             SemanticTokenType.Namespace,
-            SemanticTokenType.Operator
+            SemanticTokenType.Operator,
+            SemanticTokenType.Comment
         ),
         TokenModifiers = new Container<SemanticTokenModifier>()
     };
@@ -39,9 +41,7 @@ public class RapidsSemanticTokensHandler(DocumentManager documentManager) : Sema
         };
     }
 
-    protected override Task Tokenize(SemanticTokensBuilder builder, ITextDocumentIdentifierParams identifier,
-        CancellationToken cancellationToken)
-    {
+    protected override Task Tokenize(SemanticTokensBuilder builder, ITextDocumentIdentifierParams identifier, CancellationToken cancellationToken) {
         var uri = identifier.TextDocument.Uri;
         var code = _documentManager.GetDocument(uri);
         
@@ -50,11 +50,13 @@ public class RapidsSemanticTokensHandler(DocumentManager documentManager) : Sema
             return Task.CompletedTask;
         }
 
-        var (parseResult, metaData) = RapidsAnalyzer.Analyze(code);
+        var (parseResult, metaData) = RapidsStaticAnalysis.Analyze(code);
 
         var visitor = new SemanticTokenVisitor(builder, metaData, code);
         
         visitor.Visit(parseResult.RootNode);
+        
+        visitor.FlushRemainingComments();
 
         return Task.CompletedTask;
     }

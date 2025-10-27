@@ -133,9 +133,6 @@ public static class RapidsPreproc
                 stringLiteralStepper.Append();
             }
 
-            if (curlyCount != 0)
-                throw new Exception("Unterminated { in template string");
-
             var baby = stepper.CreateChild(stringLiteralStepper.Buffer.Length - 1); 
             var process = Preprocess(baby);
             indices.AddRange(process.Metadata.CommentedIndices);
@@ -158,7 +155,7 @@ public static class RapidsPreproc
     public static Tuple<int, int> GetRowColFromIndex(int index, string str)
     {
         var lines = 1;
-        var cols = 0;
+        var cols = 1;
         for (var i = 0; i < index; i++)
         {
             if (str[i] == '\n')

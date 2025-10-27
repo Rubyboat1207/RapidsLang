@@ -42,7 +42,7 @@ public class StringTokenStepper(string str)
 
     public void FlushBufferToToken(TokenType tokenType)
     {
-        Tokens.Add(new Token(tokenType, Index + ParentIndex, Buffer));
+        Tokens.Add(new Token(tokenType, Index + ParentIndex - Buffer.Length, Buffer));
         Buffer = "";
     }
 

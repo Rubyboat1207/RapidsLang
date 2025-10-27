@@ -190,6 +190,8 @@ public static class RapidsParser
                             function,
                             0
                         ));
+                        
+                        continue;
                     }
                     
                     builder.AddIssue("Function call statements are not currently supported. For now, store a null return value to a junk variable.");
@@ -429,6 +431,10 @@ public static class RapidsParser
             if (stepper.Cur.TokenType is TokenType.While )
             {
                 var whileToken = stepper.Step();
+                if (stepper.AtEnd)
+                {
+                    continue;
+                }
                 var paren = stepper.Step();
                 if (paren is not { TokenType: TokenType.OpenParen })
                 {
@@ -439,14 +445,24 @@ public static class RapidsParser
                 
                 // we're going to assume this was valid, it would put out some diagnostics and I don't think we need
                 // any additional cleanup in the null case.
-                ExpressionNode expression = ParseExpression(stepper, builder)!; 
+                ExpressionNode expression = ParseExpression(stepper, builder)!;
 
+                if (stepper.AtEnd)
+                {
+                    continue;
+                }
+                
                 var closeParen = stepper.Step();
 
                 if (closeParen is not { TokenType: TokenType.ClosedParen })
                 {
                     builder.AddDiagnostic(new(paren, "Expected Closed Parenthesis"));
                     TrashUntilEndOfLine(stepper);
+                    continue;
+                }
+                
+                if (stepper.AtEnd)
+                {
                     continue;
                 }
 
@@ -456,6 +472,11 @@ public static class RapidsParser
                 {
                     builder.AddDiagnostic(new(paren, "Expected Open Curly Brace"));
                     TrashUntilEndOfLine(stepper);
+                    continue;
+                }
+                
+                if (stepper.AtEnd)
+                {
                     continue;
                 }
 
@@ -625,7 +646,7 @@ public static class RapidsParser
         }else if (startString.TokenType is TokenType.Identifier)
         {
             // this is a bit of a hack, but ultimately it works.
-            str = new StringNode(startString, [new LiteralStringPart(startString)]);
+            str = new StringNode(startString, null, [new LiteralStringPart(startString)]);
         }
         else
         {
@@ -790,6 +811,11 @@ public static class RapidsParser
         stepper.Increment();
         var parameters = ParseParams(stepper, builder);
 
+        if (stepper.AtEnd)
+        {
+            return null;
+        }
+
         if (stepper.Cur.TokenType is not TokenType.ClosedParen)
         {
             builder.AddIssue("Unexpected end of function call");
@@ -860,33 +886,36 @@ public static class RapidsParser
             return null;
         }
 
-        switch (stepper.Cur.TokenType)
+        if (!stepper.AtEnd)
         {
-            case TokenType.Plus or TokenType.Minus or TokenType.Slash or TokenType.Star or TokenType.Modulo when stepper.Next?.TokenType == TokenType.Assignment:
+            switch (stepper.Cur.TokenType)
             {
-                if (left is not (MemberAccessNode or IdentifierNode))
+                case TokenType.Plus or TokenType.Minus or TokenType.Slash or TokenType.Star or TokenType.Modulo when stepper.Next?.TokenType == TokenType.Assignment:
                 {
-                    builder.AddDiagnostic(new(left.BaseToken, "cannot assign to non member access or identifier nodes"));
-                    return null;
-                }
-
-                return left;
-            }
-            case TokenType.OpenParen:
-            {
-                if (!CheckIfIsFunctionDeclaration(stepper, builder))
-                {
-                    left = ParseFunctionCall(stepper, left, builder);
-                    if (left is null)
+                    if (left is not (MemberAccessNode or IdentifierNode))
                     {
+                        builder.AddDiagnostic(new(left.BaseToken, "cannot assign to non member access or identifier nodes"));
                         return null;
                     }
-                }
 
-                break;
+                    return left;
+                }
+                case TokenType.OpenParen:
+                {
+                    if (!CheckIfIsFunctionDeclaration(stepper, builder))
+                    {
+                        left = ParseFunctionCall(stepper, left, builder);
+                        if (left is null)
+                        {
+                            return null;
+                        }
+                    }
+
+                    break;
+                }
             }
         }
-
+        
         while (!stepper.AtEnd && Token.GetPrecedence(stepper.Cur.TokenType) >= minPrecedence && stepper.Next?.TokenType != TokenType.Assignment)
         {
             if (stepper.Cur.TokenType is TokenType.Dot)
@@ -906,6 +935,11 @@ public static class RapidsParser
             var op = stepper.Step();
             var precedence = Token.GetPrecedence(op.TokenType);
             var right = ParseExpression(stepper, builder, precedence + 1);
+
+            if (stepper.AtEnd)
+            {
+                return null;
+            }
             
             if (stepper.Cur.TokenType == TokenType.OpenParen)
             {
@@ -923,6 +957,11 @@ public static class RapidsParser
 
             left = new OperationNode(left, op, right);
         }
+
+        if (stepper.AtEnd)
+        {
+            return left;
+        }
         
         // ReSharper disable once InvertIf
         if (stepper.Cur.TokenType == TokenType.OpenParen)
@@ -938,6 +977,10 @@ public static class RapidsParser
 
     private static ExpressionNode? ParseSimpleExpression(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
     {
+        if (stepper.AtEnd)
+        {
+            return null;
+        }
         var start = stepper.Step();
 
         switch (start.TokenType)
@@ -1043,7 +1086,7 @@ public static class RapidsParser
 
     private static StringNode? ParseString(Token startString, ListStepper<Token> stepper, RapidsParseResult.Builder builder)
     {
-        StringNode stringNode = new(startString);
+        StringNode stringNode = new(startString, null);
 
         while (stepper is { Cur.TokenType: not TokenType.EndString, AtEnd: false })
         {
@@ -1071,7 +1114,7 @@ public static class RapidsParser
 
         }
         
-        stepper.Increment();
+        stringNode.EndString = stepper.Step();
 
         return stringNode;
     }
@@ -1100,6 +1143,11 @@ public static class RapidsParser
                 openParens++;
             }
             explorer.Increment();
+        }
+        
+        if (!explorer.HasNext)
+        {
+            return false;
         }
         
         // so in theory this is ambiguous in the exact situation where you are trying to compare the result of a function with a property of an object declared inline

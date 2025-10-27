@@ -48,7 +48,7 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                 }
 
                 _done = true;
-                Callback.Invoke(variable.Variable);
+                Callback.Invoke(variable!.Variable);
                 
                 break;
             case BooleanNode booleanNode:
