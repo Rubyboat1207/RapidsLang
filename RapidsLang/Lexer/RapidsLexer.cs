@@ -1,4 +1,5 @@
-﻿using RapidsLang.Interpreter;
+﻿using System.Text.Json.Serialization;
+using RapidsLang.Interpreter;
 using RapidsLang.Utils;
 
 namespace RapidsLang.Lexer;
@@ -70,10 +71,14 @@ public enum TokenType
     EndString,
 }
 
+[Serializable]
 public class Token(TokenType type, int index, string? value = null)
 {
+    [JsonPropertyName("token_type")]
     public TokenType TokenType { get; private init; } = type;
+    [JsonPropertyName("value")]
     public string Value { get; private init; } = value ?? GetDefaultValueForTokenType(type)!;
+    [JsonPropertyName("index")]
     public int Index { get; private init; } = index;
 
     public static string? GetDefaultValueForTokenType(TokenType type)
@@ -313,10 +318,10 @@ public static class RapidsLexer
                         stepper.Append();
                         stepper.FlushBufferToToken(TokenType.OpenCurly);
 
-                        int depth = 1;
-                        bool inString = false;
+                        var depth = 1;
+                        var inString = false;
                         stepper.ClearBuffer();
-
+                        var initialIndex = stepper.Index;
                         while (!stepper.AtEnd)
                         {
                             char c = stepper.Cur;
@@ -352,10 +357,15 @@ public static class RapidsLexer
                             throw new Exception("Unterminated { in template string");
 
                         var innerCode = stepper.Buffer;
-                        var innerTokens = Lex(innerCode);
-                        stepper.Tokens.AddRange(innerTokens);
+                        var innerStepper = new StringTokenStepper(innerCode)
+                        {
+                            ParentIndex = initialIndex
+                        };
+                        var innerTokens = Lex(innerStepper);
+                        
+                        
                         stepper.ClearBuffer();
-
+                        stepper.Tokens.AddRange(innerTokens);
                         stepper.Append();
                         stepper.FlushBufferToToken(TokenType.ClosedCurly);
 

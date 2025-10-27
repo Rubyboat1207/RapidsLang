@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RapidsLang", "RapidsLang\RapidsLang.csproj", "{2DA0BA7A-8FB0-4AE9-8217-EE2FC44F8830}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RapidsLang.Lsp", "RapidsLang.Lsp\RapidsLang.Lsp.csproj", "{8FA34D4A-9AE9-4F32-8D1E-8C390759ABF9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{2DA0BA7A-8FB0-4AE9-8217-EE2FC44F8830}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2DA0BA7A-8FB0-4AE9-8217-EE2FC44F8830}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2DA0BA7A-8FB0-4AE9-8217-EE2FC44F8830}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8FA34D4A-9AE9-4F32-8D1E-8C390759ABF9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8FA34D4A-9AE9-4F32-8D1E-8C390759ABF9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8FA34D4A-9AE9-4F32-8D1E-8C390759ABF9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8FA34D4A-9AE9-4F32-8D1E-8C390759ABF9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

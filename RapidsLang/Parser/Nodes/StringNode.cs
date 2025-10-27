@@ -15,4 +15,4 @@ public record StringNode : ExpressionNode
 public abstract record StringPart;
 
 public record LiteralStringPart(Token Value) : StringPart;
-public record TemplateStringPart(ExpressionNode Value) : StringPart;
+public record TemplateStringPart(ExpressionNode Value, Token OpenCurly, Token ClosedCurly) : StringPart;

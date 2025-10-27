@@ -49,13 +49,19 @@ public class RapidLangEntry
         var preprocRes = RapidsPreproc.Preprocess(code);
         var lexResult = RapidsLexer.Lex(preprocRes.Output);
         var parseResult = RapidsParser.Parse(lexResult);
-    
+
+        if (parseResult.Diagnostics.Count != 0)
+        {
+            parseResult.PrintDiagnostics(filePath ?? "debug", code, preprocRes.Metadata);
+            return;
+        }
+
         var extensions = ExtensionLoader.GetExternalExtensions();
 
         var interpreter = new RapidsInterpreter(code, preprocRes.Metadata, filePath, supportsOnStatements:true);
         
         extensions.ForEach(d => interpreter.Context.ModuleRegistry.AddModule(d.ExtensionManifest.ModuleName, new ExtensionModule(d)));
         
-        interpreter.Interpret(parseResult, true).Wait();
+        interpreter.Interpret(parseResult.RootNode, true).Wait();
     }
 }

@@ -30,7 +30,8 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
 
         if (ActiveNode is UseStatementNode useNode)
         {
-            Context.ModuleRegistry.TryGetModule(useNode.ModuleIdentifier, out var module);
+            var moduleName = useNode.ModuleName.GetName();
+            Context.ModuleRegistry.TryGetModule(moduleName, out var module);
 
             if (module is null)
             {
@@ -39,7 +40,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
                     var sourceDir = Path.GetDirectoryName(Path.GetFullPath(Interpreter.MainSourceCodePath));
                     if (sourceDir is not null)
                     {
-                        var relativePath = Path.GetRelativePath(sourceDir, useNode.ModuleIdentifier);
+                        var relativePath = Path.GetRelativePath(sourceDir, moduleName);
                         string? filePath = null;
                         if (File.Exists(relativePath))
                         {
@@ -60,7 +61,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
 
             if (module is null)
             {
-                Console.WriteLine($"Module {useNode.ModuleIdentifier} at {GetLineCol(useNode.BaseToken)} was not found.");
+                Console.WriteLine($"Module {useNode.ModuleName} at {GetLineCol(useNode.BaseToken)} was not found.");
             }
             else
             {

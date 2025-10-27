@@ -5,28 +5,29 @@ namespace RapidsLang.Utils;
 public class StringTokenStepper(string str)
 {
     public string ActiveString { get; private init; } = str;
-    public int index { get; private set; }
+    public int Index { get; private set; }
+    public int ParentIndex { get; set; }
     public List<Token> Tokens { get; private init; } = [];
     public string Buffer { get; private set; }  = "";
 
-    public char Cur => ActiveString[index];
-    public char Next => index + 1 >= ActiveString.Length ? ' ' : ActiveString[index + 1];
-    public char Prev => index == 0 ? ' ' : ActiveString[index - 1];
-    public bool HasNext => ActiveString.Length > index + 1;
-    public bool AtEnd => ActiveString.Length == index;
+    public char Cur => ActiveString[Index];
+    public char Next => Index + 1 >= ActiveString.Length ? ' ' : ActiveString[Index + 1];
+    public char Prev => Index == 0 ? ' ' : ActiveString[Index - 1];
+    public bool HasNext => ActiveString.Length > Index + 1;
+    public bool AtEnd => ActiveString.Length == Index;
 
     public void Increment(bool intoBuff=false, int count=1)
     {
         if (intoBuff)
             if (count == 1)
             {
-                Buffer += ActiveString[index];
+                Buffer += ActiveString[Index];
             }
             else
             {
-                Buffer += ActiveString[index..(index + count)];
+                Buffer += ActiveString[Index..(Index + count)];
             }
-        index += count;
+        Index += count;
     }
 
     public void Trash(int count=1)
@@ -41,7 +42,7 @@ public class StringTokenStepper(string str)
 
     public void FlushBufferToToken(TokenType tokenType)
     {
-        Tokens.Add(new Token(tokenType, index, Buffer));
+        Tokens.Add(new Token(tokenType, Index + ParentIndex, Buffer));
         Buffer = "";
     }
 
@@ -52,12 +53,12 @@ public class StringTokenStepper(string str)
 
     public bool NextHas(string str)
     {
-        if (index + str.Length > ActiveString.Length)
+        if (Index + str.Length > ActiveString.Length)
         {
             return false;
         }
 
-        var baseEquals = ActiveString.AsSpan(index, str.Length).SequenceEqual(str);
+        var baseEquals = ActiveString.AsSpan(Index, str.Length).SequenceEqual(str);
 
         return baseEquals;
     }
@@ -73,7 +74,7 @@ public class StringTokenStepper(string str)
             if (str is null || !NextHas(str)) return false;
         }
         
-        Tokens.Add(new Token(tokenType, index));
+        Tokens.Add(new Token(tokenType, Index + ParentIndex));
         Increment(count:str.Length);
         return true;
     }
@@ -85,7 +86,7 @@ public class StringTokenStepper(string str)
             return false;
         }
 
-        int charAfterIndex = index + str.Length;
+        int charAfterIndex = Index + str.Length;
         
         if (charAfterIndex >= ActiveString.Length)
         {
@@ -115,5 +116,5 @@ public class StringTokenStepper(string str)
         return (count % 2) != 0;
     }
     
-    public bool CurIsEscaped() => IsEscaped(index);
+    public bool CurIsEscaped() => IsEscaped(Index);
 }

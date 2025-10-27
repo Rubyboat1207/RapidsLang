@@ -35,7 +35,14 @@ public class ExtensionModule : Module
                     }
                 };
 
-            interpreter.Interpret(program).Wait();
+            if (program.Diagnostics.Count > 0)
+            {
+                program.PrintDiagnostics(Extension.MainCodePath, Extension.GetMainCodeString(), preprocMetaData);
+
+                throw new Exception("Failed to parse because of above reasons");
+            }
+
+            interpreter.Interpret(program.RootNode).Wait();
 
             _isRunning = false;
             _hasRun = true;

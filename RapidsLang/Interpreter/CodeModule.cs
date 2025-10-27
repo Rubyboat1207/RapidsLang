@@ -19,12 +19,19 @@ public class CodeModule(string code, string? path=null) : Module
             IsRunning = true;
             var program = RapidsParser.Parse(Code, out var preprocMetaData);
 
+            if (program.Diagnostics.Count > 0)
+            {
+                program.PrintDiagnostics(Path, Code, preprocMetaData);
+                throw new Exception($"Failed to parse module at {Path}. See above diagnostics");
+            }
+
             var interpreter = new RapidsInterpreter(Code, preprocMetaData, Path);
 
             interpreter.Context.Exports = Exports;
             interpreter.Context.ModuleRegistry = context.ModuleRegistry;
             
-            interpreter.Interpret(program);
+            
+            interpreter.Interpret(program.RootNode).Wait();
 
             IsRunning = false;
             HasRun = true;
