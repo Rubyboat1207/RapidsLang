@@ -95,6 +95,8 @@ public class SemanticTokenVisitor
             case AssignmentNode assignmentNode:
                 Visit(assignmentNode.Variable);
                 PushToken(assignmentNode.Operator, SemanticTokenType.Operator);
+                if(assignmentNode.Assignment is not null)
+                    PushToken(assignmentNode.Assignment, SemanticTokenType.Operator);
                 Visit(assignmentNode.Expression);
                 break;
             case MemberAccessNode memberAccessNode:
@@ -148,6 +150,35 @@ public class SemanticTokenVisitor
                 break;
             case StringModuleIdent stringModuleIdent:
                 Visit(stringModuleIdent.StringNode);
+                break;
+            case ExportStatement exportStatement:
+                PushToken(exportStatement.BaseToken, SemanticTokenType.Keyword);
+                Visit(exportStatement.ExportNode);
+                break;
+            case FunctionExportable functionExportable:
+                PushToken(functionExportable.BaseToken, SemanticTokenType.Function);
+                Visit(functionExportable.FunctionNode);
+                break;
+            case ExpressionExportable expressionExportable:
+                Visit(expressionExportable.Expression);
+                break;
+            case TargetOrSourceExportable targetOrSourceExportable:
+                PushToken(targetOrSourceExportable.TargetOrSourceNode.BaseToken, SemanticTokenType.Keyword);
+                if (targetOrSourceExportable.TargetOrSourceNode.DataName is not null)
+                {
+                    PushToken(targetOrSourceExportable.TargetOrSourceNode.DataName, SemanticTokenType.Parameter);
+                }
+                
+                break;
+            case ElseNode elseNode:
+                PushToken(elseNode.BaseToken, SemanticTokenType.Keyword);
+                if(elseNode.IfToken is not null)
+                    PushToken(elseNode.IfToken, SemanticTokenType.Keyword);
+                if (elseNode.Condition is not null)
+                {
+                    Visit(elseNode.Condition);
+                }
+                Visit(elseNode.Block);
                 break;
         }
     }

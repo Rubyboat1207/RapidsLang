@@ -209,36 +209,41 @@ public static class RapidsParser
                 if (expression is MemberAccessNode access && IsCurValidAssignPrefix(stepper))
                 {
                     Token op = stepper.Step();
+                    Token? assignment = null;
                     if (op.TokenType != TokenType.Assignment)
                     {
-                        stepper.Increment();
+                        assignment = stepper.Step();
                     }
 
                     builder.AddStatement(
                         new AssignmentNode(
                             access,
-                            op,
-                            ParseExpression(stepper, builder)!, // this cleans itself
+                            op, // can sometimes be assignment
+                            assignment, // if this one is empty
+                            ParseExpression(stepper, builder)!,
                             GetLogLevel(stepper, builder)
                         )
                     );
                     
                     continue;
                 }
-
+                
+                // lamo just copy & paste I guess
                 if (expression is IdentifierNode ident && IsCurValidAssignPrefix(stepper))
                 {
                     Token op = stepper.Step();
+                    Token? assignment = null;
                     if (op.TokenType != TokenType.Assignment)
                     {
-                        stepper.Increment();
+                        assignment = stepper.Step();
                     }
 
                     builder.AddStatement(
                         new AssignmentNode(
                             new MemberAccessNode(null, ident.Token),
                             op,
-                            ParseExpression(stepper, builder)!, // this might clean itself up?
+                            assignment,
+                            ParseExpression(stepper, builder)!,
                             GetLogLevel(stepper, builder)
                         )
                     );
@@ -538,24 +543,52 @@ public static class RapidsParser
                     var el = stepper.Step();
                     var final = true;
                     ExpressionNode? expressionNode = null;
+                    Token? elif = null;
+                    if (stepper.AtEnd)
+                    {
+                        break;
+                    }
                     if (stepper.Cur.TokenType == TokenType.If)
                     {
-                        // todo: this is too loose. replace this with diagnostics.
-                        stepper.Increment();
+                        elif = stepper.Step();
                         
-                        stepper.Increment(); // open paren
+                        if (!stepper.AtEnd && stepper.Cur.TokenType is not TokenType.OpenParen)
+                        {
+                            builder.AddIssue("Expected else if condition to start with open parenthesis");
+                        }
+                        stepper.Increment();
                         expressionNode = ParseExpression(stepper, builder);
-                        stepper.Increment(); // close paren
+                        if (expressionNode is null)
+                        {
+                            break;
+                        }
+                        if (!stepper.AtEnd && stepper.Cur.TokenType is not TokenType.ClosedParen)
+                        {
+                            builder.AddIssue("Expected else if codition to end with closed parenthesis");
+                        }
+                        stepper.Increment();
                         
                         final = false;
                     }
+
+                    if (stepper.AtEnd)
+                    {
+                        continue;
+                    }
+
+                    if (stepper.Cur.TokenType is not TokenType.OpenCurly)
+                    {
+                        builder.AddIssue("Expected start of else block");
+                        continue;
+                    }
                     
-                    stepper.Increment(); // open curly
+                    stepper.Increment();
 
                     var elseBlock = Parse(stepper, new StatementsNode(el));
                     
                     elseNodes.Add(new ElseNode(
                         el,
+                        elif,
                         expressionNode,
                         elseBlock.RootNode
                     ));
