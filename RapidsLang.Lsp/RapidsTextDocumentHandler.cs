@@ -89,7 +89,7 @@ public class RapidsTextDocumentHandler : TextDocumentSyncHandlerBase
     private void PublishDiagnostics(DocumentUri uri, string code)
     {
         // 1. Call your core analyzer
-        var (parseResult, metaData) = RapidsStaticAnalysis.Analyze(code);
+        var (parseResult, metaData, staticAnalysisResult) = RapidsStaticAnalysis.Analyze(code);
         
         var lspDiagnostics = new List<Diagnostic>();
 

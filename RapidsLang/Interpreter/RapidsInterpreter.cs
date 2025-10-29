@@ -164,4 +164,9 @@ public class RapidsInterpreter
     {
         interpreter.Done = true;
     }
+    
+    public InterpreterNativeFunctionUtil GetNativeUtil()
+    {
+        return new InterpreterNativeFunctionUtil(this);
+    }
 }

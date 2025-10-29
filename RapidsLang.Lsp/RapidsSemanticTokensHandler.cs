@@ -50,7 +50,7 @@ public class RapidsSemanticTokensHandler(DocumentManager documentManager) : Sema
             return Task.CompletedTask;
         }
 
-        var (parseResult, metaData) = RapidsStaticAnalysis.Analyze(code);
+        var (parseResult, metaData, staticAnalysisResult) = RapidsStaticAnalysis.Analyze(code);
 
         var visitor = new SemanticTokenVisitor(builder, metaData, code);
         

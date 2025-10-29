@@ -158,6 +158,12 @@ public static class RapidsParser
                     continue;
                 }
 
+                if (stepper.AtEnd)
+                {
+                    TrashUntilEndOfLine(stepper);
+                    continue;
+                }
+
                 // check for function call
                 if (stepper.Cur.TokenType is TokenType.OpenParen)
                 {
@@ -277,6 +283,11 @@ public static class RapidsParser
                 var use = stepper.Step();
                 
                 ModuleIdent moduleName;
+                
+                if (stepper.AtEnd)
+                {
+                    break;
+                }
 
                 if (stepper.Cur.TokenType is TokenType.StartString)
                 {
@@ -298,9 +309,15 @@ public static class RapidsParser
                 else
                 {
                     var literalModuleIdentifier = new LiteralModuleIdentifier(stepper.Cur, []);
-                    while (stepper.Cur is { TokenType: TokenType.Identifier or TokenType.Dot })
+                    while (stepper is { AtEnd: false, Cur.TokenType: TokenType.Identifier or TokenType.Dot })
                     {
                         literalModuleIdentifier.Tokens.Add(stepper.Step());
+                    }
+
+                    if (stepper.AtEnd)
+                    {
+                        TrashUntilEndOfLine(stepper);
+                        continue;
                     }
 
                     moduleName = literalModuleIdentifier;
@@ -309,7 +326,7 @@ public static class RapidsParser
                 builder.AddStatement(new UseStatementNode(
                     use,
                     moduleName,
-                    ParseImportNodes(stepper),
+                    ParseImportNodes(stepper, builder),
                     GetLogLevel(stepper, builder)
                 ));
 
@@ -318,7 +335,19 @@ public static class RapidsParser
             
             if(stepper.Cur is {TokenType: TokenType.Const or TokenType.Let})
             {
+                if (stepper.AtEnd)
+                {
+                    TrashUntilEndOfLine(stepper);
+                    continue;
+                }
+                
                 var declaration = stepper.Step();
+
+                if (stepper.AtEnd)
+                {
+                    TrashUntilEndOfLine(stepper);
+                    continue;
+                }
 
                 var name = stepper.Step();
 
@@ -517,23 +546,25 @@ public static class RapidsParser
                     expression = new NullExpression(paren);
                 }
 
-                var closeParen = stepper.Step();
 
-                if (closeParen is not { TokenType: TokenType.ClosedParen })
+                if (stepper.AtEnd || stepper.Cur is not { TokenType: TokenType.ClosedParen })
                 {
-                    builder.AddDiagnostic(new(closeParen, "Expected closed paren"));
+                    builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected closed paren"));
                     // go on assuming it actually was a closed paren
                 }
 
-                var openCurly = stepper.Step();
+                stepper.Increment();
 
-                if (openCurly is not { TokenType: TokenType.OpenCurly })
+                
+                if (stepper.AtEnd || stepper.Cur is not { TokenType: TokenType.OpenCurly })
                 {
-                    builder.AddDiagnostic(new(openCurly, "Expected start of body"));
+                    builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected start of body"));
                     // ok this is irrecoverable. pack it up.
                     TrashUntilEndOfLine(stepper);
                     continue; // hopefully this should place us somewhere nice.
                 }
+
+                stepper.Increment();
 
                 var block = Parse(stepper, new StatementsNode(ifToken));
                 List<ElseNode> elseNodes = [];
@@ -757,8 +788,13 @@ public static class RapidsParser
         );
     }
 
-    private static List<ImportNode>? ParseImportNodes(ListStepper<Token> stepper)
+    private static List<ImportNode>? ParseImportNodes(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
     {
+        if (stepper.AtEnd)
+        {
+            return [];
+        }
+        
         if (stepper.Cur.TokenType is not TokenType.Colon)
         {
             return null;
@@ -766,17 +802,28 @@ public static class RapidsParser
 
         stepper.Increment();
         List<ImportNode> imports = [];
-        while (stepper.Cur.TokenType is not (TokenType.SemiColon or TokenType.QuestionMark) && !stepper.AtEnd)
+        while (stepper is { AtEnd: false, Cur.TokenType: not (TokenType.SemiColon or TokenType.QuestionMark) } && !stepper.AtEnd)
         {
             var name = stepper.Step();
             if (name.TokenType is not TokenType.Identifier)
             {
-                throw new Exception("Imported item should be an identifier");
+                builder.AddDiagnostic(new(name, "Imported item should be an identifier"));
+                return imports;
+            }
+
+            if (stepper.AtEnd)
+            {
+                break;
             }
 
             if (stepper.Cur.Value == "as")
             {
                 stepper.Increment();
+                
+                if (stepper.AtEnd)
+                {
+                    break;
+                }
 
                 if (stepper.Cur.TokenType is not TokenType.Identifier)
                 {
@@ -874,6 +921,11 @@ public static class RapidsParser
             }
             parameters.Add(param);
 
+            if (stepper.AtEnd)
+            {
+                return parameters;
+            }
+
             if (stepper.Cur.TokenType is not TokenType.Comma)
             {
                 break;
@@ -886,6 +938,11 @@ public static class RapidsParser
 
     private static int GetLogLevel(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
     {
+        if (stepper.AtEnd)
+        {
+            builder.AddDiagnostic(new Diagnostic(stepper.Prev ?? stepper.ActiveList.Last(), "Expected End of line (? or ;)", true));
+            return 0;
+        }
         // ReSharper disable once SwitchStatementHandlesSomeKnownEnumValuesWithDefault
         switch (stepper.Cur.TokenType)
         {
@@ -1010,7 +1067,7 @@ public static class RapidsParser
 
     private static ExpressionNode? ParseSimpleExpression(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
     {
-        if (stepper.AtEnd)
+        if (!stepper.HasNext)
         {
             return null;
         }
@@ -1080,8 +1137,11 @@ public static class RapidsParser
                 
                 var expr = ParseExpression(stepper, builder);
 
-                if (stepper.Cur.TokenType is not TokenType.ClosedParen)
-                    throw new Exception("Expected ')' after expression");
+                if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.ClosedParen)
+                {
+                    builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected closed parenthesis"));
+                    return null;
+                }
                 
                 stepper.Increment();
                 

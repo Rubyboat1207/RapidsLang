@@ -11,7 +11,9 @@ public class ModuleRegistry
         {"arrays", new ArraysModule()},
         {"strings", new StringsModule()},
         {"time", new TimeModule()},
-        {"types", new TypesModule()}
+        {"types", new TypesModule()},
+        {"random", new RandomModule()},
+        {"math", new MathModule()}
     };
 
     private readonly HashSet<ExtensionModule> _tickingModules = [];

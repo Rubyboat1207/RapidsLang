@@ -25,6 +25,7 @@ public record IfStatementWork(RapidsInterpreter Interpreter, CodeBlockRunWork Pa
             else
             {
                 Interpreter.StartNewBlock(elseNode.Block, BlockType.Statement, Parent);
+                Done = true;
             }
         }
     }
