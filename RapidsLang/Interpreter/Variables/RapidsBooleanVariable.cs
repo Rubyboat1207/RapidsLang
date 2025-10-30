@@ -30,6 +30,16 @@ public class RapidsBooleanVariable(bool value): RapidsVariable
             return new RapidsBooleanVariable(result);
         }
 
+        if (op is RapidsOperator.AndAnd && other is RapidsBooleanVariable oBool2)
+        {
+            return new RapidsBooleanVariable(Value && oBool2.Value);
+        }
+        
+        if (op is RapidsOperator.OrOr && other is RapidsBooleanVariable oBool3)
+        {
+            return new RapidsBooleanVariable(Value || oBool3.Value);
+        }
+
         return null;
     }
     public override RapidsVariable? GetMember(string memberName)

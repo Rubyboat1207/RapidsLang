@@ -41,9 +41,21 @@ public class ConsoleModule : Module
         }
     }
 
+    public static void Write(RapidsInterpreter interpreter)
+    {
+        var ctx = interpreter.Context;
+        ctx.FunctionCallStack.TryPop(out var variable);
+
+        if (variable is not null)
+        {
+            Console.Write(Utils.StringifyVariable(variable));
+        }
+    }
+
     protected override ModuleExports Exports { get; } = new(new Dictionary<string, RapidsVariable> {
         {"print", RapidsFunctionReferenceVariable.ofNative(Print)},
         {"putChar", RapidsFunctionReferenceVariable.ofNative(PutChar)},
         {"input", RapidsFunctionReferenceVariable.ofNative(Input)},
+        {"write", RapidsFunctionReferenceVariable.ofNative(Write)}
     });
 }

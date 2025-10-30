@@ -350,16 +350,37 @@ public static class RapidsParser
                 }
 
                 var name = stepper.Step();
+                if (name.TokenType is not TokenType.Identifier)
+                {
+                    builder.AddDiagnostic(new(name, "Expected variable name (identifier)."));
+                    TrashUntilEndOfLine(stepper);
+                    continue;
+                }
 
-                stepper.Increment(); // =
+                TypeNode? type = null;
+                if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.Colon)
+                {
+                    stepper.Increment(); // Consume ':'
+                    type = ParseTypeNode(stepper, builder);
+                }
+
+                if (stepper is { AtEnd: false, Cur.TokenType: TokenType.Assignment })
+                {
+                    stepper.Increment(); // Consume =
+                }
+                else
+                {
+                    builder.AddDiagnostic(new(stepper.AtEnd ? name : stepper.Cur, "expected equal sign", stepper.AtEnd));
+                }
 
                 var expression = ParseExpression(stepper, builder)!; // this should clean itself up?
+                
 
                 builder.AddStatement(new DeclarationNode(
                     declaration,
                     declaration.TokenType == TokenType.Const,
                     name,
-                    null,
+                    type,
                     expression,
                     GetLogLevel(stepper, builder)
                 ));
@@ -414,25 +435,43 @@ public static class RapidsParser
                 if (stepper.Cur.TokenType is TokenType.Define)
                 {
                     var define = stepper.Cur;
-                    builder.AddStatement(new ExportStatement(
-                        export,
-                        new TargetOrSourceExportable(
-                            define,
-                            ParseTargetOrSourceDefinition(stepper)
-                        ),
-                        GetLogLevel(stepper, builder)
-                    ));
+                    // MODIFIED: Pass builder to ParseTargetOrSourceDefinition
+                    var node = ParseTargetOrSourceDefinition(stepper, builder);
+                    if (node is not null)
+                    {
+                        builder.AddStatement(new ExportStatement(
+                            export,
+                            new ChannelExportable(
+                                define,
+                                node
+                            ),
+                            GetLogLevel(stepper, builder)
+                        ));
+                    }
+                    else
+                    {
+                        TrashUntilEndOfLine(stepper);
+                    }
                     continue;
                 }
             }
 
             if (stepper.Cur.TokenType is TokenType.Define)
             {
-                builder.AddStatement(new DefineTargetOrSourceStatement(
-                    stepper.Cur,
-                    ParseTargetOrSourceDefinition(stepper),
-                    GetLogLevel(stepper, builder)
-                ));
+                var node = ParseTargetOrSourceDefinition(stepper, builder);
+                if (node is not null)
+                {
+                    builder.AddStatement(new DefineTargetOrSourceStatement(
+                        node.BaseToken,
+                        node,
+                        GetLogLevel(stepper, builder)
+                    ));
+                }
+                else
+                {
+                    TrashUntilEndOfLine(stepper);
+                }
+                continue;
             }
 
             if (stepper.Cur.TokenType is TokenType.On)
@@ -531,6 +570,11 @@ public static class RapidsParser
             if (stepper.Cur.TokenType is TokenType.If )
             {
                 var ifToken = stepper.Step();
+                if (stepper.AtEnd)
+                {
+                    builder.AddDiagnostic(new(ifToken, "Expected open paren"));
+                    continue;
+                }
                 var paren = stepper.Step();
                 if (paren is not { TokenType: TokenType.OpenParen })
                 {
@@ -681,6 +725,104 @@ public static class RapidsParser
 
         return builder.Build();
     }
+    
+    private static TypeNode? ParseTypeNode(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
+    {
+        TypeNode? baseType = null;
+
+        if (stepper.AtEnd)
+        {
+            builder.AddDiagnostic(new(stepper.Prev!, "Expected a type.", true));
+            return null;
+        }
+
+        if (stepper.Cur.TokenType is TokenType.OpenCurly)
+        {
+            var openCurly = stepper.Step();
+            var properties = new List<ObjectPropertyTypeNode>();
+
+            while (!stepper.AtEnd && stepper.Cur.TokenType is not TokenType.ClosedCurly)
+            {
+                if (stepper.Cur.TokenType is not TokenType.Identifier)
+                {
+                    builder.AddDiagnostic(new(stepper.Cur, "Expected property name (identifier) in object type."));
+                    while (!stepper.AtEnd && stepper.Cur.TokenType is not (TokenType.Comma or TokenType.ClosedCurly))
+                    {
+                        stepper.Increment();
+                    }
+                }
+                else
+                {
+                    var name = stepper.Step();
+                    TypeNode? propType = null;
+
+                    if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.Colon)
+                    {
+                        stepper.Increment(); // Consume ':'
+                        propType = ParseTypeNode(stepper, builder);
+                        if (propType is null)
+                        {
+                            // We are in a bad state. Skip until next comma or '}'
+                            while (!stepper.AtEnd && stepper.Cur.TokenType is not (TokenType.Comma or TokenType.ClosedCurly))
+                            {
+                                stepper.Increment();
+                            }
+                        }
+                    }
+
+                    properties.Add(new ObjectPropertyTypeNode(name, propType));
+                }
+
+                if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.Comma)
+                {
+                    stepper.Increment();
+                }
+                else if (!stepper.AtEnd && stepper.Cur.TokenType is not TokenType.ClosedCurly)
+                {
+                    builder.AddDiagnostic(new(stepper.Cur, "Expected ',' or '}' in object type definition."));
+                    while (!stepper.AtEnd && stepper.Cur.TokenType is not TokenType.ClosedCurly)
+                    {
+                        stepper.Increment();
+                    }
+                }
+            }
+
+            if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.ClosedCurly)
+            {
+                builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected '}' to close object type.", true));
+                return null; // Can't recover
+            }
+
+            var closeCurly = stepper.Step(); // Consume '}'
+            baseType = new ObjectTypeNode(openCurly, properties, closeCurly, false);
+        }
+
+        else if (stepper.Cur.TokenType is TokenType.Identifier)
+        {
+            var identifier = stepper.Step();
+            baseType = new IdentifierTypeNode(identifier, false);
+        }
+        else
+        {
+            builder.AddDiagnostic(new(stepper.Cur, "Expected a type (e.g., 'string', 'number', or '{...}')."));
+            return null;
+        }
+
+        if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.QuestionMark)
+        {
+            stepper.Increment();
+            if (baseType is ObjectTypeNode obj)
+            {
+                return obj with { Optional = true };
+            }
+            if (baseType is IdentifierTypeNode ident)
+            {
+                return ident with { Optional = true };
+            }
+        }
+
+        return baseType;
+    }
 
     private static void TrashUntilEndOfLine(ListStepper<Token> stepper)
     {
@@ -739,14 +881,15 @@ public static class RapidsParser
         return new Tuple<StringNode, ExpressionNode>(str, expr);
     }
     
-    private static DefineTargetOrSourceNode ParseTargetOrSourceDefinition(ListStepper<Token> stepper)
+    private static DefineTargetOrSourceNode? ParseTargetOrSourceDefinition(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
     {
         // This function assumes the stepper.Cur is TokenType.Define
         var defineToken = stepper.Step();
 
         if (stepper.Cur.TokenType is not (TokenType.Target or TokenType.Source))
         {
-            throw new Exception("Expected 'target' or 'source' after 'define'.");
+            builder.AddDiagnostic(new(stepper.Cur, "Expected 'target' or 'source' after 'define'."));
+            return null;
         }
 
         var typeToken = stepper.Step();
@@ -754,7 +897,8 @@ public static class RapidsParser
 
         if (stepper.Cur.TokenType is not TokenType.Identifier)
         {
-            throw new Exception($"Expected name (identifier) after 'define {typeToken.Value}'.");
+            builder.AddDiagnostic(new(stepper.Cur, $"Expected name (identifier) after 'define {typeToken.Value}'."));
+            return null;
         }
         
         var nameToken = stepper.Step();
@@ -764,19 +908,47 @@ public static class RapidsParser
         if (!isTarget)
         {
             // can optionally specify the name for the data object, otherwise it is assumed it has no data object.
-            if (stepper.Cur.TokenType is TokenType.OpenParen)
+            if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.OpenParen)
             {
                 stepper.Increment();
-                dataIdentifier = stepper.Step();
-                stepper.Increment(); // closed paren
+                if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.Identifier)
+                {
+                    builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected identifier for source data name."));
+                }
+                else
+                {
+                    dataIdentifier = stepper.Step();
+                }
+                
+                if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.ClosedParen)
+                {
+                     builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected ')' after source data name.", true));
+                }
+                else
+                {
+                    stepper.Increment(); // closed paren
+                }
             }
         }
         
         TypeNode? type = null;
-        if (stepper.Cur.TokenType is TokenType.OpenTriangle)
+        if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.OpenTriangle)
         {
-            // TODO: Implement type parsing
-            throw new NotImplementedException("Types not yet implemented for target/source definitions.");
+            stepper.Increment(); // Consume '<'
+            type = ParseTypeNode(stepper, builder);
+            
+            if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.ClosedTriangle)
+            {
+                builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected '>' to close type definition.", true));
+                if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.ClosedTriangle)
+                {
+                    stepper.Increment();
+                }
+            }
+            else
+            {
+                stepper.Increment(); 
+            }
         }
         
         return new DefineTargetOrSourceNode(
@@ -850,7 +1022,7 @@ public static class RapidsParser
     private static List<Tuple<StringNode, ExpressionNode>> ParseObjectKeyValues(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
     {
         List<Tuple<StringNode, ExpressionNode>> objectKeyValues = [];
-        while (stepper.Cur.TokenType != TokenType.ClosedCurly)
+        while (!stepper.AtEnd && stepper.Cur.TokenType != TokenType.ClosedCurly)
         {
             var pair = GetObjectPair(stepper, builder);
             if (pair == null)
@@ -863,11 +1035,13 @@ public static class RapidsParser
             {
                 break;
             }
+            stepper.Increment();
         }
 
         if (stepper.Cur.TokenType != TokenType.ClosedCurly)
         {
-            throw new Exception("Expected Closed curly");
+            builder.AddIssue("Expected Closed curly");
+            return objectKeyValues;
         }
         
         stepper.Increment();
@@ -1091,31 +1265,74 @@ public static class RapidsParser
             {
                 if (CheckIfIsFunctionDeclaration(stepper, builder))
                 {
-                    // function
                     var arguments = new List<ArgumentNode>();
-                    while (stepper.Cur.TokenType is not TokenType.ClosedParen)
+                    while (!stepper.AtEnd && stepper.Cur.TokenType is not TokenType.ClosedParen)
                     {
-                        var name = stepper.Step();
-                        if (stepper.Cur.TokenType is TokenType.Colon)
+                        if (stepper.Cur.TokenType is not TokenType.Identifier)
                         {
-                            // types
-                            throw new NotImplementedException("Types not yet implemented.");
+                            builder.AddDiagnostic(new(stepper.Cur, "Expected argument name (identifier)."));
+                            while (!stepper.AtEnd && stepper.Cur.TokenType is not (TokenType.Comma or TokenType.ClosedParen))
+                            {
+                                stepper.Increment();
+                            }
                         }
-
-                        if (stepper.Cur.TokenType is not (TokenType.Comma or TokenType.ClosedParen))
+                        else
                         {
-                            throw new Exception("Expected comma or end of function header");
+                            var name = stepper.Step();
+                            TypeNode? argType = null;
+                            if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.Colon)
+                            {
+                                stepper.Increment(); // Consume ':'
+                                argType = ParseTypeNode(stepper, builder);
+                            }
+                            arguments.Add(new ArgumentNode(name, argType));
                         }
-
-                        if (stepper.Cur.TokenType is TokenType.Comma)
+                        
+                        if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.Comma)
                         {
                             stepper.Increment();
                         }
-                        
-                        arguments.Add(new ArgumentNode(name, null));
+                        else if (!stepper.AtEnd && stepper.Cur.TokenType is not TokenType.ClosedParen)
+                        {
+                            builder.AddDiagnostic(new(stepper.Cur, "Expected ',' or ')' after argument."));
+                            while (!stepper.AtEnd && stepper.Cur.TokenType is not (TokenType.Comma or TokenType.ClosedParen))
+                            {
+                                stepper.Increment();
+                            }
+                        }
                     }
+                    
+                    if (stepper.AtEnd)
+                    {
+                        builder.AddDiagnostic(new(stepper.Prev!, "Unexpected end of function definition, expected ')'.", true));
+                        return null;
+                    }
+                    
                     stepper.Increment(); // closed paren
-                    var openTriangle = stepper.Step(); // open triangle
+
+                    TypeNode? returnType = null;
+                    if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.Colon)
+                    {
+                        stepper.Increment(); // Consume ':'
+                        returnType = ParseTypeNode(stepper, builder);
+                    }
+
+                    if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.ClosedTriangle)
+                    {
+                        builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected '>' before function body.", true));
+                        TrashUntilEndOfLine(stepper);
+                        return null;
+                    }
+
+                    var openTriangle = stepper.Step(); // consume '>'
+
+                    if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.OpenCurly)
+                    {
+                        builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected '{' to start function body.", true));
+                        TrashUntilEndOfLine(stepper);
+                        return null;
+                    }
+                    
                     stepper.Increment(); // open curly
 
                     var functionBody = Parse(stepper, new StatementsNode(openTriangle));
@@ -1130,10 +1347,8 @@ public static class RapidsParser
                     
                     builder.AddDiagnostics(functionBody.Diagnostics);
 
-                    return new FunctionNode(openTriangle, arguments, functionBody.RootNode, debugBody?.RootNode);
+                    return new FunctionNode(openTriangle, arguments, functionBody.RootNode, debugBody?.RootNode, returnType);
                 }
-                
-                // not function just normal expression.
                 
                 var expr = ParseExpression(stepper, builder);
 

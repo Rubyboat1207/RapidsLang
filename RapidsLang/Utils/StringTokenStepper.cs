@@ -9,6 +9,7 @@ public class StringTokenStepper(string str)
     public int ParentIndex { get; set; }
     public List<Token> Tokens { get; private init; } = [];
     public string Buffer { get; private set; }  = "";
+    public int? BufferStartIndex { get; set; } = null;
 
     public char Cur => ActiveString[Index];
     public char Next => Index + 1 >= ActiveString.Length ? ' ' : ActiveString[Index + 1];
@@ -37,18 +38,24 @@ public class StringTokenStepper(string str)
 
     public void Append(int count=1)
     {
+        if (string.IsNullOrEmpty(Buffer))
+        {
+            BufferStartIndex = Index + ParentIndex;
+        }
         Increment(true, count);
     }
 
     public void FlushBufferToToken(TokenType tokenType)
     {
-        Tokens.Add(new Token(tokenType, Index + ParentIndex - Buffer.Length, Buffer));
+        Tokens.Add(new Token(tokenType, BufferStartIndex ?? Index + ParentIndex - Buffer.Length, Index + ParentIndex, Buffer));
         Buffer = "";
+        BufferStartIndex = null;
     }
 
     public void ClearBuffer()
     {
         Buffer = "";
+        BufferStartIndex = null;
     }
 
     public bool NextHas(string str)
@@ -73,9 +80,9 @@ public class StringTokenStepper(string str)
         {
             if (str is null || !NextHas(str)) return false;
         }
-        
-        Tokens.Add(new Token(tokenType, Index + ParentIndex));
-        Increment(count:str.Length);
+
+        Append(count:str.Length);
+        FlushBufferToToken(tokenType);
         return true;
     }
     

@@ -164,6 +164,11 @@ public class RapidsInterpreter
     {
         interpreter.Done = true;
     }
+
+    public static void InPrimaryModule(RapidsInterpreter interpreter)
+    {
+        interpreter.Context.FunctionCallStack.Push(new RapidsBooleanVariable(interpreter.Context.CurrentModule is null));
+    }
     
     public InterpreterNativeFunctionUtil GetNativeUtil()
     {

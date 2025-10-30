@@ -6,5 +6,6 @@ public record FunctionNode(
     Token BaseToken,
     List<ArgumentNode>? Arguments,
     StatementsNode Body,
-    StatementsNode? DebugBody=null
+    StatementsNode? DebugBody=null,
+    TypeNode? ReturnType=null
 ) : ExpressionNode(BaseToken);

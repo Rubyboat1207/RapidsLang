@@ -23,6 +23,16 @@ public class InterpreterNativeFunctionUtil(RapidsInterpreter interpreter) : IDis
         return null;
     }
 
+    public RapidsVariable? LatestVariable()
+    {
+        if (interpreter.Context.FunctionCallStack.TryPop(out var result))
+        {
+            return result;
+        }
+
+        return null;
+    }
+
     public void Return(RapidsVariable? rapidsVariable = null)
     {
         _returnValue = rapidsVariable;
@@ -31,6 +41,11 @@ public class InterpreterNativeFunctionUtil(RapidsInterpreter interpreter) : IDis
     public void Return(double numberRet)
     {
         _returnValue = new RapidsNumberVariable(numberRet);
+    }
+
+    public void Return(string strRet)
+    {
+        _returnValue = new RapidsStringVariable(strRet);
     }
 
     public void Dispose()

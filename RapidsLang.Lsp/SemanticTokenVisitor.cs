@@ -35,11 +35,11 @@ public class SemanticTokenVisitor
             case IfNode ifNode:
                 PushToken(ifNode.BaseToken, SemanticTokenType.Keyword);
                 Visit(ifNode.Condition);
+                Visit(ifNode.Block);
                 foreach (var elseNode in ifNode.ElseNodes)
                 {
                     Visit(elseNode);
                 }
-                Visit(ifNode.Block);
                 break;
             case WhileLoopNode whileLoopNode:
                 PushToken(whileLoopNode.While, SemanticTokenType.Keyword);
@@ -53,6 +53,18 @@ public class SemanticTokenVisitor
                 Visit(operationNode.Left);
                 PushToken(operationNode.Operator, SemanticTokenType.Operator);
                 Visit(operationNode.Right);
+                break;
+            case ReturnNode returnNode:
+                PushToken(returnNode.BaseToken, SemanticTokenType.Keyword);
+                Visit(returnNode.Value);
+                break;
+            case ObjectNode objectNode:
+                foreach (var (strNode, expressionNode) in objectNode.keyValues)
+                {
+                    Visit(strNode);
+                    Visit(expressionNode);
+                }
+
                 break;
             case StringNode stringNode:
                 PushToken(stringNode.BaseToken, SemanticTokenType.String);
@@ -162,7 +174,7 @@ public class SemanticTokenVisitor
             case ExpressionExportable expressionExportable:
                 Visit(expressionExportable.Expression);
                 break;
-            case TargetOrSourceExportable targetOrSourceExportable:
+            case ChannelExportable targetOrSourceExportable:
                 PushToken(targetOrSourceExportable.TargetOrSourceNode.BaseToken, SemanticTokenType.Keyword);
                 if (targetOrSourceExportable.TargetOrSourceNode.DataName is not null)
                 {
@@ -179,6 +191,9 @@ public class SemanticTokenVisitor
                     Visit(elseNode.Condition);
                 }
                 Visit(elseNode.Block);
+                break;
+            case BreakNode breakNode:
+                PushToken(breakNode.BaseToken, SemanticTokenType.Keyword);
                 break;
         }
     }

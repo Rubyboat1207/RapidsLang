@@ -72,14 +72,12 @@ public enum TokenType
 }
 
 [Serializable]
-public class Token(TokenType type, int index, string? value = null)
+public class Token(TokenType type, int index, int endIndex, string? value = null)
 {
-    [JsonPropertyName("token_type")]
     public TokenType TokenType { get; private init; } = type;
-    [JsonPropertyName("value")]
     public string Value { get; private init; } = value ?? GetDefaultValueForTokenType(type)!;
-    [JsonPropertyName("index")]
     public int Index { get; private init; } = index;
+    public int EndIndex { get; private init; } = endIndex;
     
 
     public static string? GetDefaultValueForTokenType(TokenType type)
@@ -175,6 +173,8 @@ public class Token(TokenType type, int index, string? value = null)
             TokenType.Equality => RapidsOperator.Equality,
             TokenType.NotEqual => RapidsOperator.Inequal,
             TokenType.OpenSquare => RapidsOperator.Index,
+            TokenType.And => RapidsOperator.AndAnd,
+            TokenType.Or => RapidsOperator.OrOr,
             _ => throw new ArgumentOutOfRangeException()
         };
     }
@@ -231,7 +231,10 @@ public static class RapidsLexer
         TokenType.Modulo,
         TokenType.Plus,
         TokenType.Minus,
-        TokenType.QuestionMark
+        TokenType.QuestionMark,
+        
+        TokenType.And,
+        TokenType.Or
     ];
     
     public static List<Token> Lex(string code)
@@ -386,7 +389,11 @@ public static class RapidsLexer
             }
 
 
-            if (!char.IsLetter(stepper.Cur) && stepper.Cur != '_') continue;
+            if (!char.IsLetter(stepper.Cur) && stepper.Cur != '_')
+            {
+                // Trash and ignore it if we don't know what it is. Someday include diagnostics here.
+                stepper.Increment();
+            }
             stepper.Append();
 
             while (!stepper.AtEnd)

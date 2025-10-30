@@ -17,9 +17,19 @@ public class TypesModule : Module
         }
         interpreter.Context.FunctionCallStack.Push(new RapidsNullVariable());
     }
+
+    private static void Typeof(RapidsInterpreter interpreter)
+    {
+        using var utils = interpreter.GetNativeUtil().GuaranteeReturn();
+
+
+        var variable = utils.LatestVariable() ?? new RapidsNullVariable();
+        utils.Return(variable.VariableTypeName);
+    }
     
     protected override ModuleExports Exports { get; } = new(new Dictionary<string, RapidsVariable>
     {
-        {"parseNumber", RapidsFunctionReferenceVariable.ofNative(ParseNumber)}
+        {"parseNumber", RapidsFunctionReferenceVariable.ofNative(ParseNumber)},
+        {"typeof", RapidsFunctionReferenceVariable.ofNative(Typeof)}
     });
 }

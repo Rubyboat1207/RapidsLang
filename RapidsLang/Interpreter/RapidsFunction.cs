@@ -52,7 +52,7 @@ public class RapidsUserFunction(FunctionNode func, InterpreterContext closure)  
             foreach(var arg in Func.Arguments.ToArray().Reverse())
             {
                 var name = arg.Name.Value;
-                newContext.AddVariable(name, new VariableHolder(ctx.FunctionCallStack.Pop(), false, arg.Type ?? null));
+                newContext.AddVariable(name, new VariableHolder(ctx.FunctionCallStack.Pop(), false));
             }
         }
         

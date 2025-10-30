@@ -15,7 +15,7 @@ public record FunctionExportable(
     FunctionNode FunctionNode
 ) : Exportable(BaseToken);
 
-public record TargetOrSourceExportable(
+public record ChannelExportable(
     Token BaseToken,
     DefineTargetOrSourceNode TargetOrSourceNode
 ) : Exportable(BaseToken);

@@ -1,5 +1,6 @@
 using RapidsLang.Interpreter.Variables;
 using RapidsLang.Parser.Nodes;
+using RapidsLang.Parser.Types;
 using RapidsLang.PreProcessor;
 
 namespace RapidsLang.Interpreter;
@@ -9,9 +10,22 @@ public class InterpreterContext
     public bool Active = true;
     public InterpreterContext? Parent { get; }
     public Stack<RapidsVariable> FunctionCallStack = [];
-    private Dictionary<string, VariableHolder> Variables { get; init; } = new()
+    private Dictionary<string, VariableHolder> Variables { get; init; } = [];
+
+    public static readonly Dictionary<string, (VariableHolder, RapidsType)> GlobalSymbols = new()
     {
-        {"exit", new VariableHolder(RapidsFunctionReferenceVariable.ofNative(RapidsInterpreter.Exit), true)} 
+        { 
+            "exit", (
+                new VariableHolder(RapidsFunctionReferenceVariable.ofNative(RapidsInterpreter.Exit), true),
+                new RapidsFunctionType([], null)
+            )
+        },
+        {
+            "inPrimaryModule", (
+                new VariableHolder(RapidsFunctionReferenceVariable.ofNative(RapidsInterpreter.InPrimaryModule), true),
+                new RapidsFunctionType([], RapidsPrimitiveType.Bool)
+            )
+        }
     };
     public ModuleRegistry ModuleRegistry = new();
     public ModuleExports Exports = new();
@@ -56,14 +70,27 @@ public class InterpreterContext
     
     public bool TryFindVariable(string name, out VariableHolder? variable)
     {
+        variable = null;
+
         if (Variables.TryGetValue(name, out variable))
         {
             return true;
         }
-
-        variable = null;
         
-        return Parent != null && Parent.TryFindVariable(name, out variable);
+        if (Parent != null && Parent.TryFindVariable(name, out variable))
+        {
+            return true;
+        }
+        
+        // I prefer this, the control flow is more clear this way
+        // ReSharper disable once InvertIf
+        if (GlobalSymbols.TryGetValue(name, out var global))
+        {
+            variable = global.Item1;
+            return true;
+        }
+
+        return false;
     }
 
     public void AddVariable(string name, VariableHolder variableHolder)
@@ -84,9 +111,8 @@ public class InterpreterContext
     }
 }
 
-public class VariableHolder(RapidsVariable Variable, bool Constant, TypeNode? TypeNode = null)
+public class VariableHolder(RapidsVariable variable, bool constant)
 {
-    public virtual RapidsVariable Variable { get; set; } = Variable;
-    public bool Constant { get; } = Constant;
-    public TypeNode? TypeNode { get; } = TypeNode;
+    public virtual RapidsVariable Variable { get; set; } = variable;
+    public bool Constant { get; } = constant;
 }

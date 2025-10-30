@@ -56,6 +56,9 @@ public class RapidsObjectVariable(Dictionary<string, RapidsVariable>? initialVal
         }else if (memberName == "__values__")
         {
             return new RapidsListVariable(ObjectValues.Values.ToList());
+        }else if (memberName == "length")
+        {
+            return new RapidsNumberVariable(ObjectValues.Count);
         }
 
         return null;
@@ -78,7 +81,7 @@ public class RapidsObjectVariable(Dictionary<string, RapidsVariable>? initialVal
             {
                 return new ObjectMemberVariableHolder(new RapidsNullVariable(), this, memberName);
             }
-            return new VariableHolder(member, true, null);
+            return new VariableHolder(member, true);
         }
     }
 }

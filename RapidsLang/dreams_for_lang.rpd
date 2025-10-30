@@ -26,8 +26,19 @@ tts(text, voice)> {
     
 }
 
-// anon functions exist too
+// typed functions
+
+tts(text: string, voice: string?): void> {
+
+}
+
+// anon functions
 (command)> {
+
+}
+
+// anon typed functions
+(command: string): void> {
 
 }
 
@@ -57,8 +68,7 @@ pipe sensor("temperature") -> dashboard.widget("climate-display")???
 
 pipe twitch.dono `{user} ({bits}): {text}` -> minecraft.chat
 
-// interfaces
+// channels
 
 define target chat<string>
 define source bits<{text, bits: number, user}>
-

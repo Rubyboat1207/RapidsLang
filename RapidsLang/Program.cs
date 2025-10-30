@@ -35,7 +35,7 @@ public class RapidLangEntry
 #if DEBUG
             // We are in Debug mode and have no args, so use the test program.
             Console.WriteLine("No input file specified. Running debug program...");
-            code = TestPrograms.OnStatementTest;
+            code = TestPrograms.ObjectTest;
 #else
         // We are NOT in Debug mode and have no args.
         Console.WriteLine("Error: No input file specified.");

@@ -10,6 +10,11 @@ public static class Utils
         {
             return rString.Value;
         }
+
+        if (v is RapidsBooleanVariable rBool)
+        {
+            return rBool.Value.ToString();
+        }
         if (v is RapidsNumberVariable rNum)
         {
             return rNum.Value.ToString();

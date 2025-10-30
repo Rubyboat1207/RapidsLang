@@ -13,5 +13,7 @@ public enum RapidsOperator
     GreaterThanEqualTo,
     Equality,
     Inequal,
-    Index
+    Index,
+    AndAnd,
+    OrOr
 }

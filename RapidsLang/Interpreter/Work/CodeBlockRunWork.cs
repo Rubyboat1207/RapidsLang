@@ -78,22 +78,28 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
                 EvaluateExpression(exprExport.Expression, val =>
                 {
                     Context.Exports.Add(exprExport.BaseToken.Value, val);
+                    Context.AddVariable(exprExport.BaseToken.Value, new VariableHolder(val, true));
                     ProgramCounter++;
                 });
             }
 
             if (exportStatement.ExportNode is FunctionExportable funcExportable)
             {
-                Context.Exports.Add(funcExportable.BaseToken.Value,
-                    new RapidsFunctionReferenceVariable(
-                        new RapidsUserFunction(funcExportable.FunctionNode, new InterpreterContext(Context)
-                        )));
+                var func = new RapidsFunctionReferenceVariable(
+                    new RapidsUserFunction(funcExportable.FunctionNode, new InterpreterContext(Context)
+                    ));
+                Context.Exports.Add(funcExportable.BaseToken.Value, func);
+                
+                Context.AddVariable(funcExportable.BaseToken.Value, new VariableHolder(func, true));
                 ProgramCounter++;
             }
             
-            if (exportStatement.ExportNode is TargetOrSourceExportable targetOrSourceExportable)
+            if (exportStatement.ExportNode is ChannelExportable channelExportable)
             {
-                Context.Exports.Add(targetOrSourceExportable.TargetOrSourceNode.Name.Value, AddTargetOrSource(targetOrSourceExportable.TargetOrSourceNode).Variable);
+                var channel = AddTargetOrSource(channelExportable.TargetOrSourceNode).Variable;
+                Context.Exports.Add(channelExportable.TargetOrSourceNode.Name.Value, channel);
+                Context.AddVariable(channelExportable.BaseToken.Value, new VariableHolder(channel, true));
+
                 ProgramCounter++;
             }
 
@@ -138,7 +144,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             {
                 Context.AddVariable(
                     declaration.Name.Value,
-                    new VariableHolder(val, declaration.Constant, declaration.Type)
+                    new VariableHolder(val, declaration.Constant)
                 );
                 ProgramCounter++;
             });

@@ -93,47 +93,67 @@ public class RapidsTextDocumentHandler : TextDocumentSyncHandlerBase
         
         var lspDiagnostics = new List<Diagnostic>();
 
-        // 2. Loop over your custom diagnostics
         foreach (var diagnostic in parseResult.Diagnostics)
         {
-            // 3. Convert *your* diagnostic into an *LSP* diagnostic
-            
-            // A. Get the original index (before pre-processing)
             var sourceIndex = RapidsPreproc.GetSourceIdx(diagnostic.Token.Index, metaData);
 
-            // B. Get the start line/col
             var (startLine, startCol) = RapidsPreproc.GetRowColFromIndex(sourceIndex, code);
             
-            // C. Get the end line/col
-            // (Assuming your Token has a Length property)
             int endSourceIndex;
             if (diagnostic.AtEndOfLine)
             {
-                // For "missing" tokens, just point at the start
                 endSourceIndex = sourceIndex;
             }
             else
             {
-                // For existing tokens, get the end of the token
                 endSourceIndex = RapidsPreproc.GetSourceIdx(diagnostic.Token.Index + diagnostic.Token.Value.Length, metaData);
             }
             
             var (endLine, endCol) = RapidsPreproc.GetRowColFromIndex(endSourceIndex, code);
 
-            // D. Create the LSP Diagnostic
             lspDiagnostics.Add(new Diagnostic
             {
                 Message = diagnostic.Issue,
-                Severity = DiagnosticSeverity.Error, // You can customize this
+                Severity = DiagnosticSeverity.Error,
                 Range = new Range(
-                    new Position(startLine - 1, startCol - 1), // LSP is 0-indexed
+                    new Position(startLine - 1, startCol - 1),
                     new Position(endLine - 1, endCol - 1)
                 ),
-                Source = "rapids-parser" // Your analyzer's name
+                Source = "rapids-parser"
             });
         }
 
-        // 4. Send the list to the client
+        if (staticAnalysisResult != null)
+        {
+            foreach (var diagnostic in staticAnalysisResult.Diagnostics)
+            {
+                var sourceIndex = RapidsPreproc.GetSourceIdx(diagnostic.Index, metaData);
+                var endSourceIndex = RapidsPreproc.GetSourceIdx(diagnostic.Index + diagnostic.Length, metaData);
+                
+                var (startLine, startCol) = RapidsPreproc.GetRowColFromIndex(sourceIndex, code);
+                var (endLine, endCol) = RapidsPreproc.GetRowColFromIndex(endSourceIndex, code);
+
+                DiagnosticSeverity severity = diagnostic.Severity switch
+                {
+                    RapidsStaticAnalysisSeverity.Hint => DiagnosticSeverity.Hint,
+                    RapidsStaticAnalysisSeverity.Warning => DiagnosticSeverity.Warning,
+                    RapidsStaticAnalysisSeverity.Error => DiagnosticSeverity.Error,
+                    _ => DiagnosticSeverity.Warning
+                };
+
+                lspDiagnostics.Add(new Diagnostic
+                {
+                    Message = diagnostic.Message,
+                    Severity = severity,
+                    Range = new Range(
+                        new Position(startLine - 1, startCol - 1),
+                        new Position(endLine - 1, endCol - 1)
+                    ),
+                    Source = "rapids-parser"
+                });
+            }
+        }
+
         _facade.TextDocument.PublishDiagnostics(new PublishDiagnosticsParams
         {
             Uri = uri,
