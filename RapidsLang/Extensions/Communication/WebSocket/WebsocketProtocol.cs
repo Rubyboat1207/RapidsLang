@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 using JetBrains.Annotations;
 using RapidsLang.Extensions.Communication.WebSocket.C2S;
 using RapidsLang.Extensions.Communication.WebSocket.S2C;
-using RapidsLang.Extensions.Pipes;
+using RapidsLang.Extensions.Channel;
 using RapidsLang.Interpreter;
 using RapidsLang.Interpreter.Variables;
 
@@ -27,8 +27,6 @@ public class WebsocketProtocol : CommunicationProtocol
     private readonly List<System.Net.WebSockets.WebSocket> _webSockets = [];
     private readonly Lock _requestsLock = new();
     private readonly List<C2SWebsocketRequest> _requests = new();
-
-    private readonly Dictionary<Identifier, Dictionary<Guid, PipeSubscriber>> _eventListeners = [];
     
 
     public WebsocketProtocol()
@@ -56,33 +54,21 @@ public class WebsocketProtocol : CommunicationProtocol
         Servers = [];
     }
 
-    public override PipeWriteResult WriteToInput(Identifier identifier, RapidsVariable? value)
+    public override ChannelWriteResult WriteToInput(Identifier identifier, RapidsVariable? value)
     {
         Task.Run(() => BroadcastMessage(new S2CWriteToTarget(identifier, value ?? new RapidsNullVariable())));
         
-        return new GoodPipeWriteResult();
+        return new GoodChannelWriteResult();
     }
 
-    public override void SubscribeToOutput(Identifier identifier, PipeSubscriber subscriber)
+    protected override void OutputAdded(Identifier identifier)
     {
-        if (!_eventListeners.TryGetValue(identifier, out Dictionary<Guid, PipeSubscriber>? value))
-        {
-            value = [];
-            _eventListeners[identifier] = value;
-            BroadcastMessage(new S2CSourceBeginListening(identifier)).Wait();
-        }
-
-        value[subscriber.Guid] = subscriber;
+        BroadcastMessage(new S2CSourceBeginListening(identifier)).Wait();
     }
 
-    public override void UnsubscribeToOutput(Identifier identifier, Guid guid)
+    protected override void OutputRemoved(Identifier identifier)
     {
-        _eventListeners[identifier].Remove(guid);
-
-        if (_eventListeners[identifier].Count == 0)
-        {
-            BroadcastMessage(new S2CSourceEndListening(identifier)).Wait();
-        }
+        BroadcastMessage(new S2CSourceEndListening(identifier)).Wait();
     }
 
     public override void Init(RapidsInterpreter interpreter)
@@ -100,7 +86,7 @@ public class WebsocketProtocol : CommunicationProtocol
             {
                 if (req is C2SSourceData sourceData)
                 {
-                    if (_eventListeners.TryGetValue(sourceData.Identifier, out var eventListeners))
+                    if (EventListeners.TryGetValue(sourceData.Identifier, out var eventListeners))
                     {
                         foreach (var listener in eventListeners)
                         {
@@ -127,7 +113,7 @@ public class WebsocketProtocol : CommunicationProtocol
                 
                 _webSockets.Add(wsCtx.WebSocket);
 
-                foreach (var listener in _eventListeners)
+                foreach (var listener in EventListeners)
                 {
                     if (listener.Value.Count > 0)
                     {

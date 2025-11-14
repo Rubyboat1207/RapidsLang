@@ -1,26 +1,25 @@
 using RapidsLang.Extensions.Communication;
 using RapidsLang.Interpreter.Variables;
 
-namespace RapidsLang.Extensions.Pipes;
+namespace RapidsLang.Extensions.Channel;
 
 public class DataChannel
 {
-    public DataChannel(ExtensionModule module, Identifier sourceIdentifier, bool readable, bool writable)
+    public DataChannel(CommunicationProtocol protocol, Identifier sourceIdentifier, bool readable, bool writable, string? dataVariableName=null)
     {
-        _subscriber = new PipeSubscriber(DataListener);
-        Module = module;
-        Protocol = module.Extension.ExtensionManifest.Protocol!;
+        _subscriber = new ChannelSubscriber(DataListener);
+        Protocol = protocol;
         SourceIdentifier = sourceIdentifier;
         Readable = readable;
         Writable = writable;
+        DataVariableName = dataVariableName;
     }
 
-    private ExtensionModule Module { get; }
     private CommunicationProtocol Protocol { get; }
     private Identifier SourceIdentifier { get; }
     private event Action<RapidsVariable>? _onData;
     private int _dataSubscriberCount = 0;
-    private PipeSubscriber _subscriber;
+    private ChannelSubscriber _subscriber;
     public string? DataVariableName { get; set; }
     public event Action<RapidsVariable>? OnData
     {

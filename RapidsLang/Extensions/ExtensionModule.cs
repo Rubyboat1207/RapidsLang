@@ -18,14 +18,15 @@ public class ExtensionModule : Module
         Extension = extension;
     }
     
-    public override void Import(InterpreterContext context, List<ImportNode>? importNodes)
+    public override void Import(RapidsInterpreter interpreter, List<ImportNode>? importNodes)
     {
+        var context = interpreter.Context;
         if (!_hasRun && !_isRunning)
         {
             _isRunning = true;
             var program = RapidsParser.Parse(Extension.GetMainCodeString(), out var preprocMetaData);
 
-            var interpreter = new RapidsInterpreter(Extension.GetMainCodeString(), preprocMetaData, Extension.MainCodePath)
+            var subInterpreter = new RapidsInterpreter(Extension.GetMainCodeString(), preprocMetaData, Extension.MainCodePath)
                 {
                     Context =
                     {
@@ -42,13 +43,13 @@ public class ExtensionModule : Module
                 throw new Exception("Failed to parse because of above reasons");
             }
 
-            interpreter.Interpret(program.RootNode).Wait();
+            subInterpreter.Interpret(program.RootNode).Wait();
 
             _isRunning = false;
             _hasRun = true;
         }
         
         
-        base.Import(context, importNodes);
+        base.Import(interpreter, importNodes);
     }
 }

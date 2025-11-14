@@ -1,3 +1,4 @@
+using RapidsLang.Extensions.Communication;
 using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter;
@@ -5,9 +6,11 @@ namespace RapidsLang.Interpreter;
 public abstract class Module
 {
     protected abstract ModuleExports Exports { get; }
+    public virtual CommunicationProtocol? Protocol { get; } = null;
 
-    public virtual void Import(InterpreterContext context, List<ImportNode>? importNodes)
+    public virtual void Import(RapidsInterpreter interpreter, List<ImportNode>? importNodes)
     {
+        var context = interpreter.Context;
         if (importNodes is null)
         {
             foreach (var exportedVariable in Exports.Exports)

@@ -1,5 +1,6 @@
 using RapidsLang.Extensions;
-using RapidsLang.Extensions.Pipes;
+using RapidsLang.Extensions.Channel;
+using RapidsLang.Extensions.Communication.Native;
 using RapidsLang.Interpreter.Variables;
 using RapidsLang.Interpreter.Work;
 using RapidsLang.Lexer;
@@ -34,6 +35,7 @@ public class RapidsInterpreter
 {
     private readonly string _sourceCode;
     private readonly RapidsPreprocMetaData _preprocessorMetadata;
+    public NativeProtocol NativeProtocol = new();
 
     private bool _done;
     public bool Done
@@ -102,6 +104,10 @@ public class RapidsInterpreter
 
     public async Task Interpret(StatementsNode root, bool topLevel=false)
     {
+        if (topLevel)
+        {
+            NativeProtocol.Init(this);
+        }
         StartNewBlock(root, BlockType.Module, null);
         Done = false;
         while (!Done)

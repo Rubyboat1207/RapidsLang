@@ -1,5 +1,5 @@
 using RapidsLang.Extensions;
-using RapidsLang.Extensions.Pipes;
+using RapidsLang.Extensions.Channel;
 using RapidsLang.Interpreter.Work;
 using RapidsLang.Parser.Nodes;
 
@@ -9,7 +9,7 @@ public class RapidsDataChannelVariable : RapidsVariable
 {
     private DataChannel DataChannel { get; }
     private readonly RapidsFunction _sendDataFunction;
-    private readonly ExtensionModule _module;
+    private readonly Module _module;
     public bool Readable => DataChannel.Readable;
     public bool Writable => DataChannel.Writable;
 
@@ -18,7 +18,7 @@ public class RapidsDataChannelVariable : RapidsVariable
         set => DataChannel.DataVariableName = value;
     }
 
-    public RapidsDataChannelVariable(DataChannel dataChannel, ExtensionModule module)
+    public RapidsDataChannelVariable(DataChannel dataChannel, Module module)
     {
         DataChannel = dataChannel;
         _sendDataFunction = new RapidsNativeFunction(SendData);

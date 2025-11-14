@@ -12,8 +12,9 @@ public class CodeModule(string code, string? path=null) : Module
     private bool HasRun;
     private bool IsRunning;
 
-    public override void Import(InterpreterContext context, List<ImportNode>? importNodes)
+    public override void Import(RapidsInterpreter interpreter, List<ImportNode>? importNodes)
     {
+        var context = interpreter.Context;
         if (!HasRun && !IsRunning)
         {
             IsRunning = true;
@@ -25,19 +26,23 @@ public class CodeModule(string code, string? path=null) : Module
                 throw new Exception($"Failed to parse module at {Path}. See above diagnostics");
             }
 
-            var interpreter = new RapidsInterpreter(Code, preprocMetaData, Path);
+            var moduleInterpreter = new RapidsInterpreter(Code, preprocMetaData, Path)
+            {
+                Context =
+                {
+                    Exports = Exports,
+                    ModuleRegistry = context.ModuleRegistry
+                }
+            };
 
-            interpreter.Context.Exports = Exports;
-            interpreter.Context.ModuleRegistry = context.ModuleRegistry;
-            
-            
-            interpreter.Interpret(program.RootNode).Wait();
+
+            moduleInterpreter.Interpret(program.RootNode).Wait();
 
             IsRunning = false;
             HasRun = true;
         }
         
         
-        base.Import(context, importNodes);
+        base.Import(interpreter, importNodes);
     }
 }

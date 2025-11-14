@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 using JetBrains.Annotations;
-using RapidsLang.Extensions.Pipes;
+using RapidsLang.Extensions.Channel;
 
 namespace RapidsLang.Extensions.Communication.WebSocket.S2C;
 

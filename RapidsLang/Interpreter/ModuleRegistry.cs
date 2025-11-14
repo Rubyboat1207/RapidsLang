@@ -16,11 +16,16 @@ public class ModuleRegistry
         {"math", new MathModule()}
     };
 
-    private readonly HashSet<ExtensionModule> _tickingModules = [];
+    private readonly HashSet<Module> _tickingModules = [];
 
     public bool TryGetModule(string identifier, out Module? module)
     {
         return RegisteredModules.TryGetValue(identifier, out module);
+    }
+
+    public Module GetModule(string identifier)
+    {
+        return RegisteredModules[identifier];
     }
 
     public void AddModule(string identifier, Module module)
@@ -28,11 +33,11 @@ public class ModuleRegistry
         RegisteredModules[identifier] = module;
     }
 
-    public void MarkModuleAsTicking(ExtensionModule module, RapidsInterpreter interpreter)
+    public void MarkModuleAsTicking(Module module, RapidsInterpreter interpreter)
     {
         if (!_tickingModules.Contains(module))
         {
-            module.Extension.ExtensionManifest.Protocol?.Init(interpreter);
+            module.Protocol?.Init(interpreter);
             _tickingModules.Add(module);
         }
     }
@@ -41,7 +46,7 @@ public class ModuleRegistry
     {
         foreach (var extensionModule in _tickingModules)
         {
-            extensionModule.Extension.ExtensionManifest.Protocol?.Tick(ctx);
+            extensionModule.Protocol?.Tick(ctx);
         }
     }
 }

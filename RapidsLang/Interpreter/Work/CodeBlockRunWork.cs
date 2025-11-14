@@ -1,5 +1,5 @@
 using RapidsLang.Extensions;
-using RapidsLang.Extensions.Pipes;
+using RapidsLang.Extensions.Channel;
 using RapidsLang.Interpreter.Variables;
 using RapidsLang.Lexer;
 using RapidsLang.Parser.Nodes;
@@ -65,7 +65,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             }
             else
             {
-                module.Import(Context, useNode.ImportNodes);
+                module.Import(Interpreter, useNode.ImportNodes);
             }
             ProgramCounter++;
             return;
@@ -411,9 +411,14 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
         }
         else
         {
+            var protocol = extensionModule.Extension.ExtensionManifest.Protocol;
+            if (protocol is null)
+            {
+                throw new Exception($"Extension \"{extensionModule.Extension.ExtensionManifest.ModuleName}\" has no communication protocol.");
+            }
             holder = new VariableHolder(new RapidsDataChannelVariable(
                 new DataChannel(
-                    extensionModule,
+                    protocol,
                     new Identifier(
                         extensionModule.Extension.ExtensionManifest.ModuleName,
                         node.Name.Value

@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using RapidsLang.Extensions.Pipes;
+using RapidsLang.Extensions.Channel;
 
 namespace RapidsLang.Extensions.Communication.WebSocket.S2C;
 

@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace RapidsLang.Extensions.Pipes;
+namespace RapidsLang.Extensions.Channel;
 
 public record Identifier(
     [property: JsonPropertyName("namespace")]
