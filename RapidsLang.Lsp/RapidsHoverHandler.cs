@@ -22,31 +22,25 @@ public class RapidsHoverHandler : IHoverHandler
 
     public Task<Hover?> Handle(HoverParams request, CancellationToken cancellationToken)
     {
-        // 1. Get the cached analysis results.
         var analyzedDoc = _documentManager.GetDocument(request.TextDocument.Uri);
         
-        // This logic is still the same. It only needs StaticAnalysisResult and Code.
         if (analyzedDoc?.StaticAnalysisResult == null)
         {
             return Task.FromResult<Hover?>(null);
         }
-
-        // 2. Convert LSP position (0-based) to your preprocessor's index
-        // You'll still need to implement this helper
+        
         var sourceIndex = RapidsPreproc.GetIndexFromRowCol(
             request.Position.Line + 1, 
             request.Position.Character + 1, 
             analyzedDoc.Code
         );
 
-        // 3. Find the symbol at that index (This is the core logic for you to write)
         var symbol = FindSymbolAt(sourceIndex, analyzedDoc);
         if (symbol == null)
         {
             return Task.FromResult<Hover?>(null);
         }
 
-        // 4. Format the hover content
         var hoverContent = new MarkupContent
         {
             Kind = MarkupKind.Markdown,

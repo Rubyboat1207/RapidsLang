@@ -5,7 +5,7 @@ namespace RapidsLang.Parser.Nodes;
 public record MemberAccessNode(
     ExpressionNode? Left,
     Token MemberName
-) : ExpressionNode(MemberName)
+) : ExpressionNode(Left?.BaseToken ?? MemberName)
 {
     public override int EndIndex => MemberName.EndIndex;
     public override IEnumerable<Node> GetChildren()

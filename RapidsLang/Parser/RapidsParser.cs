@@ -446,7 +446,7 @@ public static class RapidsParser
                     continue;
                 }
 
-                var block = Parse(stepper, new StatementsNode(whileToken));
+                var block = Parse(stepper, new StatementsNode(openCurly));
 
                 builder.AddStatement(new WhileLoopNode(
                     whileToken,
@@ -501,9 +501,9 @@ public static class RapidsParser
                     continue; // hopefully this should place us somewhere nice.
                 }
 
-                stepper.Increment();
+                var openCurly = stepper.Step();
 
-                var block = Parse(stepper, new StatementsNode(ifToken));
+                var block = Parse(stepper, new StatementsNode(openCurly));
                 List<ElseNode> elseNodes = [];
 
                 while (stepper is { AtEnd: false, Cur.TokenType: TokenType.Else })
@@ -544,7 +544,9 @@ public static class RapidsParser
                         continue;
                     }
 
-                    if (stepper.Cur.TokenType is not TokenType.OpenCurly)
+                    var openCurlyEl = stepper.Cur;
+
+                    if (openCurlyEl.TokenType is not TokenType.OpenCurly)
                     {
                         builder.AddIssue("Expected start of else block");
                         continue;
@@ -552,7 +554,7 @@ public static class RapidsParser
                     
                     stepper.Increment();
 
-                    var elseBlock = Parse(stepper, new StatementsNode(el));
+                    var elseBlock = Parse(stepper, new StatementsNode(openCurlyEl));
                     
                     elseNodes.Add(new ElseNode(
                         el,
@@ -1226,15 +1228,15 @@ public static class RapidsParser
                         return null;
                     }
                     
-                    stepper.Increment(); // open curly
+                    var openCurly = stepper.Step(); // open curly
 
-                    var functionBody = Parse(stepper, new StatementsNode(openTriangle));
+                    var functionBody = Parse(stepper, new StatementsNode(openCurly));
                     RapidsParseResult? debugBody = null;
 
                     if (stepper is { HasNext: true, Cur.TokenType: TokenType.QuestionMark })
                     {
-                        stepper.Increment();
-                        debugBody = Parse(stepper, new StatementsNode(openTriangle));
+                        var openCurlyDebug = stepper.Step();
+                        debugBody = Parse(stepper, new StatementsNode(openCurlyDebug));
                         builder.AddDiagnostics(debugBody.Diagnostics);
                     }
                     

@@ -227,6 +227,11 @@ public class SemanticTokenVisitor
                         idType = SemanticTokenType.Function;
                     }
 
+                    if (idSymbol.IsArgument)
+                    {
+                        idType = SemanticTokenType.Parameter;
+                    }
+
                     if (idSymbol.IsConstant)
                     {
                         modifiers.Add(SemanticTokenModifier.Readonly);

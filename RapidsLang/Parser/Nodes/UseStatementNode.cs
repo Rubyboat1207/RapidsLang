@@ -9,7 +9,7 @@ public record UseStatementNode(
     int DebugLevel
 ) : StatementNode(BaseToken, DebugLevel)
 {
-    public override int EndIndex => ImportNodes.LastOrDefault()?.EndIndex ?? ModuleName.EndIndex;
+    public override int EndIndex => ImportNodes?.LastOrDefault()?.EndIndex ?? ModuleName.EndIndex;
     public override IEnumerable<Node> GetChildren()
     {
         var list = new List<Node>([ModuleName]);

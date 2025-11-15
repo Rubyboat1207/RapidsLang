@@ -29,7 +29,7 @@ public class AnalysisDiagnostic(string message, int index, int length, RapidsSta
     public static AnalysisDiagnostic OfIncorrectAmountOfArguments(int index, int length)
         => new("Attempted to call function with incorrect amount of arguments", index, length, RapidsStaticAnalysisSeverity.Warning);
     public static AnalysisDiagnostic OfArgumentTypeIncorrect(Token token, int argumentIndex, RapidsType expected, RapidsType actual)
-        => new($"For argument {argumentIndex + 1}, expected type {expected} but got {actual}", token.Index, token.EndIndex - token.Index, RapidsStaticAnalysisSeverity.Warning);
+        => new($"For argument {argumentIndex + 1}, expected type {expected.Name} but got {actual.Name}", token.Index, token.EndIndex - token.Index, RapidsStaticAnalysisSeverity.Warning);
     public static AnalysisDiagnostic OfMayNotBeDefined(int index, int length, string variableName)
         => new($"Variable {variableName} may not be defined yet.", index, length, RapidsStaticAnalysisSeverity.Warning);
     public static AnalysisDiagnostic OfUnknownModule(int index, int length, string import)
@@ -50,10 +50,11 @@ public class AnalysisDiagnostic(string message, int index, int length, RapidsSta
         => new($"Function {name ?? "anonymous"} must return {expectedType}. Actually returns {actualType}", index, length, RapidsStaticAnalysisSeverity.Error);
 }
 
-public class Symbol(string name, bool isConstant, RapidsType? type=null)
+public class Symbol(string name, bool isConstant, RapidsType? type=null, bool isArgument=false)
 {
     public string Name { get; } = name;
     public bool IsConstant { get; } = isConstant;
+    public bool IsArgument { get; } = isArgument;
     public bool IsMutated { get; set; } = false;
     public RapidsType Type { get; set; } = type ?? RapidsAnyType.Instance;
 }
@@ -231,11 +232,12 @@ public static class RapidsStaticAnalysis
                 break;
             case FunctionDeclarationNode functionDeclarationNode:
                 scope.Symbols.Add(new(functionDeclarationNode.Name.Value, true, GetType(functionDeclarationNode.Function, scope, result)));
-                VisitStatements(functionDeclarationNode.Function.Body, scope.Child(BlockType.Function), result);
-                if (functionDeclarationNode.Function.DebugBody is not null)
-                {
-                    VisitStatements(functionDeclarationNode.Function.DebugBody, scope.Child(BlockType.Function), result);
-                }
+                // VisitStatements(functionDeclarationNode.Function.Body, scope.Child(BlockType.Function), result);
+                _ = GetType(functionDeclarationNode.Function, scope, result);
+                // if (functionDeclarationNode.Function.DebugBody is not null)
+                // {
+                //     VisitStatements(functionDeclarationNode.Function.DebugBody, scope.Child(BlockType.Function), result);
+                // }
                 break;
             case IfNode ifNode:
                 VisitStatements(ifNode.Block, scope.Child(BlockType.Statement), result);
@@ -374,8 +376,15 @@ public static class RapidsStaticAnalysis
                     }
 
                 var statedReturnType = functionNode.ReturnType is null ? null : ComputeFromTypeNode(functionNode.ReturnType);
+
+                var childScope = scope.Child(BlockType.Function);
+
+                foreach (var arg in functionNode.Arguments ?? [])
+                {
+                    childScope.Symbols.Add(new Symbol(arg.Name.Value, true, ComputeFromTypeNode(arg.Type), true));
+                }
                 
-                VisitStatements(functionNode.Body, scope.Child(BlockType.Function), result);
+                VisitStatements(functionNode.Body, childScope, result);
 
                 var computedReturnType = result.Scopes[functionNode.Body].ReturnValue;
 

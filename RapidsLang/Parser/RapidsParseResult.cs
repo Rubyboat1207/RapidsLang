@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using RapidsLang.Lexer;
 using RapidsLang.Parser.Nodes;
 using RapidsLang.PreProcessor;
@@ -111,6 +112,7 @@ public class RapidsParseResult(StatementsNode rootNode, List<Diagnostic>? diagno
     public Node? FindNodeAt(int processedIndex)
     {
         Node? bestMatch = null;
+        Debug.WriteLine("Finding node at " + processedIndex);
         FindNodeRecursive(RootNode, processedIndex, ref bestMatch);
         return bestMatch;
     }
@@ -123,6 +125,7 @@ public class RapidsParseResult(StatementsNode rootNode, List<Diagnostic>? diagno
         }
         
         bestMatch = node;
+        Debug.WriteLine("new best match is: " + bestMatch);
 
         foreach (var child in node.GetChildren())
         {

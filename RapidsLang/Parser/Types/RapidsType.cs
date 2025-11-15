@@ -4,7 +4,7 @@ public abstract class RapidsType
 {
     public abstract string Name { get; }
 
-    public virtual bool IsSameType(RapidsType other) => Name == other.Name;
+    public virtual bool IsSameType(RapidsType other) => other is RapidsAnyType || Name == other.Name;
 }
 
 

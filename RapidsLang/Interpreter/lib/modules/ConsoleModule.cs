@@ -20,7 +20,7 @@ public class ConsoleModule : Module
     }
     
     private static readonly RapidsType PrintType = new RapidsFunctionType(
-        [RapidsPrimitiveType.String],
+        [RapidsAnyType.Instance],
         null
     );
 
@@ -53,8 +53,8 @@ public class ConsoleModule : Module
     }
 
     private static readonly RapidsType WriteType = new RapidsFunctionType(
-        [],
-        RapidsPrimitiveType.String
+        [RapidsAnyType.Instance],
+        null
     );
 
     public override ModuleExports Exports { get; } = new(new Dictionary<string, ModuleExport> {
