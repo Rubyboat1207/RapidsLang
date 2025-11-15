@@ -34,6 +34,8 @@ public class AnalysisDiagnostic(string message, int index, int length, RapidsSta
         => new($"Variable {variableName} may not be defined yet.", index, length, RapidsStaticAnalysisSeverity.Warning);
     public static AnalysisDiagnostic OfUnknownModule(int index, int length, string import)
         => new($"Module \"{import}\" is unknown.", index, length, RapidsStaticAnalysisSeverity.Warning);
+    public static AnalysisDiagnostic OfNeverMutated(int index, int length, string variableName)
+        => new($"Variable {variableName} was defined as a let, but was never mutated. Maybe use \"const\" instead to better convey the purpose?", index, length, RapidsStaticAnalysisSeverity.Warning);
     
     // ------ ERRORS ------ //
     public static AnalysisDiagnostic OfConstantModified(int index, int length, string variableName)
@@ -50,13 +52,14 @@ public class AnalysisDiagnostic(string message, int index, int length, RapidsSta
         => new($"Function {name ?? "anonymous"} must return {expectedType}. Actually returns {actualType}", index, length, RapidsStaticAnalysisSeverity.Error);
 }
 
-public class Symbol(string name, bool isConstant, RapidsType? type=null, bool isArgument=false)
+public class Symbol(string name, bool isConstant, RapidsType? type=null, bool isArgument=false, int? startIndex=null)
 {
     public string Name { get; } = name;
     public bool IsConstant { get; } = isConstant;
     public bool IsArgument { get; } = isArgument;
     public bool IsMutated { get; set; } = false;
     public RapidsType Type { get; set; } = type ?? RapidsAnyType.Instance;
+    public int? StartIndex { get; } = startIndex;
 }
 
 public class RapidsStaticAnalysisScope
@@ -150,6 +153,19 @@ public static class RapidsStaticAnalysis
         {
             VisitStatement(statement, scope, result);
         }
+
+        foreach (var symbol in scope.Symbols)
+        {
+            if(scope.Parent is not null && scope.Parent.Symbols.Contains(symbol))
+            {
+                continue;
+            }
+
+            if (symbol is { IsConstant: false, IsMutated: false })
+            {
+                result.Diagnostics.Add(AnalysisDiagnostic.OfNeverMutated(symbol.StartIndex!.Value, symbol.Name.Length, symbol.Name));
+            }
+        }
     }
 
     public static void VisitStatement(
@@ -175,11 +191,17 @@ public static class RapidsStaticAnalysis
                     {
                         result.Diagnostics.Add(AnalysisDiagnostic.OfConstantModified(name.Index, name.Value.Length, name.Value));
                     }
+                    else
+                    {
+                        symbol.IsMutated = true;
+                    }
+
+                    
                 }
                 break;
             case DeclarationNode declarationNode:
                 var type = declarationNode.Type is not null ? ComputeFromTypeNode(declarationNode.Type) : GetType(declarationNode.Expression, scope, result);
-                scope.Symbols.Add(new Symbol(declarationNode.Name.Value, declarationNode.Constant, type));
+                scope.Symbols.Add(new Symbol(declarationNode.Name.Value, declarationNode.Constant, type, startIndex:declarationNode.Name.Index));
                 break;
             case DefineTargetOrSourceStatement defineTargetOrSourceStatement:
                 break;

@@ -894,7 +894,7 @@ public static class RapidsParser
 
                 if (stepper.Cur.TokenType is not TokenType.Identifier)
                 {
-                    throw new Exception("Import as name should be an identifier");
+                    builder.AddDiagnostic(new Diagnostic(stepper.Cur, "mapped import name must be an identifier"));
                 }
                 
                 imports.Add(new ImportNode(name, stepper.Step()));

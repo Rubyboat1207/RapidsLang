@@ -152,6 +152,14 @@ public static class RapidsPreproc
                    .Sum(commentIndex => commentIndex.Length);
     }
 
+    public static int GetProcessedIdx(int sourceIndex, RapidsPreprocMetaData metaData)
+    {
+        return sourceIndex 
+               - metaData.CommentedIndices
+                   .Where(commentIndex => commentIndex.ProcessedIndex < sourceIndex)
+                   .Sum(commentIndex => commentIndex.Length);
+    }
+
     public static Tuple<int, int> GetRowColFromIndex(int index, string str)
     {
         var lines = 1;

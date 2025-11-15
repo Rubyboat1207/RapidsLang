@@ -28,14 +28,16 @@ public class RapidsHoverHandler : IHoverHandler
         {
             return Task.FromResult<Hover?>(null);
         }
-        
+
         var sourceIndex = RapidsPreproc.GetIndexFromRowCol(
-            request.Position.Line + 1, 
-            request.Position.Character + 1, 
+            request.Position.Line + 1,
+            request.Position.Character + 1,
             analyzedDoc.Code
         );
+        
+        var processedIndex = RapidsPreproc.GetProcessedIdx(sourceIndex, analyzedDoc.MetaData);
 
-        var symbol = FindSymbolAt(sourceIndex, analyzedDoc);
+        var symbol = FindSymbolAt(processedIndex, analyzedDoc);
         if (symbol == null)
         {
             return Task.FromResult<Hover?>(null);
@@ -57,17 +59,38 @@ public class RapidsHoverHandler : IHoverHandler
 
         var node = parseResult.FindNodeAt(processedIndex);
 
-        // ReSharper disable once InvertIf
+        if (node is null)
+        {
+            return null;
+        }
+
+        var name = "";
         if (node is IdentifierNode identifier)
         {
-            var owningBlock = node.GetAncestor<StatementsNode>(parentMap);
-
-            if (owningBlock != null &&
-                analyzedDoc.StaticAnalysisResult != null &&
-                analyzedDoc.StaticAnalysisResult.Scopes.TryGetValue(owningBlock, out var scope))
+            name = identifier.Token.Value;
+        }
+        else if (node is MemberAccessNode memberAccessNode)
+        {
+            if (memberAccessNode.Left is null)
             {
-                return scope.Symbols.FirstOrDefault(s => s.Name == identifier.Token.Value);
+                name = memberAccessNode.MemberName.Value;
             }
+        }
+        else if (node is ImportNode importNode)
+        {
+            name = importNode.AsName?.Value ?? importNode.BaseToken.Value;
+        }else if (node is DeclarationNode declarationNode)
+        {
+            name = declarationNode.Name.Value;
+        }
+
+        var owningBlock = node.GetAncestor<StatementsNode>(parentMap);
+
+        if (owningBlock != null &&
+            analyzedDoc.StaticAnalysisResult != null &&
+            analyzedDoc.StaticAnalysisResult.Scopes.TryGetValue(owningBlock, out var scope))
+        {
+            return scope.Symbols.FirstOrDefault(s => s.Name == name);
         }
 
         return null;
