@@ -1,4 +1,5 @@
 using RapidsLang.Interpreter.Work;
+using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter.Variables;
 
@@ -43,22 +44,22 @@ public class RapidsFunctionReferenceVariable(RapidsFunction function) : RapidsVa
     private static Dictionary<Action<RapidsInterpreter>, RapidsNativeFunction> NativeFunctions = [];
     private static Dictionary<Action<RapidsInterpreter, CodeBlockRunWork?>, RapidsNativeFunctionWithCodeBlock> NativeFunctionsWithCodeBlocks = [];
 
-    public static RapidsFunctionReferenceVariable ofNative(Action<RapidsInterpreter> nativeFunc)
+    public static RapidsFunctionReferenceVariable OfNative(Action<RapidsInterpreter> nativeFunc, RapidsType? type=null)
     {
-        if (!NativeFunctions.TryGetValue(nativeFunc, out RapidsNativeFunction? value))
+        if (!NativeFunctions.TryGetValue(nativeFunc, out var value))
         {
-            value = new RapidsNativeFunction(nativeFunc);
+            value = new RapidsNativeFunction(nativeFunc, type);
             NativeFunctions[nativeFunc] = value;
         }
         
         return new RapidsFunctionReferenceVariable(value);
     }
     
-    public static RapidsFunctionReferenceVariable ofNative(Action<RapidsInterpreter, CodeBlockRunWork?> nativeFunc)
+    public static RapidsFunctionReferenceVariable OfNative(Action<RapidsInterpreter, CodeBlockRunWork?> nativeFunc, RapidsType? type=null)
     {
-        if (!NativeFunctionsWithCodeBlocks.TryGetValue(nativeFunc, out RapidsNativeFunctionWithCodeBlock? value))
+        if (!NativeFunctionsWithCodeBlocks.TryGetValue(nativeFunc, out var value))
         {
-            value = new RapidsNativeFunctionWithCodeBlock(nativeFunc);
+            value = new RapidsNativeFunctionWithCodeBlock(nativeFunc, type);
             NativeFunctionsWithCodeBlocks[nativeFunc] = value;
         }
         

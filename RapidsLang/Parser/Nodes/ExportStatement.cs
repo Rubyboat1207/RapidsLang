@@ -6,20 +6,37 @@ public record ExportStatement(
     Token BaseToken,
     Exportable ExportNode,
     int DebugLevel
-) : StatementNode(BaseToken, DebugLevel);
+) : StatementNode(BaseToken, DebugLevel)
+{
+    public override int EndIndex => ExportNode.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [ExportNode];
+}
 
 public abstract record Exportable(Token BaseToken) : Node(BaseToken);
 
 public record FunctionExportable(
     Token BaseToken,
     FunctionNode FunctionNode
-) : Exportable(BaseToken);
+) : Exportable(BaseToken)
+{
+    public override int EndIndex => FunctionNode.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [FunctionNode];
+}
 
 public record ChannelExportable(
     Token BaseToken,
     DefineTargetOrSourceNode TargetOrSourceNode
-) : Exportable(BaseToken);
+) : Exportable(BaseToken)
+{
+    public override int EndIndex => TargetOrSourceNode.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [TargetOrSourceNode];
+}
+
 public record ExpressionExportable(
     Token BaseToken,
     ExpressionNode Expression
-) : Exportable(BaseToken);
+) : Exportable(BaseToken)
+{
+    public override int EndIndex => Expression.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [Expression];
+}

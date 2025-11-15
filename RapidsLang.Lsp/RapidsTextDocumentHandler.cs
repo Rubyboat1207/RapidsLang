@@ -6,7 +6,9 @@ using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server;
 using OmniSharp.Extensions.LanguageServer.Protocol.Server.Capabilities;
 using RapidsLang.Analyzer;
+using RapidsLang.Parser;
 using RapidsLang.PreProcessor;
+using Diagnostic = OmniSharp.Extensions.LanguageServer.Protocol.Models.Diagnostic;
 using Range = OmniSharp.Extensions.LanguageServer.Protocol.Models.Range;
 
 namespace RapidsLang.LanguageServer;
@@ -37,23 +39,14 @@ public class RapidsTextDocumentHandler : TextDocumentSyncHandlerBase
 
     public override Task<Unit> Handle(DidOpenTextDocumentParams request, CancellationToken cancellationToken)
     {
-        var code = request.TextDocument.Text;
-        
-        _documentManager.UpdateDocument(request.TextDocument.Uri, code);
-        
-        PublishDiagnostics(request.TextDocument.Uri, code);
-        
+        AnalyzeAndCache(request.TextDocument.Uri, request.TextDocument.Text);
         return Unit.Task;
     }
 
     public override Task<Unit> Handle(DidChangeTextDocumentParams request, CancellationToken cancellationToken)
     {
         var code = request.ContentChanges.First().Text;
-
-        _documentManager.UpdateDocument(request.TextDocument.Uri, code);
-
-        PublishDiagnostics(request.TextDocument.Uri, code);
-        
+        AnalyzeAndCache(request.TextDocument.Uri, code);
         return Unit.Task;
     }
 
@@ -65,7 +58,7 @@ public class RapidsTextDocumentHandler : TextDocumentSyncHandlerBase
     public override Task<Unit> Handle(DidCloseTextDocumentParams request, CancellationToken cancellationToken)
     {
         _documentManager.RemoveDocument(request.TextDocument.Uri);
-
+        
         _facade.TextDocument.PublishDiagnostics(new PublishDiagnosticsParams
         {
             Uri = request.TextDocument.Uri,
@@ -86,18 +79,40 @@ public class RapidsTextDocumentHandler : TextDocumentSyncHandlerBase
         };
     }
     
-    private void PublishDiagnostics(DocumentUri uri, string code)
+    private void AnalyzeAndCache(DocumentUri uri, string code)
     {
-        // 1. Call your core analyzer
         var (parseResult, metaData, staticAnalysisResult) = RapidsStaticAnalysis.Analyze(code);
         
+        var parentMap = ParentMapper.BuildParentMap(parseResult.RootNode);
+
+        if (staticAnalysisResult is null)
+        {
+            _documentManager.UpdateDocument(new AnalyzedDocument(uri, code, parseResult, metaData, staticAnalysisResult, parentMap));
+            return;
+        }
+
+        var document = new AnalyzedDocument(uri, code, parseResult, metaData, staticAnalysisResult, parentMap);
+        
+        _documentManager.UpdateDocument(document);
+        
+        var lspDiagnostics = CalculateDiagnostics(document);
+
+        _facade.TextDocument.PublishDiagnostics(new PublishDiagnosticsParams
+        {
+            Uri = uri,
+            Diagnostics = new Container<Diagnostic>(lspDiagnostics)
+        });
+    }
+
+    private List<Diagnostic> CalculateDiagnostics(AnalyzedDocument analyzedDocument)
+    {
         var lspDiagnostics = new List<Diagnostic>();
 
-        foreach (var diagnostic in parseResult.Diagnostics)
+        foreach (var diagnostic in analyzedDocument.ParseResult.Diagnostics)
         {
-            var sourceIndex = RapidsPreproc.GetSourceIdx(diagnostic.Token.Index, metaData);
+            var sourceIndex = RapidsPreproc.GetSourceIdx(diagnostic.Token.Index, analyzedDocument.MetaData);
 
-            var (startLine, startCol) = RapidsPreproc.GetRowColFromIndex(sourceIndex, code);
+            var (startLine, startCol) = RapidsPreproc.GetRowColFromIndex(sourceIndex, analyzedDocument.Code);
             
             int endSourceIndex;
             if (diagnostic.AtEndOfLine)
@@ -106,10 +121,10 @@ public class RapidsTextDocumentHandler : TextDocumentSyncHandlerBase
             }
             else
             {
-                endSourceIndex = RapidsPreproc.GetSourceIdx(diagnostic.Token.Index + diagnostic.Token.Value.Length, metaData);
+                endSourceIndex = RapidsPreproc.GetSourceIdx(diagnostic.Token.Index + diagnostic.Token.Value.Length, analyzedDocument.MetaData);
             }
             
-            var (endLine, endCol) = RapidsPreproc.GetRowColFromIndex(endSourceIndex, code);
+            var (endLine, endCol) = RapidsPreproc.GetRowColFromIndex(endSourceIndex, analyzedDocument.Code);
 
             lspDiagnostics.Add(new Diagnostic
             {
@@ -123,15 +138,15 @@ public class RapidsTextDocumentHandler : TextDocumentSyncHandlerBase
             });
         }
 
-        if (staticAnalysisResult != null)
+        if (analyzedDocument.StaticAnalysisResult != null)
         {
-            foreach (var diagnostic in staticAnalysisResult.Diagnostics)
+            foreach (var diagnostic in analyzedDocument.StaticAnalysisResult.Diagnostics)
             {
-                var sourceIndex = RapidsPreproc.GetSourceIdx(diagnostic.Index, metaData);
-                var endSourceIndex = RapidsPreproc.GetSourceIdx(diagnostic.Index + diagnostic.Length, metaData);
+                var sourceIndex = RapidsPreproc.GetSourceIdx(diagnostic.Index, analyzedDocument.MetaData);
+                var endSourceIndex = RapidsPreproc.GetSourceIdx(diagnostic.Index + diagnostic.Length, analyzedDocument.MetaData);
                 
-                var (startLine, startCol) = RapidsPreproc.GetRowColFromIndex(sourceIndex, code);
-                var (endLine, endCol) = RapidsPreproc.GetRowColFromIndex(endSourceIndex, code);
+                var (startLine, startCol) = RapidsPreproc.GetRowColFromIndex(sourceIndex, analyzedDocument.Code);
+                var (endLine, endCol) = RapidsPreproc.GetRowColFromIndex(endSourceIndex, analyzedDocument.Code);
 
                 DiagnosticSeverity severity = diagnostic.Severity switch
                 {
@@ -154,10 +169,6 @@ public class RapidsTextDocumentHandler : TextDocumentSyncHandlerBase
             }
         }
 
-        _facade.TextDocument.PublishDiagnostics(new PublishDiagnosticsParams
-        {
-            Uri = uri,
-            Diagnostics = new Container<Diagnostic>(lspDiagnostics)
-        });
+        return lspDiagnostics;
     }
 }

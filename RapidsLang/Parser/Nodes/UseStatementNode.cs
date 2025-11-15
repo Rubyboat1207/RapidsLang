@@ -7,7 +7,21 @@ public record UseStatementNode(
     ModuleIdent ModuleName,
     List<ImportNode>? ImportNodes,
     int DebugLevel
-) : StatementNode(BaseToken, DebugLevel);
+) : StatementNode(BaseToken, DebugLevel)
+{
+    public override int EndIndex => ImportNodes.LastOrDefault()?.EndIndex ?? ModuleName.EndIndex;
+    public override IEnumerable<Node> GetChildren()
+    {
+        var list = new List<Node>([ModuleName]);
+
+        if (ImportNodes is not null)
+        {
+            list.AddRange(ImportNodes);
+        }
+
+        return list;
+    }
+}
 
 public abstract record ModuleIdent(Token BaseToken) : Node(BaseToken)
 {
@@ -20,6 +34,9 @@ public record LiteralModuleIdentifier(Token BaseToken, List<Token> Tokens) : Mod
     {
         return Tokens.Aggregate("", (current, token) => current + token.Value);
     }
+
+    public override int EndIndex => Tokens.LastOrDefault()?.EndIndex ?? BaseToken.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [];
 }
 
 public record StringModuleIdent(StringNode StringNode) : ModuleIdent(StringNode.BaseToken)
@@ -38,4 +55,7 @@ public record StringModuleIdent(StringNode StringNode) : ModuleIdent(StringNode.
 
         return str;
     }
+
+    public override int EndIndex => StringNode.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [StringNode];
 }

@@ -23,7 +23,9 @@ public class RapidsSemanticTokensHandler(DocumentManager documentManager) : Sema
             SemanticTokenType.Operator,
             SemanticTokenType.Comment
         ),
-        TokenModifiers = new Container<SemanticTokenModifier>()
+        TokenModifiers = new Container<SemanticTokenModifier>(
+            SemanticTokenModifier.Readonly
+        )
     };
 
     protected override SemanticTokensRegistrationOptions CreateRegistrationOptions(SemanticTokensCapability capability,
@@ -41,20 +43,18 @@ public class RapidsSemanticTokensHandler(DocumentManager documentManager) : Sema
         };
     }
 
-    protected override Task Tokenize(SemanticTokensBuilder builder, ITextDocumentIdentifierParams identifier, CancellationToken cancellationToken) {
-        var uri = identifier.TextDocument.Uri;
-        var code = _documentManager.GetDocument(uri);
-        
-        if (string.IsNullOrEmpty(code))
+    protected override Task Tokenize(SemanticTokensBuilder builder, ITextDocumentIdentifierParams identifier, CancellationToken cancellationToken)
+    {
+        var analysis = _documentManager.GetDocument(identifier.TextDocument.Uri);
+
+        if (analysis is null)
         {
             return Task.CompletedTask;
         }
 
-        var (parseResult, metaData, staticAnalysisResult) = RapidsStaticAnalysis.Analyze(code);
-
-        var visitor = new SemanticTokenVisitor(builder, metaData, code);
+        var visitor = new SemanticTokenVisitor(builder, analysis.MetaData, analysis.Code, analysis.StaticAnalysisResult, analysis.ParentMap);
         
-        visitor.Visit(parseResult.RootNode);
+        visitor.Visit(analysis.ParseResult.RootNode);
         
         visitor.FlushRemainingComments();
 

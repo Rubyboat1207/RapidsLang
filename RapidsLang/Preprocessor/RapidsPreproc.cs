@@ -176,4 +176,35 @@ public static class RapidsPreproc
 
         return $"{rowcol.Item1}:{rowcol.Item2}";
     }
+    
+    public static int GetIndexFromRowCol(int targetRow, int targetCol, string str)
+    {
+        int currentRow = 1;
+        int currentCol = 1;
+
+        for (int i = 0; i < str.Length; i++)
+        {
+            if (currentRow == targetRow && currentCol == targetCol)
+            {
+                return i;
+            }
+
+            if (str[i] == '\n')
+            {
+                currentRow++;
+                currentCol = 1; // Reset column
+            }
+            else
+            {
+                currentCol++; // Advance column
+            }
+        }
+        
+        if (currentRow == targetRow && currentCol == targetCol)
+        {
+            return str.Length;
+        }
+        
+        return str.Length;
+    }
 }

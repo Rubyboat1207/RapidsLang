@@ -55,7 +55,7 @@ public class RapidsDataChannelVariable : RapidsVariable
 
         if (memberName == "on_data")
         {
-            return RapidsFunctionReferenceVariable.ofNative(OnData);
+            return RapidsFunctionReferenceVariable.OfNative(OnData);
         }
         return null;
     }

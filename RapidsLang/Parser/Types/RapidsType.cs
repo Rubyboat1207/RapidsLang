@@ -4,7 +4,7 @@ public abstract class RapidsType
 {
     public abstract string Name { get; }
 
-    public virtual bool IsSameType(RapidsType other) => Name != other.Name;
+    public virtual bool IsSameType(RapidsType other) => Name == other.Name;
 }
 
 
@@ -77,12 +77,59 @@ public class RapidsFunctionType(List<RapidsType> parameterTypes, RapidsType? ret
 {
     public List<RapidsType> ParameterTypes { get; } = parameterTypes;
     public RapidsType? ReturnType { get; } = returnType;
-    public override string Name => $"({string.Join(", ", ParameterTypes.Select(p => p.Name))}) => {ReturnType?.Name ?? "void"}";
+    public override string Name => $"({string.Join(", ", ParameterTypes.Select(p => p.Name))}): {ReturnType?.Name ?? "void"}>";
+
+    public override bool IsSameType(RapidsType other)
+    {
+        if (other == AnyFunctionType)
+        {
+            return true;
+        }
+
+        // ReSharper disable once InvertIf
+        if (other is RapidsFunctionType rapidsFunctionType)
+        {
+            if (rapidsFunctionType.ReturnType is not null == ReturnType is not null)
+            {
+                return false;
+            }
+
+            if (rapidsFunctionType.ReturnType is not null && ReturnType is not null)
+            {
+                if (!rapidsFunctionType.ReturnType.IsSameType(ReturnType))
+                {
+                    return false;
+                }
+            }
+            
+            for (var i = 0; i < ParameterTypes.Count; i++)
+            {
+                var param = ParameterTypes[i];
+                var otherParam = rapidsFunctionType.ParameterTypes.ElementAtOrDefault(i);
+
+                if (otherParam != null)
+                {
+                    if (!param.IsSameType(otherParam))
+                    {
+                        return false;
+                    } 
+                }
+                else
+                {
+                    return false;
+                }
+            }
+        }
+        
+        return base.IsSameType(other);
+    }
+
+    public static readonly RapidsFunctionType AnyFunctionType = new([], RapidsAnyType.Instance);
 }
 
 public class RapidsShapeType(Dictionary<string, RapidsType> properties) : RapidsType
 {
-    public Dictionary<string, RapidsType> Properties { get; } = properties;
+    private Dictionary<string, RapidsType> Properties { get; } = properties;
 
     public override string Name
     {
@@ -96,28 +143,29 @@ public class RapidsShapeType(Dictionary<string, RapidsType> properties) : Rapids
 
 public class RapidsDictionaryType(RapidsType valueType) : RapidsType
 {
-    public RapidsType ValueType { get; } = valueType;
+    private RapidsType ValueType { get; } = valueType;
 
     public override string Name => $"{{ [string]: {ValueType.Name} }}";
     
     public static readonly RapidsDictionaryType Unparameterized = new(RapidsAnyType.Instance);
 }
 
-public class RapidsChannelSourceType(RapidsType valueType) : RapidsType
+public class RapidsChannelSourceType(RapidsType valueType, string? callbackVariableName) : RapidsType
 {
     public RapidsType ValueType { get; } = valueType;
+    public string? CallbackVariableName { get; } = callbackVariableName;
     public override string Name => $"-^{ValueType.Name}";
 }
 
 public class RapidsChannelTargetType(RapidsType valueType) : RapidsType
 {
-    public RapidsType ValueType { get; } = valueType;
+    private RapidsType ValueType { get; } = valueType;
     public override string Name => $"{ValueType.Name}-^";
 }
 
 public class RapidsBiDirectionalChannelType(RapidsChannelSourceType source, RapidsChannelTargetType target) : RapidsType
 {
-    public RapidsChannelSourceType Source { get; } = source;
-    public RapidsChannelTargetType Target { get; } = target;
+    private RapidsChannelSourceType Source { get; } = source;
+    private RapidsChannelTargetType Target { get; } = target;
     public override string Name => $"({Source}&{Target})";
 }

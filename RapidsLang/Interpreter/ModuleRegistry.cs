@@ -5,15 +5,17 @@ namespace RapidsLang.Interpreter;
 
 public class ModuleRegistry
 {
-    private readonly Dictionary<string, Module> RegisteredModules = new()
+    private readonly Dictionary<string, Module> RegisteredModules = new(NativeModules);
+
+    public static readonly Dictionary<string, Module> NativeModules = new()
     {
-        {"console", new ConsoleModule()},
-        {"arrays", new ArraysModule()},
-        {"strings", new StringsModule()},
-        {"time", new TimeModule()},
-        {"types", new TypesModule()},
-        {"random", new RandomModule()},
-        {"math", new MathModule()}
+        { "console", new ConsoleModule() },
+        { "arrays", new ArraysModule() },
+        { "strings", new StringsModule() },
+        { "time", new TimeModule() },
+        { "types", new TypesModule() },
+        { "random", new RandomModule() },
+        { "math", new MathModule() }
     };
 
     private readonly HashSet<Module> _tickingModules = [];

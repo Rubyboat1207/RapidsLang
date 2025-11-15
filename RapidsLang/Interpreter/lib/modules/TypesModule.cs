@@ -1,4 +1,5 @@
 using RapidsLang.Interpreter.Variables;
+using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter.Lib.Modules;
 
@@ -18,6 +19,11 @@ public class TypesModule : Module
         interpreter.Context.FunctionCallStack.Push(new RapidsNullVariable());
     }
 
+    private static readonly RapidsType ParseNumberType = new RapidsFunctionType(
+        [RapidsPrimitiveType.String],
+        RapidsPrimitiveType.Number
+    );
+
     private static void Typeof(RapidsInterpreter interpreter)
     {
         using var utils = interpreter.GetNativeUtil().GuaranteeReturn();
@@ -26,10 +32,15 @@ public class TypesModule : Module
         var variable = utils.LatestVariable() ?? new RapidsNullVariable();
         utils.Return(variable.VariableTypeName);
     }
-    
-    protected override ModuleExports Exports { get; } = new(new Dictionary<string, RapidsVariable>
+
+    private static readonly RapidsType TypeofType = new RapidsFunctionType(
+        [RapidsAnyType.Instance],
+        RapidsPrimitiveType.String
+    );
+
+    public override ModuleExports Exports { get; } = new(new Dictionary<string, ModuleExport>
     {
-        {"parseNumber", RapidsFunctionReferenceVariable.ofNative(ParseNumber)},
-        {"typeof", RapidsFunctionReferenceVariable.ofNative(Typeof)}
+        {"parseNumber", new(RapidsFunctionReferenceVariable.OfNative(ParseNumber, ParseNumberType), ParseNumberType)},
+        {"typeof", new(RapidsFunctionReferenceVariable.OfNative(Typeof, TypeofType), TypeofType)}
     });
 }

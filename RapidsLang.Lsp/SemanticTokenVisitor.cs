@@ -1,7 +1,9 @@
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
+using RapidsLang.Analyzer;
 using RapidsLang.Lexer;
 using RapidsLang.Parser.Nodes;
+using RapidsLang.Parser.Types;
 using RapidsLang.PreProcessor;
 
 namespace RapidsLang.LanguageServer;
@@ -11,15 +13,19 @@ public class SemanticTokenVisitor
     private readonly SemanticTokensBuilder _builder;
     private readonly RapidsPreprocMetaData _metaData;
     private readonly string _code;
+    private readonly RapidsStaticAnalysisResult? _staticAnalysisResult;
+    private readonly Dictionary<Node, Node> _parentMap;
     
     private int _lastPushedSourceEndIndex = 0;
     private int _nextCommentIndex = 0;
     
-    public SemanticTokenVisitor(SemanticTokensBuilder builder, RapidsPreprocMetaData metaData, string code)
+    public SemanticTokenVisitor(SemanticTokensBuilder builder, RapidsPreprocMetaData metaData, string code, RapidsStaticAnalysisResult? staticAnalysisResult, Dictionary<Node, Node> parentMap)
     {
         _builder = builder;
         _metaData = metaData;
         _code = code;
+        _staticAnalysisResult = staticAnalysisResult;
+        _parentMap = parentMap;
     }
 
     public void Visit(Node node)
@@ -59,7 +65,7 @@ public class SemanticTokenVisitor
                 Visit(returnNode.Value);
                 break;
             case ObjectNode objectNode:
-                foreach (var (strNode, expressionNode) in objectNode.keyValues)
+                foreach (var (strNode, expressionNode) in objectNode.KeyValues)
                 {
                     Visit(strNode);
                     Visit(expressionNode);
@@ -90,7 +96,15 @@ public class SemanticTokenVisitor
                 break;
             case DeclarationNode declarationNode:
                 PushToken(declarationNode.BaseToken, SemanticTokenType.Keyword);
-                PushToken(declarationNode.Name, SemanticTokenType.Variable);
+                var symbol = FindSymbol(declarationNode.Name.Value, declarationNode);
+                
+                var tokenType = SemanticTokenType.Variable;
+                if (symbol?.Type is RapidsFunctionType)
+                {
+                    tokenType = SemanticTokenType.Function;
+                }
+                
+                PushToken(declarationNode.Name, tokenType);
                 Visit(declarationNode.Expression);
                 break;
             case UseStatementNode useStatementNode:
@@ -195,12 +209,72 @@ public class SemanticTokenVisitor
             case BreakNode breakNode:
                 PushToken(breakNode.BaseToken, SemanticTokenType.Keyword);
                 break;
+            case OnSourceStatement onSourceStatement:
+                PushToken(onSourceStatement.BaseToken, SemanticTokenType.Keyword);
+                Visit(onSourceStatement.Source);
+                Visit(onSourceStatement.Body);
+                break;
+            case IdentifierNode identifierNode:
+            {
+                var idSymbol = FindSymbol(identifierNode.BaseToken.Value, identifierNode);
+
+                var idType = SemanticTokenType.Variable;
+                var modifiers = new List<SemanticTokenModifier>();
+                if (idSymbol != null)
+                {
+                    if (idSymbol.Type is RapidsFunctionType)
+                    {
+                        idType = SemanticTokenType.Function;
+                    }
+
+                    if (idSymbol.IsConstant)
+                    {
+                        modifiers.Add(SemanticTokenModifier.Readonly);
+                    }
+                }
+
+                PushToken(identifierNode.BaseToken, idType, modifiers);
+                break;
+            }
         }
     }
     
-    private void PushToken(Token token, SemanticTokenType tokenType)
+    private Symbol? FindSymbol(string name, Node contextNode)
+    {
+        if (_staticAnalysisResult == null) return null;
+
+        var scopeBlock = contextNode.GetAncestor<StatementsNode>(_parentMap);
+        
+        if (scopeBlock == null && contextNode is StatementsNode rootNode)
+        {
+            scopeBlock = rootNode;
+        }
+
+        if (scopeBlock == null) return null;
+
+        if (_staticAnalysisResult.Scopes.TryGetValue(scopeBlock, out var scope))
+        {
+            var currentScope = scope;
+            while(currentScope != null)
+            {
+                var symbol = currentScope.Symbols.FirstOrDefault(s => s.Name == name);
+                if (symbol != null)
+                {
+                    return symbol;
+                }
+                currentScope = currentScope.Parent;
+            }
+        }
+        
+        return null;
+    }
+    
+    private void PushToken(Token token, SemanticTokenType tokenType, List<SemanticTokenModifier>? modifiers=null)
     {
         var typeIndex = RapidsSemanticTokensHandler.Legend.TokenTypes.ToList().IndexOf(tokenType);
+        var modifierIndices =
+            modifiers?.Select(m => RapidsSemanticTokensHandler.Legend.TokenModifiers.ToList().IndexOf(m)) ?? [];
+        var modifierBits = modifierIndices.Aggregate(0, (current, index) => current | (1 << index));
         if (typeIndex == -1) return; 
 
         var currentSourceIndex = RapidsPreproc.GetSourceIdx(token.Index, _metaData);
@@ -233,7 +307,7 @@ public class SemanticTokenVisitor
                 col - 1,
                 token.Value.Length,
                 typeIndex,
-                0
+                modifierBits
             );
             
             _lastPushedSourceEndIndex = currentSourceIndex + token.Value.Length;

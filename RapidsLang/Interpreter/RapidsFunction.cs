@@ -1,25 +1,26 @@
 using RapidsLang.Interpreter.Work;
 using RapidsLang.Parser.Nodes;
+using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter;
 
-public abstract class RapidsFunction
+public abstract class RapidsFunction(RapidsType? type)
 {
+    public RapidsType? Type = type;
     public event Action? OnCompleted = null;
     public virtual void EnqueueExecution(RapidsInterpreter interpreter, CodeBlockRunWork? parentCodeBlock)
     {
         MarkComplete();
     }
-
     protected void MarkComplete()
     {
         OnCompleted?.Invoke();
     }
 }
 
-public class RapidsNativeFunction(Action<RapidsInterpreter> func) : RapidsFunction
+public class RapidsNativeFunction(Action<RapidsInterpreter> func, RapidsType? type = null) : RapidsFunction(type)
 {
-    public Action<RapidsInterpreter> Function { get; } = func;
+    private Action<RapidsInterpreter> Function { get; } = func;
     public override void EnqueueExecution(RapidsInterpreter interpreter, CodeBlockRunWork? parentCodeBlock)
     {
         Function.Invoke(interpreter);
@@ -28,9 +29,9 @@ public class RapidsNativeFunction(Action<RapidsInterpreter> func) : RapidsFuncti
     }
 }
 
-public class RapidsNativeFunctionWithCodeBlock(Action<RapidsInterpreter, CodeBlockRunWork?> func) : RapidsFunction
+public class RapidsNativeFunctionWithCodeBlock(Action<RapidsInterpreter, CodeBlockRunWork?> func, RapidsType? rapidsType = null) : RapidsFunction(rapidsType)
 {
-    public Action<RapidsInterpreter, CodeBlockRunWork?> Function { get; } = func;
+    private Action<RapidsInterpreter, CodeBlockRunWork?> Function { get; } = func;
     public override void EnqueueExecution(RapidsInterpreter interpreter, CodeBlockRunWork? parentCodeBlock)
     {
         Function.Invoke(interpreter, parentCodeBlock);
@@ -39,9 +40,9 @@ public class RapidsNativeFunctionWithCodeBlock(Action<RapidsInterpreter, CodeBlo
     }
 }
 
-public class RapidsUserFunction(FunctionNode func, InterpreterContext closure)  : RapidsFunction
+public class RapidsUserFunction(FunctionNode func, InterpreterContext closure, RapidsType? rapidsType = null)  : RapidsFunction(rapidsType)
 {
-    public FunctionNode Func { get; } = func;
+    private FunctionNode Func { get; } = func;
     public override void EnqueueExecution(RapidsInterpreter interpreter, CodeBlockRunWork? parentCodeBlock)
     {
         var ctx = interpreter.Context;

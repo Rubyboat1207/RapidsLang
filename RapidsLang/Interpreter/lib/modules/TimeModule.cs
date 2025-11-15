@@ -4,6 +4,7 @@ using RapidsLang.Extensions.Communication;
 using RapidsLang.Extensions.Communication.Native;
 using RapidsLang.Interpreter.Variables;
 using RapidsLang.Parser.Nodes;
+using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter.Lib.Modules;
 
@@ -27,6 +28,11 @@ public class TimeModule : Module
             Thread.Sleep((int) number.Value);
         }
     }
+
+    private static readonly RapidsType SleepType = new RapidsFunctionType(
+        [RapidsPrimitiveType.Number],
+        null
+    );
 
     private static void Clock(RapidsInterpreter interpreter)
     {
@@ -53,11 +59,16 @@ public class TimeModule : Module
             interpreter.Context.ModuleRegistry.GetModule("time")
         ));
     }
-    
-    protected override ModuleExports Exports { get; } = new ModuleExports(new()
+
+    private static readonly RapidsType ClockType = new RapidsFunctionType(
+        [RapidsPrimitiveType.Number],
+        new RapidsChannelSourceType(RapidsPrimitiveType.Number, "delta")
+    );
+
+    public override ModuleExports Exports { get; } = new ModuleExports(new()
     {
-        {"sleep", RapidsFunctionReferenceVariable.ofNative(Sleep)},
-        {"clock", RapidsFunctionReferenceVariable.ofNative(Clock)}
+        {"sleep", new(RapidsFunctionReferenceVariable.OfNative(Sleep, SleepType), SleepType)},
+        {"clock", new(RapidsFunctionReferenceVariable.OfNative(Clock, ClockType), ClockType)}
     });
 
 

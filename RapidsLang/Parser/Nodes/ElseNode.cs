@@ -7,4 +7,16 @@ public record ElseNode(
     Token? IfToken,
     ExpressionNode? Condition,
     StatementsNode Block
-) : Node(BaseToken);
+) : Node(BaseToken)
+{
+    public override int EndIndex => Block.EndIndex;
+    public override IEnumerable<Node> GetChildren()
+    {
+        if (Condition is null)
+        {
+            return [Block];
+        }
+
+        return [Condition, Block];
+    }
+}

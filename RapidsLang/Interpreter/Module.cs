@@ -5,7 +5,7 @@ namespace RapidsLang.Interpreter;
 
 public abstract class Module
 {
-    protected abstract ModuleExports Exports { get; }
+    public abstract ModuleExports Exports { get; }
     public virtual CommunicationProtocol? Protocol { get; } = null;
 
     public virtual void Import(RapidsInterpreter interpreter, List<ImportNode>? importNodes)
@@ -16,7 +16,7 @@ public abstract class Module
             foreach (var exportedVariable in Exports.Exports)
             {
                 context.AddVariable(exportedVariable.Key, new VariableHolder(
-                    exportedVariable.Value,
+                    exportedVariable.Value.Variable,
                     true
                 ));
             }
@@ -34,7 +34,7 @@ public abstract class Module
                     contextName = import.AsName.Value;
                 }
                 
-                context.AddVariable(contextName, new VariableHolder(value, true));
+                context.AddVariable(contextName, new VariableHolder(value.Variable, true));
             }
             else
             {

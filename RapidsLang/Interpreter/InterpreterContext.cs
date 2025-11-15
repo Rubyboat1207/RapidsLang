@@ -16,13 +16,13 @@ public class InterpreterContext
     {
         { 
             "exit", (
-                new VariableHolder(RapidsFunctionReferenceVariable.ofNative(RapidsInterpreter.Exit), true),
+                new VariableHolder(RapidsFunctionReferenceVariable.OfNative(RapidsInterpreter.Exit), true),
                 new RapidsFunctionType([], null)
             )
         },
         {
             "inPrimaryModule", (
-                new VariableHolder(RapidsFunctionReferenceVariable.ofNative(RapidsInterpreter.InPrimaryModule), true),
+                new VariableHolder(RapidsFunctionReferenceVariable.OfNative(RapidsInterpreter.InPrimaryModule), true),
                 new RapidsFunctionType([], RapidsPrimitiveType.Bool)
             )
         }

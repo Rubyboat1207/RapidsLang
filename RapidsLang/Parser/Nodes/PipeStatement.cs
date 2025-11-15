@@ -8,4 +8,8 @@ public record PipeStatement(
     ExpressionNode FormatExpression,
     ExpressionNode Target,
     int DebugLevel
-) : StatementNode(BaseToken, DebugLevel);
+) : StatementNode(BaseToken, DebugLevel)
+{
+    public override int EndIndex => Target.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [Source, FormatExpression, Target];
+}

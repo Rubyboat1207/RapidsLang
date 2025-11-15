@@ -10,5 +10,6 @@ public record AssignmentNode(
     int DebugLevel
 ) : StatementNode(Variable.BaseToken, DebugLevel)
 {
-    
+    public override int EndIndex => Expression.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [Variable, Expression];
 }

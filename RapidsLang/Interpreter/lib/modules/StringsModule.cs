@@ -1,4 +1,5 @@
 using RapidsLang.Interpreter.Variables;
+using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter.Lib.Modules;
 
@@ -17,6 +18,11 @@ public class StringsModule : Module
         ctx.FunctionCallStack.Push(new RapidsStringVariable(Convert.ToChar((byte) charCode.Value).ToString()));
     }
 
+    private static readonly RapidsType CharFromCodeType = new RapidsFunctionType(
+        [RapidsPrimitiveType.Number],
+        RapidsPrimitiveType.String
+    );
+
     private static void CodeFromChar(RapidsInterpreter interpreter)
     {
         var ctx = interpreter.Context;
@@ -29,9 +35,13 @@ public class StringsModule : Module
         
         ctx.FunctionCallStack.Push(new RapidsNumberVariable(str.Value[0]));
     }
+    private static readonly RapidsType CodeFromCharType = new RapidsFunctionType(
+        [RapidsPrimitiveType.String],
+        RapidsPrimitiveType.Number
+    );
 
-    protected override ModuleExports Exports { get; } = new ModuleExports(new Dictionary<string, RapidsVariable> {
-        {"charFromCode", RapidsFunctionReferenceVariable.ofNative(CharFromCode)},
-        {"codeFromChar", RapidsFunctionReferenceVariable.ofNative(CodeFromChar)},
+    public override ModuleExports Exports { get; } = new ModuleExports(new Dictionary<string, ModuleExport> {
+        {"charFromCode", new(RapidsFunctionReferenceVariable.OfNative(CharFromCode, CharFromCodeType), CharFromCodeType)},
+        {"codeFromChar", new(RapidsFunctionReferenceVariable.OfNative(CodeFromChar, CodeFromCharType), CodeFromCharType)},
     });
 }

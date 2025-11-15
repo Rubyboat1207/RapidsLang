@@ -19,7 +19,7 @@ internal abstract class Program
                     services.AddSingleton<DocumentManager>();
                 })
                 .WithHandler<RapidsTextDocumentHandler>()
-                
+                .WithHandler<RapidsHoverHandler>()
                 .WithHandler<RapidsSemanticTokensHandler>()
         );
         

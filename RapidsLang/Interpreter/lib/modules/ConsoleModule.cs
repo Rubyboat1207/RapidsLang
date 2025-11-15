@@ -1,10 +1,11 @@
 using RapidsLang.Interpreter.Variables;
+using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter.Lib.Modules;
 
 public class ConsoleModule : Module
 {
-    public static void Print(RapidsInterpreter interpreter)
+    private static void Print(RapidsInterpreter interpreter)
     {
         var ctx = interpreter.Context;
         ctx.FunctionCallStack.TryPop(out var variable);
@@ -17,8 +18,13 @@ public class ConsoleModule : Module
             Console.WriteLine(Utils.StringifyVariable(variable));
         }
     }
+    
+    private static readonly RapidsType PrintType = new RapidsFunctionType(
+        [RapidsPrimitiveType.String],
+        null
+    );
 
-    public static void Input(RapidsInterpreter interpreter)
+    private static void Input(RapidsInterpreter interpreter)
     {
         var ctx = interpreter.Context;
         if (ctx.FunctionCallStack.TryPop(out var value))
@@ -30,7 +36,12 @@ public class ConsoleModule : Module
         ctx.FunctionCallStack.Push(input != null ? new RapidsStringVariable(input) : new RapidsNullVariable());
     }
 
-    public static void PutChar(RapidsInterpreter interpreter)
+    private static readonly RapidsType InputType = new RapidsFunctionType(
+        [],
+        RapidsPrimitiveType.String
+    );
+
+    private static void Write(RapidsInterpreter interpreter)
     {
         var ctx = interpreter.Context;
         ctx.FunctionCallStack.TryPop(out var variable);
@@ -41,21 +52,14 @@ public class ConsoleModule : Module
         }
     }
 
-    public static void Write(RapidsInterpreter interpreter)
-    {
-        var ctx = interpreter.Context;
-        ctx.FunctionCallStack.TryPop(out var variable);
+    private static readonly RapidsType WriteType = new RapidsFunctionType(
+        [],
+        RapidsPrimitiveType.String
+    );
 
-        if (variable is not null)
-        {
-            Console.Write(Utils.StringifyVariable(variable));
-        }
-    }
-
-    protected override ModuleExports Exports { get; } = new(new Dictionary<string, RapidsVariable> {
-        {"print", RapidsFunctionReferenceVariable.ofNative(Print)},
-        {"putChar", RapidsFunctionReferenceVariable.ofNative(PutChar)},
-        {"input", RapidsFunctionReferenceVariable.ofNative(Input)},
-        {"write", RapidsFunctionReferenceVariable.ofNative(Write)}
+    public override ModuleExports Exports { get; } = new(new Dictionary<string, ModuleExport> {
+        {"print", new(RapidsFunctionReferenceVariable.OfNative(Print, PrintType), PrintType)},
+        {"input", new(RapidsFunctionReferenceVariable.OfNative(Input, InputType), PrintType)},
+        {"write", new(RapidsFunctionReferenceVariable.OfNative(Write, WriteType), PrintType)}
     });
 }

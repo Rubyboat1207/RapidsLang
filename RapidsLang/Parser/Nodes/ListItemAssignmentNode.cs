@@ -10,5 +10,6 @@ public record ListItemAssignmentNode(
     int DebugLevel
 ) : StatementNode(Operator, DebugLevel)
 {
-    
+    public override int EndIndex => Value.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [Array, Index, Value];
 }

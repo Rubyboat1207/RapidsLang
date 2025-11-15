@@ -8,7 +8,7 @@ public class CodeModule(string code, string? path=null) : Module
     private string Code { get; } = code;
     private string? Path { get; } = path;
 
-    protected override ModuleExports Exports { get; } = new();
+    public override ModuleExports Exports { get; } = new();
     private bool HasRun;
     private bool IsRunning;
 

@@ -77,7 +77,8 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             {
                 EvaluateExpression(exprExport.Expression, val =>
                 {
-                    Context.Exports.Add(exprExport.BaseToken.Value, val);
+                    // todo: types
+                    Context.Exports.Add(exprExport.BaseToken.Value, new (val));
                     Context.AddVariable(exprExport.BaseToken.Value, new VariableHolder(val, true));
                     ProgramCounter++;
                 });
@@ -88,7 +89,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
                 var func = new RapidsFunctionReferenceVariable(
                     new RapidsUserFunction(funcExportable.FunctionNode, new InterpreterContext(Context)
                     ));
-                Context.Exports.Add(funcExportable.BaseToken.Value, func);
+                Context.Exports.Add(funcExportable.BaseToken.Value, new(func));
                 
                 Context.AddVariable(funcExportable.BaseToken.Value, new VariableHolder(func, true));
                 ProgramCounter++;
@@ -97,7 +98,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             if (exportStatement.ExportNode is ChannelExportable channelExportable)
             {
                 var channel = AddTargetOrSource(channelExportable.TargetOrSourceNode).Variable;
-                Context.Exports.Add(channelExportable.TargetOrSourceNode.Name.Value, channel);
+                Context.Exports.Add(channelExportable.TargetOrSourceNode.Name.Value, new(channel));
                 Context.AddVariable(channelExportable.BaseToken.Value, new VariableHolder(channel, true));
 
                 ProgramCounter++;

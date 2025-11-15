@@ -1,4 +1,5 @@
 using RapidsLang.Interpreter.Variables;
+using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter.Lib.Modules;
 
@@ -31,7 +32,16 @@ public class ArraysModule : Module
         ctx.FunctionCallStack.Push(list);
     }
 
-    protected override ModuleExports Exports { get; } = new (new Dictionary<string, RapidsVariable> {
-        {"filledArray", RapidsFunctionReferenceVariable.ofNative(MakeArrayOfSizeWithValue)}
+    private static readonly RapidsType MakeArrayOfSizeWithValueType = new RapidsFunctionType(
+        [RapidsAnyType.Instance],
+        RapidsAnyType.Instance
+    );
+
+    public override ModuleExports Exports { get; } = new (new Dictionary<string, ModuleExport> {
+        {"filledArray", new(RapidsFunctionReferenceVariable.OfNative(
+                MakeArrayOfSizeWithValue,
+                MakeArrayOfSizeWithValueType
+            ), MakeArrayOfSizeWithValueType)
+        }
     });
 }

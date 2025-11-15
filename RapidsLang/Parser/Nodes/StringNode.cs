@@ -12,9 +12,20 @@ public record StringNode : ExpressionNode
     }
 
     public List<StringPart> Parts { get; init; }
+    public override int EndIndex => EndString?.EndIndex ?? Parts.LastOrDefault()?.EndIndex ?? BaseToken.EndIndex;
+    public override IEnumerable<Node> GetChildren() => Parts;
 }
 
-public abstract record StringPart;
+public abstract record StringPart(Token BaseToken) : Node(BaseToken);
 
-public record LiteralStringPart(Token Value) : StringPart;
-public record TemplateStringPart(ExpressionNode Value, Token OpenCurly, Token ClosedCurly) : StringPart;
+public record LiteralStringPart(Token Value) : StringPart(Value)
+{
+    public override int EndIndex => Value.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [];
+}
+
+public record TemplateStringPart(ExpressionNode Value, Token OpenCurly, Token ClosedCurly) : StringPart(Value.BaseToken)
+{
+    public override int EndIndex => ClosedCurly.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [Value];
+}

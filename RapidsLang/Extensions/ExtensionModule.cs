@@ -8,7 +8,7 @@ namespace RapidsLang.Extensions;
 public class ExtensionModule : Module
 {
     public ExtensionData Extension { get; }
-    protected override ModuleExports Exports { get; } = new();
+    public override ModuleExports Exports { get; } = new();
 
     private bool _hasRun;
     private bool _isRunning;

@@ -1,4 +1,5 @@
 using RapidsLang.Interpreter.Variables;
+using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter.Lib.Modules;
 
@@ -18,8 +19,13 @@ public class MathModule : Module
         utils.Return(Math.Round(a.Value));
     }
 
-    protected override ModuleExports Exports { get; } = new(new()
+    private static readonly RapidsType RoundType = new RapidsFunctionType(
+        [RapidsPrimitiveType.Number],
+        RapidsPrimitiveType.Number
+    );
+
+    public override ModuleExports Exports { get; } = new(new()
     {
-        {"round", RapidsFunctionReferenceVariable.ofNative(Round)},
+        {"round", new(RapidsFunctionReferenceVariable.OfNative(Round, RoundType), RoundType)},
     });
 }

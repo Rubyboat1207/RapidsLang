@@ -10,4 +10,7 @@ public record StatementsNode : Node
     {
         this.Statements = Statements ?? [];
     }
+
+    public override int EndIndex => Statements.LastOrDefault()?.EndIndex ?? BaseToken.EndIndex;
+    public override IEnumerable<Node> GetChildren() => Statements;
 }

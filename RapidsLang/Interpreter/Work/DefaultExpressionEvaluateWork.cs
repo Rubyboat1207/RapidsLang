@@ -84,12 +84,12 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
             case ObjectNode objectNode:
                 Dictionary<string, RapidsVariable> keyValues = [];
                 _done = true;
-                if (objectNode.keyValues.Count == 0)
+                if (objectNode.KeyValues.Count == 0)
                 {
                     Callback.Invoke(new RapidsObjectVariable());
                 }
                 
-                objectNode.keyValues.ForEach(kv =>
+                objectNode.KeyValues.ForEach(kv =>
                 {
                     EvaluateExpression(kv.Item1, key =>
                     {
@@ -101,7 +101,7 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                         {
                             keyValues[str.Value] = value;
 
-                            if (keyValues.Count == objectNode.keyValues.Count)
+                            if (keyValues.Count == objectNode.KeyValues.Count)
                             {
                                 Callback.Invoke(new RapidsObjectVariable(keyValues));
                             } 
