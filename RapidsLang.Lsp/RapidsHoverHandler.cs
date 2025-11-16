@@ -1,5 +1,6 @@
 using RapidsLang.Analyzer;
 using RapidsLang.Parser.Nodes;
+using RapidsLang.Parser.Types;
 using RapidsLang.PreProcessor;
 
 namespace RapidsLang.LanguageServer;
@@ -37,7 +38,7 @@ public class RapidsHoverHandler : IHoverHandler
         
         var processedIndex = RapidsPreproc.GetProcessedIdx(sourceIndex, analyzedDoc.MetaData);
 
-        var symbol = FindSymbolAt(processedIndex, analyzedDoc);
+        var symbol = GetTypeAt(processedIndex, analyzedDoc);
         if (symbol == null)
         {
             return Task.FromResult<Hover?>(null);
@@ -46,51 +47,92 @@ public class RapidsHoverHandler : IHoverHandler
         var hoverContent = new MarkupContent
         {
             Kind = MarkupKind.Markdown,
-            Value = $"```rapidslang\n(variable) {symbol.Name}: {symbol.Type.Name}\n```"
+            Value = $"```rapidslang\n(variable) {symbol.Name}\n```"
         };
 
         return Task.FromResult<Hover?>(new Hover { Contents = new MarkedStringsOrMarkupContent(hoverContent) });
     }
-
-    private static Symbol? FindSymbolAt(int processedIndex, AnalyzedDocument analyzedDoc)
+    
+    public static RapidsType? GetTypeAt(int processedIndex, AnalyzedDocument analyzedDoc)
     {
         var parseResult = analyzedDoc.ParseResult;
         var parentMap = analyzedDoc.ParentMap;
+        var analysisResult = analyzedDoc.StaticAnalysisResult;
+
+        if (analysisResult == null) return null;
 
         var node = parseResult.FindNodeAt(processedIndex);
+        if (node == null) return null;
+        
+        Node nodeToLookUp = node;
 
-        if (node is null)
+        if (node is IdentifierNode identifier && parentMap.TryGetValue(identifier, out var parent))
         {
-            return null;
-        }
-
-        var name = "";
-        if (node is IdentifierNode identifier)
-        {
-            name = identifier.Token.Value;
-        }
-        else if (node is MemberAccessNode memberAccessNode)
-        {
-            if (memberAccessNode.Left is null)
+            if (parent is MemberAccessNode memberAccess && memberAccess.MemberName.Value == identifier.Token.Value)
             {
-                name = memberAccessNode.MemberName.Value;
+                nodeToLookUp = parent;
             }
         }
-        else if (node is ImportNode importNode)
+
+        if (nodeToLookUp is ExpressionNode expressionNode)
         {
-            name = importNode.AsName?.Value ?? importNode.BaseToken.Value;
-        }else if (node is DeclarationNode declarationNode)
-        {
-            name = declarationNode.Name.Value;
+            if (analysisResult.ExpressionTypes.TryGetValue(expressionNode, out var type))
+            {
+                return type;
+            }
         }
 
-        var owningBlock = node.GetAncestor<StatementsNode>(parentMap);
-
-        if (owningBlock != null &&
-            analyzedDoc.StaticAnalysisResult != null &&
-            analyzedDoc.StaticAnalysisResult.Scopes.TryGetValue(owningBlock, out var scope))
+        string? name = null;
+        Node? scopeSearchNode = node;
+        
+        if (node is DeclarationNode decl)
         {
-            return scope.Symbols.FirstOrDefault(s => s.Name == name);
+            if (processedIndex >= decl.Name.Index && processedIndex <= decl.Name.Index + decl.Name.Value.Length)
+            {
+                name = decl.Name.Value;
+            }
+        }
+        else if (node is ImportNode import)
+        {
+            if (import.AsName != null &&
+                processedIndex >= import.AsName.Index && 
+                processedIndex <= import.AsName.Index + import.AsName.Value.Length)
+            {
+                name = import.AsName.Value;
+            }
+            else if (import.AsName == null && 
+                processedIndex >= import.BaseToken.Index && 
+                processedIndex <= import.BaseToken.Index + import.BaseToken.Value.Length)
+            {
+                name = import.BaseToken.Value;
+            }
+        }
+        else if (node is IdentifierNode idNode && parentMap.TryGetValue(idNode, out var idParent))
+        {
+            if (idParent is DeclarationNode parentDecl && parentDecl.Name.Value == idNode.Token.Value)
+            {
+                name = idNode.Token.Value;
+            }
+            else if (idParent is ImportNode parentImport && parentImport.AsName?.Value == idNode.Token.Value)
+            {
+                name = idNode.Token.Value;
+            }
+            // todo: Add 'else if' for FunctionArgumentNode, etc.
+        }
+
+
+        if (name != null)
+        {
+            var owningBlock = scopeSearchNode.GetAncestor<StatementsNode>(parentMap);
+            if (owningBlock != null &&
+                analysisResult.Scopes.TryGetValue(owningBlock, out var scope))
+            {
+                var symbol = scope.Symbols.FirstOrDefault(s => s.Name == name);
+                if (symbol != null)
+                {
+                    return symbol.Type;
+                }
+            }
         }
 
         return null;

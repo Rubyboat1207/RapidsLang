@@ -8,25 +8,19 @@ using RapidsLang.PreProcessor;
 
 namespace RapidsLang.LanguageServer;
 
-public class SemanticTokenVisitor
+public class SemanticTokenVisitor(
+    SemanticTokensBuilder builder,
+    RapidsPreprocMetaData metaData,
+    string code,
+    RapidsStaticAnalysisResult? staticAnalysisResult,
+    Dictionary<Node, Node> parentMap
+)
 {
-    private readonly SemanticTokensBuilder _builder;
-    private readonly RapidsPreprocMetaData _metaData;
-    private readonly string _code;
-    private readonly RapidsStaticAnalysisResult? _staticAnalysisResult;
-    private readonly Dictionary<Node, Node> _parentMap;
+    private readonly Dictionary<ExpressionNode, RapidsType> _expressionTypes = staticAnalysisResult?.ExpressionTypes ?? new();
+    private readonly Dictionary<IdentifierNode, Symbol> _symbolReferences = staticAnalysisResult?.SymbolReferences ?? new();
     
     private int _lastPushedSourceEndIndex = 0;
     private int _nextCommentIndex = 0;
-    
-    public SemanticTokenVisitor(SemanticTokensBuilder builder, RapidsPreprocMetaData metaData, string code, RapidsStaticAnalysisResult? staticAnalysisResult, Dictionary<Node, Node> parentMap)
-    {
-        _builder = builder;
-        _metaData = metaData;
-        _code = code;
-        _staticAnalysisResult = staticAnalysisResult;
-        _parentMap = parentMap;
-    }
 
     public void Visit(Node node)
     {
@@ -110,6 +104,7 @@ public class SemanticTokenVisitor
             case UseStatementNode useStatementNode:
                 PushToken(useStatementNode.BaseToken, SemanticTokenType.Keyword);
                 Visit(useStatementNode.ModuleName);
+                useStatementNode.ImportNodes?.ForEach(Visit);
                 break;
             case FunctionCallExpressionNode functionCallExpressionNode:
                 Visit(functionCallExpressionNode.Function);
@@ -130,6 +125,16 @@ public class SemanticTokenVisitor
                 {
                     Visit(memberAccessNode.Left);
                 }
+                var memberTokenType = SemanticTokenType.Variable;
+                
+                if (_expressionTypes.TryGetValue(memberAccessNode, out var memberType))
+                {
+                    if (memberType is RapidsFunctionType)
+                    {
+                        memberTokenType = SemanticTokenType.Function;
+                    }
+                }
+                PushToken(memberAccessNode.MemberName, memberTokenType);
                 break;
             case ListItemAssignmentNode listItemAssignmentNode:
                 Visit(listItemAssignmentNode.Array);
@@ -216,11 +221,10 @@ public class SemanticTokenVisitor
                 break;
             case IdentifierNode identifierNode:
             {
-                var idSymbol = FindSymbol(identifierNode.BaseToken.Value, identifierNode);
-
                 var idType = SemanticTokenType.Variable;
                 var modifiers = new List<SemanticTokenModifier>();
-                if (idSymbol != null)
+                
+                if (_symbolReferences.TryGetValue(identifierNode, out var idSymbol))
                 {
                     if (idSymbol.Type is RapidsFunctionType)
                     {
@@ -237,8 +241,21 @@ public class SemanticTokenVisitor
                         modifiers.Add(SemanticTokenModifier.Readonly);
                     }
                 }
-
+                
                 PushToken(identifierNode.BaseToken, idType, modifiers);
+                break;
+            }
+            case ImportNode importNode:
+            {
+                var idSymbol = FindSymbol(importNode.BaseToken.Value, importNode);
+                var idType = SemanticTokenType.Variable;
+
+                if (idSymbol?.Type is RapidsFunctionType)
+                {
+                    idType = SemanticTokenType.Function;
+                }
+                
+                PushToken(importNode.AsName ?? importNode.BaseToken, idType, [SemanticTokenModifier.Readonly]);
                 break;
             }
         }
@@ -246,9 +263,9 @@ public class SemanticTokenVisitor
     
     private Symbol? FindSymbol(string name, Node contextNode)
     {
-        if (_staticAnalysisResult == null) return null;
+        if (staticAnalysisResult == null) return null;
 
-        var scopeBlock = contextNode.GetAncestor<StatementsNode>(_parentMap);
+        var scopeBlock = contextNode.GetAncestor<StatementsNode>(parentMap);
         
         if (scopeBlock == null && contextNode is StatementsNode rootNode)
         {
@@ -257,7 +274,7 @@ public class SemanticTokenVisitor
 
         if (scopeBlock == null) return null;
 
-        if (_staticAnalysisResult.Scopes.TryGetValue(scopeBlock, out var scope))
+        if (staticAnalysisResult.Scopes.TryGetValue(scopeBlock, out var scope))
         {
             var currentScope = scope;
             while(currentScope != null)
@@ -282,11 +299,11 @@ public class SemanticTokenVisitor
         var modifierBits = modifierIndices.Aggregate(0, (current, index) => current | (1 << index));
         if (typeIndex == -1) return; 
 
-        var currentSourceIndex = RapidsPreproc.GetSourceIdx(token.Index, _metaData);
+        var currentSourceIndex = RapidsPreproc.GetSourceIdx(token.Index, metaData);
         
-        for (var i = _nextCommentIndex; i < _metaData.CommentedIndices.Count; i++)
+        for (var i = _nextCommentIndex; i < metaData.CommentedIndices.Count; i++)
         {
-            var comment = _metaData.CommentedIndices[i];
+            var comment = metaData.CommentedIndices[i];
 
             if (comment.SourceIndex < currentSourceIndex)
             {
@@ -305,9 +322,9 @@ public class SemanticTokenVisitor
         
         if (currentSourceIndex >= _lastPushedSourceEndIndex)
         {
-            var (line, col) = RapidsPreproc.GetRowColFromIndex(currentSourceIndex, _code);
+            var (line, col) = RapidsPreproc.GetRowColFromIndex(currentSourceIndex, code);
 
-            _builder.Push(
+            builder.Push(
                 line - 1,
                 col - 1,
                 token.Value.Length,
@@ -321,9 +338,9 @@ public class SemanticTokenVisitor
     
     public void FlushRemainingComments()
     {
-        for (var i = _nextCommentIndex; i < _metaData.CommentedIndices.Count; i++)
+        for (var i = _nextCommentIndex; i < metaData.CommentedIndices.Count; i++)
         {
-            var comment = _metaData.CommentedIndices[i];
+            var comment = metaData.CommentedIndices[i];
             if (comment.SourceIndex >= _lastPushedSourceEndIndex)
             {
                 PushCommentToken(comment);
@@ -337,11 +354,11 @@ public class SemanticTokenVisitor
         var typeIndex = RapidsSemanticTokensHandler.Legend.TokenTypes.ToList().IndexOf(SemanticTokenType.Comment);
         if (typeIndex == -1) return;
 
-        var commentText = _code.Substring(comment.SourceIndex, comment.Length);
+        var commentText = code.Substring(comment.SourceIndex, comment.Length);
 
         var lines = commentText.Split('\n');
 
-        var (startLine, startCol) = RapidsPreproc.GetRowColFromIndex(comment.SourceIndex, _code);
+        var (startLine, startCol) = RapidsPreproc.GetRowColFromIndex(comment.SourceIndex, code);
 
         for (var i = 0; i < lines.Length; i++)
         {
@@ -364,7 +381,7 @@ public class SemanticTokenVisitor
             }
 
             if (currentLength > 0)
-                _builder.Push(
+                builder.Push(
                     currentLine,
                     currentCol,
                     currentLength,

@@ -21,6 +21,7 @@ internal abstract class Program
                 .WithHandler<RapidsTextDocumentHandler>()
                 .WithHandler<RapidsHoverHandler>()
                 .WithHandler<RapidsSemanticTokensHandler>()
+                .WithHandler<RapidsCompletionHandler>()
         );
         
         await server.WaitForExit;

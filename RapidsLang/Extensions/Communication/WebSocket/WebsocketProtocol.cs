@@ -22,33 +22,11 @@ public class WebsocketProtocol : CommunicationProtocol
     private const long AbsoluteMaxMessageSize = 1_073_741_824; // 1gb
 
     private static readonly Dictionary<int, HttpListener> Servers;
-    private readonly HttpListener _server;
+    private HttpListener _server = null!;
 
     private readonly List<System.Net.WebSockets.WebSocket> _webSockets = [];
     private readonly Lock _requestsLock = new();
     private readonly List<C2SWebsocketRequest> _requests = new();
-    
-
-    public WebsocketProtocol()
-    {
-        var port = Port ?? DefaultPort;
-
-        if (Servers.TryGetValue(port, out var server))
-        {
-            _server = server;
-        }
-        else
-        {
-            _server = new HttpListener();
-            // Rider says http is insecure
-            // however, most connections happen on localhost
-            _server.Prefixes.Add($"http://*:{port}/"); 
-            
-            _server.Start();
-            Servers[port] = _server;
-        }
-    }
-
     static WebsocketProtocol()
     {
         Servers = [];
@@ -74,6 +52,23 @@ public class WebsocketProtocol : CommunicationProtocol
     public override void Init(RapidsInterpreter interpreter)
     {
         base.Init(interpreter);
+        
+        var port = Port ?? DefaultPort;
+
+        if (Servers.TryGetValue(port, out var server))
+        {
+            _server = server;
+        }
+        else
+        {
+            _server = new HttpListener();
+            // Rider says http is insecure
+            // however, most connections happen on localhost
+            _server.Prefixes.Add($"http://*:{port}/"); 
+            
+            _server.Start();
+            Servers[port] = _server;
+        }
 
         Task.Run(BeginAcceptingClients);
     }

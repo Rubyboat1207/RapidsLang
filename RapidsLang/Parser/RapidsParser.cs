@@ -6,12 +6,13 @@ using RapidsLang.Utils;
 
 namespace RapidsLang.Parser;
 
-public class Diagnostic(Token token, string issue, bool atEndOfLine = false)
+public class Diagnostic(Token token, string issue, bool atEndOfLine = false, bool ignoreInLanguageServer=false)
 {
     public Token Token { get; } = token;
     public string Issue { get; } = issue;
     public bool AtEndOfLine { get; } = atEndOfLine;
 
+    public bool IgnoreInLanguageServer { get; } = ignoreInLanguageServer;
 }
 
 public static class RapidsParser
@@ -167,6 +168,24 @@ public static class RapidsParser
                         )
                     );
                     continue;
+                }
+                
+                // we have an invalid or WIP line, so lets try to make something out of it.
+
+                if (expression is MemberAccessNode memberAccessNode)
+                {
+                    if (memberAccessNode.MemberName.TokenType is TokenType.Dot)
+                    {
+                        // unfinished line like: test.\n
+                        
+                        builder.AddStatement(
+                            new UnfinishedMemberAccessNode(
+                                memberAccessNode.Left ?? memberAccessNode,
+                                memberAccessNode.MemberName
+                            )
+                        );
+                        continue;
+                    }
                 }
                 
             }
@@ -1009,7 +1028,7 @@ public static class RapidsParser
     {
         if (stepper.AtEnd)
         {
-            builder.AddDiagnostic(new Diagnostic(stepper.Prev ?? stepper.ActiveList.Last(), "Expected End of line (? or ;)", true));
+            builder.AddDiagnostic(new Diagnostic(stepper.Prev ?? stepper.ActiveList.Last(), "Expected End of line (? or ;)", true, ignoreInLanguageServer:true));
             return 0;
         }
         // ReSharper disable once SwitchStatementHandlesSomeKnownEnumValuesWithDefault
@@ -1031,7 +1050,7 @@ public static class RapidsParser
                 return logLevel;
             }
             default:
-                builder.AddDiagnostic(new Diagnostic(stepper.Prev ?? stepper.Cur, "Expected End of line (? or ;)", true));
+                builder.AddDiagnostic(new Diagnostic(stepper.Prev ?? stepper.Cur, "Expected End of line (? or ;)", true, ignoreInLanguageServer:true));
                 return 0;
         }
     }
@@ -1079,13 +1098,13 @@ public static class RapidsParser
         {
             if (stepper.Cur.TokenType is TokenType.Dot)
             {
-                stepper.Step();
-                var member = stepper.Step();
-                if (member.TokenType is not TokenType.Identifier)
+                var dot = stepper.Step();
+                if (stepper is { HasNext: true, Cur: not { TokenType: TokenType.Identifier } })
                 {
-                    builder.AddDiagnostic(new(member, "Expected an identifier"));
-                    return null;
+                    builder.AddDiagnostic(new(stepper.Cur, "Expected an identifier", ignoreInLanguageServer:true));
+                    return new MemberAccessNode(left, dot); // sort of garbage data here
                 }
+                var member = stepper.Step();
 
                 left = new MemberAccessNode(left, member);
                 continue;

@@ -1,3 +1,4 @@
+using RapidsLang.Extensions;
 using RapidsLang.Interpreter;
 using RapidsLang.Lexer;
 using RapidsLang.Parser;
@@ -99,6 +100,10 @@ public class RapidsStaticAnalysisResult
 {
     public List<AnalysisDiagnostic> Diagnostics { get; } = [];
     public Dictionary<StatementsNode, RapidsStaticAnalysisScope> Scopes = [];
+    public List<Symbol> ExportedSymbols = [];
+    // this one's going to be big.
+    public Dictionary<ExpressionNode, RapidsType> ExpressionTypes { get; } = [];
+    public Dictionary<IdentifierNode, Symbol> SymbolReferences { get; } = [];
 }
 
 public static class RapidsStaticAnalysis
@@ -111,7 +116,7 @@ public static class RapidsStaticAnalysis
 
         RapidsStaticAnalysisResult? rapidsStaticAnalysisResult = null;
 
-        if (parseResult.Diagnostics.Count == 0)
+        if (parseResult.Diagnostics.Where(d => !d.IgnoreInLanguageServer).ToList().Count == 0)
         {
             rapidsStaticAnalysisResult = StaticAnalysis(preprocRes.Metadata, parseResult.RootNode);
         }
@@ -182,7 +187,6 @@ public static class RapidsStaticAnalysis
                 {
                     var name = assignmentNode.Variable.MemberName;
                     var symbol = scope.Symbols.FirstOrDefault(s => s.Name == name.Value);
-
                     if (symbol is null)
                     {
                         result.Diagnostics.Add(AnalysisDiagnostic.OfMayNotBeDefined(name.Index, name.Value.Length, name.Value));
@@ -201,11 +205,109 @@ public static class RapidsStaticAnalysis
                 break;
             case DeclarationNode declarationNode:
                 var type = declarationNode.Type is not null ? ComputeFromTypeNode(declarationNode.Type) : GetType(declarationNode.Expression, scope, result);
-                scope.Symbols.Add(new Symbol(declarationNode.Name.Value, declarationNode.Constant, type, startIndex:declarationNode.Name.Index));
+                var declarationSymbol = new Symbol(
+                    declarationNode.Name.Value,
+                    declarationNode.Constant,
+                    type,
+                    startIndex: declarationNode.Name.Index
+                );
+                scope.Symbols.Add(declarationSymbol);
                 break;
             case DefineTargetOrSourceStatement defineTargetOrSourceStatement:
                 break;
+            case UnfinishedMemberAccessNode unfinishedMemberAccessNode:
+            {
+                _ = GetType(unfinishedMemberAccessNode.Left, scope, result);
+                break;
+            }
             case ExportStatement exportStatement:
+                Symbol? exportedSymbol = null;
+                switch (exportStatement.ExportNode)
+                {
+                    case ChannelExportable channelExportable:
+                        var otherChannel = scope.Symbols.Find(s => s.Name == channelExportable.TargetOrSourceNode.Name.Value);
+
+                        if (otherChannel is null)
+                        {
+                            RapidsType channelType;
+                            if (channelExportable.TargetOrSourceNode.IsTarget)
+                            {
+                                channelType =
+                                    new RapidsChannelTargetType(
+                                        ComputeFromTypeNode(channelExportable.TargetOrSourceNode.Type)
+                                    );
+                            }
+                            else
+                            {
+                                channelType =
+                                    new RapidsChannelSourceType(
+                                        ComputeFromTypeNode(channelExportable.TargetOrSourceNode.Type),
+                                        channelExportable.TargetOrSourceNode.DataName?.Value
+                                    );
+                            }
+
+                            exportedSymbol = new Symbol(channelExportable.TargetOrSourceNode.Name.Value, true, channelType);
+                        }
+                        else
+                        {
+                            RapidsType channelType;
+                            if (otherChannel.Type is RapidsChannelSourceType otherSourceType)
+                            {
+                                channelType = new RapidsBiDirectionalChannelType(
+                                    otherSourceType,
+                                    new RapidsChannelTargetType(
+                                        ComputeFromTypeNode(channelExportable.TargetOrSourceNode.Type)
+                                    )
+                                );
+                            }
+                            else if (otherChannel.Type is RapidsChannelTargetType otherTargetType)
+                            {
+                                channelType = new RapidsBiDirectionalChannelType(
+                                    new RapidsChannelSourceType(
+                                        ComputeFromTypeNode(channelExportable.TargetOrSourceNode.Type),
+                                        channelExportable.TargetOrSourceNode.DataName?.Value
+                                    ),
+                                    otherTargetType
+                                );
+                            }
+                            else
+                            {
+                                channelType = RapidsAnyType.Instance;
+                            }
+
+                            exportedSymbol = new Symbol(
+                                otherChannel.Name,
+                                otherChannel.IsConstant,
+                                channelType,
+                                otherChannel.IsArgument,
+                                otherChannel.StartIndex
+                            );
+                            scope.Symbols.Remove(otherChannel);
+                            result.ExportedSymbols.Remove(otherChannel);
+                        }
+                        break;
+                    case ExpressionExportable expressionExportable:
+                        exportedSymbol = new Symbol(
+                            expressionExportable.BaseToken.Value,
+                            true,
+                            GetType(expressionExportable.Expression, scope, result),
+                            startIndex: expressionExportable.StartIndex
+                        );
+                        break;
+                    case FunctionExportable functionExportable:
+                        var funcExportType = GetType(functionExportable.FunctionNode, scope, result);
+                        exportedSymbol = new(exportStatement.BaseToken.Value, true, funcExportType,
+                            startIndex: exportStatement.StartIndex);
+                        break;
+                }
+
+                if (exportedSymbol is null)
+                {
+                    break;
+                }
+                
+                scope.Symbols.Add(exportedSymbol);
+                result.ExportedSymbols.Add(exportedSymbol);
                 break;
             case FunctionCallStatementNode functionCallStatementNode:
                 var functionType = GetType(functionCallStatementNode.Function.Function, scope, result);
@@ -276,11 +378,10 @@ public static class RapidsStaticAnalysis
             case ListItemAssignmentNode listItemAssignmentNode:
                 break;
             case OnSourceStatement onSourceStatement:
-                _ = GetType(onSourceStatement.Source, scope, result);
                 var childScope = scope.Child(BlockType.SourceCallback);
 
                 var sourceType = GetType(onSourceStatement.Source, scope, result);
-                if (sourceType is not RapidsChannelSourceType && sourceType is not RapidsAnyType)
+                if (sourceType is not ( RapidsChannelSourceType or RapidsBiDirectionalChannelType) and not RapidsAnyType)
                 {
                     result.Diagnostics.Add(AnalysisDiagnostic.OfOnStatementUsedOnNonSource(onSourceStatement.Source.BaseToken, sourceType));
                 }
@@ -288,6 +389,9 @@ public static class RapidsStaticAnalysis
                 if (sourceType is RapidsChannelSourceType { CallbackVariableName: not null } source)
                 {
                     childScope.Symbols.Add(new Symbol(source.CallbackVariableName, true, source.ValueType));
+                }else if (sourceType is RapidsBiDirectionalChannelType { Source: {CallbackVariableName: not null} biSource})
+                {
+                    childScope.Symbols.Add(new Symbol(biSource.CallbackVariableName, true, biSource.ValueType));
                 }
                 
                 VisitStatements(onSourceStatement.Body, childScope, result);
@@ -295,7 +399,7 @@ public static class RapidsStaticAnalysis
             case PipeStatement pipeStatement:
                 break;
             case UseStatementNode useStatementNode:
-                var exported = ResolveExportedModuleTypes(useStatementNode.ModuleName.GetName());
+                var exported = ResolveExportedModuleTypes(useStatementNode.ModuleName, result);
                 if (exported is null)
                 {
                     break;
@@ -329,7 +433,7 @@ public static class RapidsStaticAnalysis
                 }
                 break;
             case BreakNode breakNode:
-                if (!scope.ParentScopeIncludes(BlockType.Loop))
+                if (!scope.ParentScopeIncludes(BlockType.Loop) && !scope.ParentScopeIncludes(BlockType.SourceCallback))
                 {
                     result.Diagnostics.Add(AnalysisDiagnostic.OfInvalidBreak(breakNode.BaseToken.Index, breakNode.BaseToken.Value.Length));
                 }
@@ -349,10 +453,13 @@ public static class RapidsStaticAnalysis
         {
             return RapidsAnyType.Instance;
         }
+        RapidsType computedType = RapidsAnyType.Instance;
+        
         switch (expressionNode)
         {
             case BooleanNode:
-                return RapidsPrimitiveType.Bool;
+                computedType = RapidsPrimitiveType.Bool;
+                break;
             case FunctionCallExpressionNode functionCallExpressionNode:
                 var fn = functionCallExpressionNode.Function;
                 if (functionCallExpressionNode.Function is FunctionNode fnNode)
@@ -367,7 +474,8 @@ public static class RapidsStaticAnalysis
                         returnType = ((RapidsFunctionType) GetType(functionCallExpressionNode.Function, scope, result)).ReturnType;
                     }
                     // todo: add warning for assigning void to variable
-                    return returnType ?? RapidsAnyType.Instance;
+                    computedType = returnType ?? RapidsAnyType.Instance;
+                    break;
                 }
                 
                 if (functionCallExpressionNode.Function is IdentifierNode)
@@ -376,7 +484,8 @@ public static class RapidsStaticAnalysis
 
                     if (value is RapidsFunctionType functionType)
                     {
-                        return functionType.ReturnType ?? RapidsAnyType.Instance;
+                        computedType = functionType.ReturnType ?? RapidsAnyType.Instance;
+                        break;
                     }
                 }
                 
@@ -444,14 +553,17 @@ public static class RapidsStaticAnalysis
 
                 
 
-                return new RapidsFunctionType(argumentTypes, computedReturnType);
+                computedType = new RapidsFunctionType(argumentTypes, computedReturnType);
+                break;
             case IdentifierNode identifierNode:
                 var name = identifierNode.Token.Value;
                 var firstInScope = scope.Symbols.FirstOrDefault(s => s.Name == name);
                 
                 if (firstInScope is not null)
                 {
-                    return firstInScope.Type;
+                    result.SymbolReferences[identifierNode] = firstInScope;
+                    computedType = firstInScope.Type;
+                    break;
                 }
                 
                 result.Diagnostics.Add(AnalysisDiagnostic.OfMayNotBeDefined(identifierNode.Token.Index, name.Length, name));
@@ -476,18 +588,54 @@ public static class RapidsStaticAnalysis
 
                 if (isSameType && initialType is not null)
                 {
-                    return new RapidsArrayType(initialType);
+                    computedType =  new RapidsArrayType(initialType);
                 }
                 break;
             case LiteralNumberNode:
-                return RapidsPrimitiveType.Number;
+                computedType =  RapidsPrimitiveType.Number;
+                break;
             case MemberAccessNode memberAccessNode:
-                _ = GetType(memberAccessNode.Left, scope, result);
+                var leftType = GetType(memberAccessNode.Left, scope, result);
+
+                var memberType = leftType.GetMember(memberAccessNode.MemberName.Value);
+
+                if (memberType is not null)
+                {
+                    computedType = memberType;
+                    break;
+                }
+                
+                
+                result.Diagnostics.Add(AnalysisDiagnostic.OfMayNotBeDefined(
+                    memberAccessNode.MemberName.Index,
+                    memberAccessNode.MemberName.Value.Length,
+                    memberAccessNode.MemberName.Value
+                ));
                 break;
             case NullExpression:
-                return RapidsPrimitiveType.Null;
-            case ObjectNode objectNode:
+                computedType = RapidsPrimitiveType.Null;
                 break;
+            case ObjectNode objectNode:
+            {
+                if (objectNode.KeyValues.Count == 0)
+                {
+                    computedType = new RapidsDictionaryType(RapidsAnyType.Instance);
+                    break;
+                }
+                var properties = new Dictionary<string, RapidsType>();
+
+                foreach (var (keyNode, valueNode) in objectNode.KeyValues)
+                {
+                    var valueType = GetType(valueNode, scope, result);
+                    
+                    _ = GetType(keyNode, scope, result); 
+
+                    properties[keyNode.BaseToken.Value] = valueType;
+                }
+
+                computedType = new RapidsShapeType(properties);
+                break;
+            }
             case OperationNode operationNode:
                 _ = GetType(operationNode.Left, scope, result);
                 _ = GetType(operationNode.Right, scope, result);
@@ -500,12 +648,15 @@ public static class RapidsStaticAnalysis
                         _ = GetType(templateStringPart.Value, scope, result);
                     }
                 }
-                return RapidsPrimitiveType.String;
+                computedType = RapidsPrimitiveType.String;
+                break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(expressionNode));
         }
-
-        return RapidsAnyType.Instance;
+        
+        result.ExpressionTypes[expressionNode] = computedType;
+        
+        return computedType;
     }
 
     private static RapidsType ComputeFromTypeNode(TypeNode? typeNode)
@@ -562,12 +713,31 @@ public static class RapidsStaticAnalysis
         return baseType;
     }
 
-    private static Dictionary<string, Symbol>? ResolveExportedModuleTypes(string moduleName)
+    private static Dictionary<string, Symbol>? ResolveExportedModuleTypes(ModuleIdent ident, RapidsStaticAnalysisResult result)
     {
-        // im only supporting native modules for now.
+        var moduleName = ident.GetName();
+        if (ModuleRegistry.NativeModules.ContainsKey(moduleName))
+        {
+            return ModuleRegistry.NativeModules.GetValueOrDefault(moduleName)?.Exports.Exports.Select(
+                ex => (ex.Key, new Symbol(ex.Key, true, ex.Value.Type))
+            ).ToDictionary();
+        }
+        
+        var extensions = ExtensionLoader.GetExternalExtensions();
 
-        return ModuleRegistry.NativeModules.GetValueOrDefault(moduleName)?.Exports.Exports.Select(
-            ex => (ex.Key, new Symbol(ex.Key, true, ex.Value.Type))
-        ).ToDictionary();
+        var extension = extensions.Find(ex => ex.ExtensionManifest.ModuleName == moduleName);
+
+        if (extension is not null)
+        {
+            var (parseResult, metaData, analysis) = Analyze(File.ReadAllText(extension.MainCodePath));
+            if (analysis is null)
+            {
+                return [];
+            }
+            return analysis.ExportedSymbols.Select(ex => (ex.Name, ex)).ToDictionary();
+        }
+        
+        result.Diagnostics.Add(AnalysisDiagnostic.OfUnknownModule(ident.StartIndex, moduleName.Length, moduleName));
+        return [];
     }
 }

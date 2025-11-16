@@ -2,6 +2,7 @@ using RapidsLang.Extensions;
 using RapidsLang.Extensions.Channel;
 using RapidsLang.Interpreter.Work;
 using RapidsLang.Parser.Nodes;
+using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter.Variables;
 

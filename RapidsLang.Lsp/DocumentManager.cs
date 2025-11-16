@@ -28,7 +28,6 @@ public class DocumentManager
 {
     private readonly ConcurrentDictionary<DocumentUri, AnalyzedDocument> _documents = new();
 
-    // You'll update this method
     public void UpdateDocument(AnalyzedDocument doc)
     {
         _documents[doc.Uri] = doc;
@@ -39,6 +38,8 @@ public class DocumentManager
         _documents.TryGetValue(uri, out var doc);
         return doc;
     }
+    
+    
 
     public void RemoveDocument(DocumentUri uri)
     {

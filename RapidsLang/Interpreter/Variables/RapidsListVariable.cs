@@ -1,3 +1,5 @@
+using RapidsLang.Parser.Types;
+
 namespace RapidsLang.Interpreter.Variables;
 
 public class RapidsListVariable : RapidsVariable
@@ -93,6 +95,11 @@ public class RapidsListVariable : RapidsVariable
         List.Add(result!);
     }
 
+    public static RapidsType AddType = new RapidsFunctionType(
+        [RapidsAnyType.Instance],
+        null
+    );
+
     public void Insert(RapidsInterpreter interpreter)
     {
         var ctx = interpreter.Context;
@@ -112,6 +119,11 @@ public class RapidsListVariable : RapidsVariable
         
         List.Insert((int) index.Value, value);
     }
+    
+    public static RapidsType InsertType = new RapidsFunctionType(
+        [RapidsAnyType.Instance, RapidsPrimitiveType.Number],
+        null
+    );
 
     public void RemoveAt(RapidsInterpreter interpreter)
     {
@@ -125,6 +137,11 @@ public class RapidsListVariable : RapidsVariable
         
         List.RemoveAt((int) index.Value);
     }
+    
+    public static RapidsType RemoveAtType = new RapidsFunctionType(
+        [RapidsPrimitiveType.Number],
+        null
+    );
 
     public void Pop(RapidsInterpreter interpreter)
     {
@@ -137,6 +154,11 @@ public class RapidsListVariable : RapidsVariable
         ctx.FunctionCallStack.Push(List.Last());
         List.RemoveAt(List.Count - 1);
     }
+    
+    public static RapidsType PopType = new RapidsFunctionType(
+        [],
+        RapidsAnyType.Instance
+    );
 }
 
 
