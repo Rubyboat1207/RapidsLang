@@ -38,27 +38,44 @@ public class RapidsHoverHandler : IHoverHandler
         
         var processedIndex = RapidsPreproc.GetProcessedIdx(sourceIndex, analyzedDoc.MetaData);
 
-        var symbol = GetTypeAt(processedIndex, analyzedDoc);
-        if (symbol == null)
+        var type = GetTypeAt(processedIndex, analyzedDoc, out var name);
+        if (type == null)
         {
             return Task.FromResult<Hover?>(null);
         }
 
-        var hoverContent = new MarkupContent
+        if (name is null)
         {
-            Kind = MarkupKind.Markdown,
-            Value = $"```rapidslang\n(variable) {symbol.Name}\n```"
-        };
-
-        return Task.FromResult<Hover?>(new Hover { Contents = new MarkedStringsOrMarkupContent(hoverContent) });
+            return Task.FromResult<Hover?>(new Hover()
+            {
+                Contents = new(new MarkupContent
+                {
+                    Kind = MarkupKind.Markdown,
+                    Value = $"```rapidslang\n(variable) {type.Name}\n```"
+                })
+            });
+        }
+        else
+        {
+            return Task.FromResult<Hover?>(new Hover()
+            {
+                Contents = new(new MarkupContent
+                {
+                    Kind = MarkupKind.Markdown,
+                    Value = $"```rapidslang\n(variable) {name} {type.Name}\n```"
+                })
+            });
+        }
+        
     }
     
-    public static RapidsType? GetTypeAt(int processedIndex, AnalyzedDocument analyzedDoc)
+    public static RapidsType? GetTypeAt(int processedIndex, AnalyzedDocument analyzedDoc, out string? symbolName)
     {
         var parseResult = analyzedDoc.ParseResult;
         var parentMap = analyzedDoc.ParentMap;
         var analysisResult = analyzedDoc.StaticAnalysisResult;
 
+        symbolName = null;
         if (analysisResult == null) return null;
 
         var node = parseResult.FindNodeAt(processedIndex);
@@ -68,6 +85,7 @@ public class RapidsHoverHandler : IHoverHandler
 
         if (node is IdentifierNode identifier && parentMap.TryGetValue(identifier, out var parent))
         {
+            symbolName = identifier.Token.Value;
             if (parent is MemberAccessNode memberAccess && memberAccess.MemberName.Value == identifier.Token.Value)
             {
                 nodeToLookUp = parent;
@@ -82,14 +100,14 @@ public class RapidsHoverHandler : IHoverHandler
             }
         }
 
-        string? name = null;
+        symbolName = null;
         Node? scopeSearchNode = node;
         
         if (node is DeclarationNode decl)
         {
             if (processedIndex >= decl.Name.Index && processedIndex <= decl.Name.Index + decl.Name.Value.Length)
             {
-                name = decl.Name.Value;
+                symbolName = decl.Name.Value;
             }
         }
         else if (node is ImportNode import)
@@ -98,36 +116,37 @@ public class RapidsHoverHandler : IHoverHandler
                 processedIndex >= import.AsName.Index && 
                 processedIndex <= import.AsName.Index + import.AsName.Value.Length)
             {
-                name = import.AsName.Value;
+                symbolName = import.AsName.Value;
             }
             else if (import.AsName == null && 
                 processedIndex >= import.BaseToken.Index && 
                 processedIndex <= import.BaseToken.Index + import.BaseToken.Value.Length)
             {
-                name = import.BaseToken.Value;
+                symbolName = import.BaseToken.Value;
             }
         }
         else if (node is IdentifierNode idNode && parentMap.TryGetValue(idNode, out var idParent))
         {
             if (idParent is DeclarationNode parentDecl && parentDecl.Name.Value == idNode.Token.Value)
             {
-                name = idNode.Token.Value;
+                symbolName = idNode.Token.Value;
             }
             else if (idParent is ImportNode parentImport && parentImport.AsName?.Value == idNode.Token.Value)
             {
-                name = idNode.Token.Value;
+                symbolName = idNode.Token.Value;
             }
             // todo: Add 'else if' for FunctionArgumentNode, etc.
         }
 
 
-        if (name != null)
+        if (symbolName != null)
         {
             var owningBlock = scopeSearchNode.GetAncestor<StatementsNode>(parentMap);
             if (owningBlock != null &&
                 analysisResult.Scopes.TryGetValue(owningBlock, out var scope))
             {
-                var symbol = scope.Symbols.FirstOrDefault(s => s.Name == name);
+                var localSymbolName = symbolName;
+                var symbol = scope.Symbols.FirstOrDefault(s => s.Name == localSymbolName);
                 if (symbol != null)
                 {
                     return symbol.Type;
