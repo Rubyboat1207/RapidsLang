@@ -659,7 +659,7 @@ public static class RapidsStaticAnalysis
         return computedType;
     }
 
-    private static RapidsType ComputeFromTypeNode(TypeNode? typeNode)
+    public static RapidsType ComputeFromTypeNode(TypeNode? typeNode)
     {
         if (typeNode == null)
         {

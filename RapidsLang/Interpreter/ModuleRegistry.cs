@@ -39,7 +39,7 @@ public class ModuleRegistry
     {
         if (!_tickingModules.Contains(module))
         {
-            module.Protocol?.Init(interpreter);
+            module.Protocol?.Init(interpreter, null);
             _tickingModules.Add(module);
         }
     }

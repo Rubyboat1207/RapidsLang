@@ -1,4 +1,3 @@
-using RapidsLang.Interpreter;
 using RapidsLang.Lexer;
 using RapidsLang.Parser.Nodes;
 using RapidsLang.PreProcessor;
@@ -61,7 +60,7 @@ public static class RapidsParser
                 // check for function call
                 if (stepper.Cur.TokenType is TokenType.OpenParen)
                 {
-                    if (CheckIfIsFunctionDeclaration(stepper, builder))
+                    if (CheckIfIsFunctionDeclaration(stepper))
                     {
                         
                         if (expression is not IdentifierNode identNode)
@@ -210,7 +209,7 @@ public static class RapidsParser
                         continue;
                     }
 
-                    if (str.Parts.Count != 1 || str.Parts[0] is not LiteralStringPart litStr)
+                    if (str.Parts.Count != 1 || str.Parts[0] is not LiteralStringPart)
                     {
                         builder.AddDiagnostic(new (str.BaseToken, "Formatted strings are not allowed in a use statement module path"));
                         continue;
@@ -319,7 +318,7 @@ public static class RapidsParser
                         ));
                         continue;
                     }
-                    if (!CheckIfIsFunctionDeclaration(stepper, builder))
+                    if (!CheckIfIsFunctionDeclaration(stepper))
                     {
                         builder.AddIssue("Expected a function declaration or assignment after export");
 
@@ -639,10 +638,31 @@ public static class RapidsParser
 
         return builder.Build();
     }
-    
-    private static TypeNode? ParseTypeNode(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
+
+    public static TypeNode? ParseTypeNode(string typeStr)
     {
-        TypeNode? baseType = null;
+        var tokens = RapidsLexer.Lex(typeStr);
+        if (tokens.Count == 0)
+        {
+            return null;
+        }
+        var stepper = new ListStepper<Token>(tokens);
+        var builder = new RapidsParseResult.Builder(stepper, new StatementsNode(tokens[0]));
+
+        var typeNode = ParseTypeNode(stepper, builder);
+
+        var parseResult = builder.Build();
+
+        if (parseResult.Diagnostics.Count <= 0) return typeNode;
+        
+        Console.WriteLine("ERRORS IN RUNTIME PARSED TYPE NODE! THIS IS LIKELY A EXTENSION DEVELOPER BUG.");
+        parseResult.PrintDiagnostics("<native module>", typeStr, new([]));
+        return null;
+    }
+    
+    public static TypeNode? ParseTypeNode(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
+    {
+        TypeNode? baseType;
 
         if (stepper.AtEnd)
         {
@@ -650,7 +670,49 @@ public static class RapidsParser
             return null;
         }
 
-        if (stepper.Cur.TokenType is TokenType.OpenCurly)
+        // 1. Handle Prefix: Source Channel (-^)
+        if (stepper.Cur.TokenType is TokenType.Minus && stepper.Next?.TokenType is TokenType.Caret)
+        {
+            var minus = stepper.Step();
+            var caret = stepper.Step();
+            
+            // Recursively parse the inner type (allows for -^-^string, though semantic analysis might reject it)
+            var innerType = ParseTypeNode(stepper, builder);
+            
+            if (innerType == null) return null;
+
+            baseType = new ChannelSourceTypeNode(minus, caret, innerType);
+        }
+        // 2. Handle Bi-Directional Channel: (Source&Target)
+        else if (stepper.Cur.TokenType is TokenType.OpenParen)
+        {
+            var openParen = stepper.Step();
+            var left = ParseTypeNode(stepper, builder);
+            
+            if (left == null) return null;
+
+            if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.Ampersand)
+            {
+                builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected '&' in bidirectional channel type."));
+                return null;
+            }
+
+            var ampersand = stepper.Step();
+            var right = ParseTypeNode(stepper, builder);
+
+            if (right == null) return null;
+
+            if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.ClosedParen)
+            {
+                builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected ')' to close bidirectional channel type."));
+                return null;
+            }
+
+            var closeParen = stepper.Step();
+            baseType = new BiDirectionalChannelTypeNode(openParen, left, ampersand, right, closeParen);
+        }
+
+        else if (stepper.Cur.TokenType is TokenType.OpenCurly)
         {
             var openCurly = stepper.Step();
             var properties = new List<ObjectPropertyTypeNode>();
@@ -660,6 +722,7 @@ public static class RapidsParser
                 if (stepper.Cur.TokenType is not TokenType.Identifier)
                 {
                     builder.AddDiagnostic(new(stepper.Cur, "Expected property name (identifier) in object type."));
+                    // Recovery
                     while (!stepper.AtEnd && stepper.Cur.TokenType is not (TokenType.Comma or TokenType.ClosedCurly))
                     {
                         stepper.Increment();
@@ -676,7 +739,7 @@ public static class RapidsParser
                         propType = ParseTypeNode(stepper, builder);
                         if (propType is null)
                         {
-                            // We are in a bad state. Skip until next comma or '}'
+                            // Recovery
                             while (!stepper.AtEnd && stepper.Cur.TokenType is not (TokenType.Comma or TokenType.ClosedCurly))
                             {
                                 stepper.Increment();
@@ -704,10 +767,10 @@ public static class RapidsParser
             if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.ClosedCurly)
             {
                 builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected '}' to close object type.", true));
-                return null; // Can't recover
+                return null; 
             }
 
-            var closeCurly = stepper.Step(); // Consume '}'
+            var closeCurly = stepper.Step(); 
             baseType = new ObjectTypeNode(openCurly, properties, closeCurly, false);
         }
 
@@ -718,21 +781,33 @@ public static class RapidsParser
         }
         else
         {
-            builder.AddDiagnostic(new(stepper.Cur, "Expected a type (e.g., 'string', 'number', or '{...}')."));
+            builder.AddDiagnostic(new(stepper.Cur, "Expected a type (e.g., 'string', '-^source', or '{...}')."));
             return null;
         }
+
+
+        
+        while (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.Minus && stepper.Next?.TokenType is TokenType.Caret)
+        {
+            var minus = stepper.Step();
+            var caret = stepper.Step();
+            baseType = new ChannelTargetTypeNode(baseType, minus, caret);
+        }
+
 
         if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.QuestionMark)
         {
             stepper.Increment();
-            if (baseType is ObjectTypeNode obj)
+
+            baseType = baseType switch 
             {
-                return obj with { Optional = true };
-            }
-            if (baseType is IdentifierTypeNode ident)
-            {
-                return ident with { Optional = true };
-            }
+                ObjectTypeNode obj => obj with { Optional = true },
+                IdentifierTypeNode ident => ident with { Optional = true },
+                ChannelSourceTypeNode src => src with { Optional = true },
+                ChannelTargetTypeNode tgt => tgt with { Optional = true },
+                BiDirectionalChannelTypeNode bidi => bidi with { Optional = true },
+                _ => baseType
+            };
         }
 
         return baseType;
@@ -1080,7 +1155,7 @@ public static class RapidsParser
                 }
                 case TokenType.OpenParen:
                 {
-                    if (!CheckIfIsFunctionDeclaration(stepper, builder))
+                    if (!CheckIfIsFunctionDeclaration(stepper))
                     {
                         left = ParseFunctionCall(stepper, left, builder);
                         if (left is null)
@@ -1121,7 +1196,7 @@ public static class RapidsParser
             
             if (stepper.Cur.TokenType == TokenType.OpenParen)
             {
-                if (!CheckIfIsFunctionDeclaration(stepper, builder))
+                if (!CheckIfIsFunctionDeclaration(stepper))
                 {
                     right = ParseFunctionCall(stepper, left, builder);
                 }
@@ -1144,7 +1219,7 @@ public static class RapidsParser
         // ReSharper disable once InvertIf
         if (stepper.Cur.TokenType == TokenType.OpenParen)
         {
-            if (!CheckIfIsFunctionDeclaration(stepper, builder))
+            if (!CheckIfIsFunctionDeclaration(stepper))
             {
                 left = ParseFunctionCall(stepper, left, builder);
             }
@@ -1177,7 +1252,7 @@ public static class RapidsParser
                 return new NullExpression(start);
             case TokenType.OpenParen:
             {
-                if (CheckIfIsFunctionDeclaration(stepper, builder))
+                if (CheckIfIsFunctionDeclaration(stepper))
                 {
                     var arguments = new List<ArgumentNode>();
                     while (!stepper.AtEnd && stepper.Cur.TokenType is not TokenType.ClosedParen)
@@ -1341,7 +1416,7 @@ public static class RapidsParser
         return stringNode;
     }
     
-    private static bool CheckIfIsFunctionDeclaration(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
+    private static bool CheckIfIsFunctionDeclaration(ListStepper<Token> stepper)
     {
         var openParens = 1;
         var explorer = new ListStepper<Token>(stepper.FromIndex());

@@ -33,6 +33,8 @@ public enum TokenType
     Colon,
     SemiColon,
     QuestionMark,
+    Caret,
+    Ampersand,
 
     // -- Operators
     Plus,
@@ -115,6 +117,8 @@ public class Token(TokenType type, int index, int endIndex, string? value = null
             TokenType.ClosedParen => ")",
             TokenType.OpenSquare => "[",
             TokenType.ClosedSquare => "]",
+            TokenType.Caret => "^",
+            TokenType.Ampersand => "&",
             TokenType.Plus => "+",
             TokenType.Minus => "-",
             TokenType.Slash => "/",
@@ -232,9 +236,12 @@ public static class RapidsLexer
         TokenType.Plus,
         TokenType.Minus,
         TokenType.QuestionMark,
+        TokenType.Caret,
         
         TokenType.And,
-        TokenType.Or
+        TokenType.Or,
+        
+        TokenType.Ampersand,
     ];
     
     public static List<Token> Lex(string code)

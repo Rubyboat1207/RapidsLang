@@ -1,3 +1,4 @@
+using RapidsLang.Extension.Channel;
 using RapidsLang.Extensions;
 using RapidsLang.Extensions.Channel;
 using RapidsLang.Interpreter.Variables;

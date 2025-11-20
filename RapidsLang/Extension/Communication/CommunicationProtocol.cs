@@ -1,13 +1,16 @@
 using System.Text.Json.Serialization;
+using RapidsLang.Extension.Channel;
+using RapidsLang.Extension.Communication.Native;
+using RapidsLang.Extensions;
 using RapidsLang.Extensions.Communication.WebSocket;
-using RapidsLang.Extensions.Channel;
 using RapidsLang.Interpreter;
 using RapidsLang.Interpreter.Variables;
 
-namespace RapidsLang.Extensions.Communication;
+namespace RapidsLang.Extension.Communication;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(WebsocketProtocol), "ws")]
+[JsonDerivedType(typeof(NativeProtocol), "native")]
 public abstract class CommunicationProtocol
 {
     protected RapidsInterpreter? ResponsibleInterpreter { get; set; }
@@ -40,7 +43,7 @@ public abstract class CommunicationProtocol
 
     protected virtual void OutputAdded(Identifier identifier) { }
 
-    public virtual void Init(RapidsInterpreter interpreter)
+    public virtual void Init(RapidsInterpreter interpreter, ExtensionData? extension)
     {
         ResponsibleInterpreter = interpreter;
     }

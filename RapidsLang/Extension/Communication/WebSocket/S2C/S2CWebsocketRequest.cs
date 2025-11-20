@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace RapidsLang.Extensions.Communication.WebSocket.S2C;
+namespace RapidsLang.Extension.Communication.WebSocket.S2C;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(S2CSourceBeginListening), "source:begin_listening")]

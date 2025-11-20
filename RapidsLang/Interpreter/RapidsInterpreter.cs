@@ -1,6 +1,6 @@
+using RapidsLang.Extension.Communication.Native;
 using RapidsLang.Extensions;
 using RapidsLang.Extensions.Channel;
-using RapidsLang.Extensions.Communication.Native;
 using RapidsLang.Interpreter.Variables;
 using RapidsLang.Interpreter.Work;
 using RapidsLang.Lexer;
@@ -106,7 +106,7 @@ public class RapidsInterpreter
     {
         if (topLevel)
         {
-            NativeProtocol.Init(this);
+            NativeProtocol.Init(this, null);
         }
         StartNewBlock(root, BlockType.Module, null);
         Done = false;

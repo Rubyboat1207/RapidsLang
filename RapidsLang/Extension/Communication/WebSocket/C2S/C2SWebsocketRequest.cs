@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace RapidsLang.Extensions.Communication.WebSocket.C2S;
+namespace RapidsLang.Extension.Communication.WebSocket.C2S;
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(C2SSourceData), "source:data")]

@@ -1,3 +1,4 @@
+using RapidsLang.Extension.Communication;
 using RapidsLang.Extensions.Communication;
 using RapidsLang.Parser.Nodes;
 

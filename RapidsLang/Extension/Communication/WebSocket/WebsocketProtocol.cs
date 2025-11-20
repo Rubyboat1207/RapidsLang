@@ -5,8 +5,11 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using JetBrains.Annotations;
-using RapidsLang.Extensions.Communication.WebSocket.C2S;
-using RapidsLang.Extensions.Communication.WebSocket.S2C;
+using RapidsLang.Extension.Channel;
+using RapidsLang.Extension.Communication;
+using RapidsLang.Extension.Communication.Native;
+using RapidsLang.Extension.Communication.WebSocket.C2S;
+using RapidsLang.Extension.Communication.WebSocket.S2C;
 using RapidsLang.Extensions.Channel;
 using RapidsLang.Interpreter;
 using RapidsLang.Interpreter.Variables;
@@ -49,9 +52,9 @@ public class WebsocketProtocol : CommunicationProtocol
         BroadcastMessage(new S2CSourceEndListening(identifier)).Wait();
     }
 
-    public override void Init(RapidsInterpreter interpreter)
+    public override void Init(RapidsInterpreter interpreter, ExtensionData extension)
     {
-        base.Init(interpreter);
+        base.Init(interpreter, extension);
         
         var port = Port ?? DefaultPort;
 

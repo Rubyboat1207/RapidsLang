@@ -1,11 +1,7 @@
-using System.Text.Json.Serialization;
-
-namespace RapidsLang.Extension.Channel;
+namespace RapidsLang.NativeExtension;
 
 public record Identifier(
-    [property: JsonPropertyName("namespace")]
     string NameSpace,
-    [property: JsonPropertyName("path")]
     string Path
 )
 {

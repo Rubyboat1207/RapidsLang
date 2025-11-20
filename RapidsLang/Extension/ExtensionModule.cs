@@ -1,3 +1,5 @@
+using RapidsLang.Extension.Communication;
+using RapidsLang.Extension.Communication.Native;
 using RapidsLang.Extensions.Manifest;
 using RapidsLang.Interpreter;
 using RapidsLang.Parser;
@@ -13,6 +15,8 @@ public class ExtensionModule : Module
     private bool _hasRun;
     private bool _isRunning;
 
+    public override CommunicationProtocol? Protocol => Extension.ExtensionManifest.Protocol;
+
     public ExtensionModule(ExtensionData extension)
     {
         Extension = extension;
@@ -24,6 +28,20 @@ public class ExtensionModule : Module
         if (!_hasRun && !_isRunning)
         {
             _isRunning = true;
+            if (Extension.ExtensionManifest.Protocol is NativeProtocol { DllPath: not null } nativeProtocol)
+            {
+                nativeProtocol.Init(interpreter, Extension);
+                foreach (var export in nativeProtocol.GetExports(this))
+                {
+                    Exports.Add(export.Key, export.Value);
+                }
+                
+                base.Import(interpreter, importNodes);
+
+                return;
+            }
+            
+            
             var program = RapidsParser.Parse(Extension.GetMainCodeString(), out var preprocMetaData);
 
             var subInterpreter = new RapidsInterpreter(Extension.GetMainCodeString(), preprocMetaData, Extension.MainCodePath)

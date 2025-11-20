@@ -40,3 +40,35 @@ public record ObjectTypeNode(
     public override int EndIndex => CloseCurly.EndIndex;
     public override IEnumerable<Node> GetChildren() => Properties;
 }
+
+public record ChannelSourceTypeNode(
+    Token Minus, 
+    Token Caret, 
+    TypeNode InnerType
+) : TypeNode(Minus, InnerType.Optional) // Optionality usually bubbles up or is handled by parent
+{
+    public override int EndIndex => InnerType.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [InnerType];
+}
+
+public record ChannelTargetTypeNode(
+    TypeNode InnerType, 
+    Token Minus, 
+    Token Caret
+) : TypeNode(InnerType.BaseToken, InnerType.Optional)
+{
+    public override int EndIndex => Caret.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [InnerType];
+}
+
+public record BiDirectionalChannelTypeNode(
+    Token OpenParen,
+    TypeNode Left,
+    Token Ampersand,
+    TypeNode Right,
+    Token CloseParen
+) : TypeNode(OpenParen, false)
+{
+    public override int EndIndex => CloseParen.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [Left, Right];
+}

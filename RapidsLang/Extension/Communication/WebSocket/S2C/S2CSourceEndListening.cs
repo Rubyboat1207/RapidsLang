@@ -1,8 +1,7 @@
 using System.Text.Json.Serialization;
-using JetBrains.Annotations;
-using RapidsLang.Extensions.Channel;
+using RapidsLang.Extension.Channel;
 
-namespace RapidsLang.Extensions.Communication.WebSocket.S2C;
+namespace RapidsLang.Extension.Communication.WebSocket.S2C;
 
 public class S2CSourceEndListening(Identifier identifier) : S2CWebsocketRequest
 {

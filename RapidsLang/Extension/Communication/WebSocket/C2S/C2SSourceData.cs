@@ -1,9 +1,8 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using RapidsLang.Extensions.Channel;
+using RapidsLang.Extension.Channel;
 
-namespace RapidsLang.Extensions.Communication.WebSocket.C2S;
+namespace RapidsLang.Extension.Communication.WebSocket.C2S;
 
 public class C2SSourceData : C2SWebsocketRequest
 {
