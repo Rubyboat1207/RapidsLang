@@ -89,12 +89,15 @@ public class RapidsDataChannelVariable : RapidsVariable
         {
             DataChannel.OnData += rv =>
             {
-                if (rv is not RapidsNullVariable)
+                interpreter.EnqueueAction(() => 
                 {
-                    interpreter.Context.FunctionCallStack.Push(rv);
-                }
-                
-                func.Function.EnqueueExecution(interpreter, parentCodeBlock);
+                    if (rv is not RapidsNullVariable)
+                    {
+                        interpreter.Context.FunctionCallStack.Push(rv);
+                    }
+                    
+                    func.Function.EnqueueExecution(interpreter, parentCodeBlock);
+                });
             };
         }
     }
@@ -117,16 +120,19 @@ public class RapidsDataChannelVariable : RapidsVariable
 
         void OnTargetStatementCallback(RapidsVariable rv)
         {
-            var closureInstance = new InterpreterContext(closure);
-            if (DataChannel.DataVariableName is not null)
+            interpreter.EnqueueAction(() => 
             {
-                closureInstance.AddVariable(DataChannel.DataVariableName, new VariableHolder(rv, true));
-            }
+                var closureInstance = new InterpreterContext(closure);
+                if (DataChannel.DataVariableName is not null)
+                {
+                    closureInstance.AddVariable(DataChannel.DataVariableName, new VariableHolder(rv, true));
+                }
 
-            var block = interpreter.StartNewBlock(node.Body, BlockType.SourceCallback, parent, closureInstance);
+                var block = interpreter.StartNewBlock(node.Body, BlockType.SourceCallback, parent, closureInstance);
 
-            block.Scope.Source = this;
-            block.Scope.SourceSubscriptionId = subscriptionId;
+                block.Scope.Source = this;
+                block.Scope.SourceSubscriptionId = subscriptionId;
+            });
         }
 
         DataChannel.OnData += OnTargetStatementCallback;

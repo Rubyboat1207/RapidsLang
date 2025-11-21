@@ -5,6 +5,7 @@ using RapidsLang.Extension.Communication.Native;
 using RapidsLang.Extensions.Channel;
 using RapidsLang.Extensions.Communication;
 using RapidsLang.Interpreter.Variables;
+using RapidsLang.Interpreter.Work;
 using RapidsLang.Parser.Nodes;
 using RapidsLang.Parser.Types;
 
@@ -70,7 +71,8 @@ public class TimeModule : Module
     public override ModuleExports Exports { get; } = new ModuleExports(new()
     {
         {"sleep", new(RapidsFunctionReferenceVariable.OfNative(Sleep, SleepType), SleepType)},
-        {"clock", new(RapidsFunctionReferenceVariable.OfNative(Clock, ClockType), ClockType)}
+        {"clock", new(RapidsFunctionReferenceVariable.OfNative(Clock, ClockType), ClockType)},
+        {"slide", new(RapidsFunctionReferenceVariable.OfNative(Slide, SlideType), SlideType)}
     });
 
 
@@ -114,5 +116,102 @@ public class TimeModule : Module
                 return;
             }
         }
+    }
+
+    private static void Slide(RapidsInterpreter interpreter)
+    {
+        using var util = interpreter.GetNativeUtil();
+        
+        var callbackRef = util.LatestFunction();
+        var styleString = util.LatestString();
+        var durationSeconds = util.LatestNumber();
+        var endVal = util.LatestNumber();
+        var startVal = util.LatestNumber();
+
+        if (callbackRef is null || durationSeconds is null || endVal is null || startVal is null)
+        {
+             return;
+        }
+
+        var easing = ParseEasing(styleString?.Value);
+        
+        var start = startVal.Value;
+        var end = endVal.Value;
+        var duration = durationSeconds.Value;
+
+        Task.Run(async () =>
+        {
+            var stopwatch = Stopwatch.StartNew();
+            
+            while (stopwatch.Elapsed.TotalSeconds < duration)
+            {
+                double t = stopwatch.Elapsed.TotalSeconds / duration;
+                
+                double easedT = ApplyEasing(t, easing);
+                
+                double currentValue = start + (end - start) * easedT;
+                
+                interpreter.EnqueueAction(() => 
+                {
+                    interpreter.Context.FunctionCallStack.Push(new RapidsNumberVariable(currentValue));
+                    
+                    callbackRef.Function.EnqueueExecution(interpreter, null); 
+                });
+
+                await Task.Delay(16); 
+            }
+
+            interpreter.EnqueueAction(() =>
+            {
+                interpreter.Context.FunctionCallStack.Push(new RapidsNumberVariable(end));
+                callbackRef.Function.EnqueueExecution(interpreter, null);
+            });
+        });
+        
+    }
+    
+    private static readonly RapidsType SlideType = new RapidsFunctionType(
+        [
+            RapidsPrimitiveType.Number,
+            RapidsPrimitiveType.Number,
+            RapidsPrimitiveType.Number,
+            RapidsPrimitiveType.String,
+            new RapidsFunctionType([RapidsPrimitiveType.Number], null)
+        ],
+        null 
+    );
+    
+    public enum EasingStyle
+    {
+        Linear,
+        EaseInQuad,
+        EaseOutQuad,
+        EaseInOutQuad
+    }
+    
+    private static EasingStyle ParseEasing(string? input)
+    {
+        return input?.ToLower() switch
+        {
+            "easein" => EasingStyle.EaseInQuad,
+            "easeout" => EasingStyle.EaseOutQuad,
+            "easeinout" => EasingStyle.EaseInOutQuad,
+            _ => EasingStyle.Linear
+        };
+    }
+
+    private static double ApplyEasing(double t, EasingStyle style)
+    {
+        // Clamp t between 0 and 1 just in case
+        if (t < 0) return 0;
+        if (t > 1) return 1;
+
+        return style switch
+        {
+            EasingStyle.EaseInQuad => t * t,
+            EasingStyle.EaseOutQuad => t * (2 - t),
+            EasingStyle.EaseInOutQuad => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+            _ => t // Linear
+        };
     }
 }

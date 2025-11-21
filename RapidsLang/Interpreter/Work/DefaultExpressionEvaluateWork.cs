@@ -22,6 +22,15 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                 {
                     EvaluateExpression(operationNode.Right, right =>
                     {
+                        if (left is null)
+                        {
+                            throw new Exception($"Internal Error: Left operand of '{operationNode.Operator.GetOperator()}' was null. Expression: {operationNode.Left}");
+                        }
+                        if (right is null)
+                        {
+                            throw new Exception($"Internal Error: Right operand of '{operationNode.Operator.GetOperator()}' was null. Expression: {operationNode.Right}");
+                        }
+                        
                         var res = left.GetResult(operationNode.Operator.GetOperator(), right);
 
                         if (res == null)
@@ -69,7 +78,7 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                 {
                     if (holder is null)
                     {
-                        throw new Exception($"Variable named {memberAccessNode.MemberName} was not found at {GetLineCol(memberAccessNode.MemberName)}");
+                        throw new Exception($"Variable named {memberAccessNode.MemberName.Value} was not found at {GetLineCol(memberAccessNode.MemberName)}");
                     }
                     
                     Callback.Invoke(holder.Variable);

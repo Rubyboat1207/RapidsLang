@@ -603,7 +603,7 @@ public static class RapidsParser
                 var ret = stepper.Step();
                 builder.AddStatement(new ReturnNode(
                     ret,
-                    ParseExpression(stepper, builder)!,
+                    ParseExpression(stepper, builder),
                     GetLogLevel(stepper, builder)
                 ));
                 continue;

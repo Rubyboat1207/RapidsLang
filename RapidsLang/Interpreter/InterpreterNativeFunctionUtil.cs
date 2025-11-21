@@ -22,6 +22,26 @@ public class InterpreterNativeFunctionUtil(RapidsInterpreter interpreter) : IDis
 
         return null;
     }
+    
+    public RapidsFunctionReferenceVariable? LatestFunction()
+    {
+        if (interpreter.Context.FunctionCallStack.TryPop(out var result) && result is RapidsFunctionReferenceVariable numberVariable)
+        {
+            return numberVariable;
+        }
+
+        return null;
+    }
+
+    public RapidsStringVariable? LatestString()
+    {
+        if (interpreter.Context.FunctionCallStack.TryPop(out var result) && result is RapidsStringVariable stringVariable)
+        {
+            return stringVariable;
+        }
+
+        return null;
+    }
 
     public RapidsVariable? LatestVariable()
     {

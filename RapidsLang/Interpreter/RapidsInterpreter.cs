@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using RapidsLang.Extension.Communication.Native;
 using RapidsLang.Extensions;
 using RapidsLang.Extensions.Channel;
@@ -69,6 +70,7 @@ public class RapidsInterpreter
     private Stack<InterpreterWork> WorkStack { get; }  = [];
     public string? MainSourceCodePath { get; }
     private readonly SemaphoreSlim _workSignal = new SemaphoreSlim(0);
+    private readonly ConcurrentQueue<Action> _pendingActions = new();
 
     public void WakeUp()
     {
@@ -146,6 +148,7 @@ public class RapidsInterpreter
                 }
                 // Console.WriteLine("interpreter: " + GetHashCode() + " is going to sleep");
                 await _workSignal.WaitAsync();
+                ExecutePendingActions();
                 Context.ModuleRegistry.TickExternalModules(Context);
                 // Console.WriteLine("interpreter: " + GetHashCode() + " is waking up");
             }
@@ -179,5 +182,27 @@ public class RapidsInterpreter
     public InterpreterNativeFunctionUtil GetNativeUtil()
     {
         return new InterpreterNativeFunctionUtil(this);
+    }
+    
+    public void EnqueueAction(Action action)
+    {
+        _pendingActions.Enqueue(action);
+        WakeUp();
+    }
+    
+    public void ExecutePendingActions()
+    {
+        while (_pendingActions.TryDequeue(out var action))
+        {
+            try 
+            {
+                action();
+            }
+            catch (Exception e)
+            {
+                // Log or handle critical failures in callbacks
+                Console.WriteLine($"Error in pending action: {e.Message}");
+            }
+        }
     }
 }

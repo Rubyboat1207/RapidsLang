@@ -27,8 +27,6 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
     {
         CurrentlyEvaluatingNode = Block.Statements[ProgramCounter];
         
-        Context.ModuleRegistry.TickExternalModules(Context.GetRoot());
-
         if (ActiveNode is UseStatementNode useNode)
         {
             var moduleName = useNode.ModuleName.GetName();
@@ -256,24 +254,32 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
 
         if (ActiveNode is ReturnNode returnNode)
         {
-            EvaluateExpression(returnNode.Value, ret =>
-            {
-                var codeBlock = this;
+            var codeBlock = this;
             
-                while (codeBlock is { Scope.BlockType: not BlockType.Function })
+            while (codeBlock is { Scope.BlockType: not BlockType.Function })
+            {
+                codeBlock.Scope.ShouldBreakOut = true;
+                codeBlock = codeBlock.Parent;
+            }
+
+            if (codeBlock == null)
+            {
+                throw new Exception("Return can only be used under a while loop");
+            }
+            
+            if (returnNode.Value is null)
+            {
+                codeBlock.Scope.ShouldBreakOut = true;
+            }
+            else
+            {
+                EvaluateExpression(returnNode.Value, ret =>
                 {
                     codeBlock.Scope.ShouldBreakOut = true;
-                    codeBlock = codeBlock.Parent;
-                }
-
-                if (codeBlock == null)
-                {
-                    throw new Exception("Return can only be used under a while loop");
-                }
+                    Context.FunctionCallStack.Push(ret);
+                });
+            }
             
-                codeBlock.Scope.ShouldBreakOut = true;
-                Context.FunctionCallStack.Push(ret);
-            });
             return;
         }
 

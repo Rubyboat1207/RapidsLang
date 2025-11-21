@@ -44,10 +44,15 @@ public static class ExtensionVariableExtensions
             List<ExtensionVariable> variables = [];
             for (var i = 0; i < instance.ExpectedParams; i++)
             {
-                variables.Add(interpreter.Context.FunctionCallStack.Pop().ToExtensionVariable());
+                variables.Insert(0, interpreter.Context.FunctionCallStack.Pop().ToExtensionVariable());
             }
             
-            instance.ExtensionFunction.Invoke(variables);
+            var res = instance.ExtensionFunction.Invoke(variables);
+
+            if (res is not null)
+            {
+                interpreter.Context.FunctionCallStack.Push(res.ToRapidsVariable());
+            }
         });
     }
 

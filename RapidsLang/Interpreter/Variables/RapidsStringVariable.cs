@@ -1,3 +1,5 @@
+using RapidsLang.Parser.Types;
+
 namespace RapidsLang.Interpreter.Variables;
 
 public class RapidsStringVariable : RapidsVariable
@@ -63,6 +65,11 @@ public class RapidsStringVariable : RapidsVariable
             return new RapidsFunctionReferenceVariable(_substrFunction);
         }
 
+        if (memberName == "split")
+        {
+            return RapidsFunctionReferenceVariable.OfNative(Split);
+        }
+
         return null;
     }
 
@@ -85,6 +92,20 @@ public class RapidsStringVariable : RapidsVariable
         }
         
         ctx.FunctionCallStack.Push(new RapidsStringVariable(Value[(int) start.Value..(int) end.Value]));
+    }
+
+    public void Split(RapidsInterpreter interpreter)
+    {
+        using var util = interpreter.GetNativeUtil().GuaranteeReturn();
+
+        var splitter = util.LatestString();
+
+        if (splitter is null)
+        {
+            return;
+        }
+
+        util.Return(new RapidsListVariable(Value.Split(splitter.Value).Select(s => (RapidsVariable) new RapidsStringVariable(s)).ToList()));
     }
 
     public override RapidsVariable ShallowCopy()

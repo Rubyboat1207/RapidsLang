@@ -296,7 +296,7 @@ public static class RapidsStaticAnalysis
                         break;
                     case FunctionExportable functionExportable:
                         var funcExportType = GetType(functionExportable.FunctionNode, scope, result);
-                        exportedSymbol = new(exportStatement.BaseToken.Value, true, funcExportType,
+                        exportedSymbol = new(functionExportable.BaseToken.Value, true, funcExportType,
                             startIndex: exportStatement.StartIndex);
                         break;
                 }

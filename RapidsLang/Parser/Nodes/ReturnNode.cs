@@ -4,10 +4,10 @@ namespace RapidsLang.Parser.Nodes;
 
 public record ReturnNode(
     Token BaseToken,
-    ExpressionNode Value,
+    ExpressionNode? Value,
     int DebugLevel
 ) : StatementNode(BaseToken, DebugLevel)
 {
-    public override int EndIndex => Value.EndIndex;
-    public override IEnumerable<Node> GetChildren() => [Value];
+    public override int EndIndex => Value?.EndIndex ?? BaseToken.EndIndex;
+    public override IEnumerable<Node> GetChildren() => Value is null ? [] : [Value];
 }
