@@ -5,6 +5,7 @@ using RapidsLang.Interpreter;
 using RapidsLang.Lexer;
 using RapidsLang.Parser;
 using RapidsLang.PreProcessor;
+using RapidsLang.Utils;
 
 namespace RapidsLang;
 
@@ -47,9 +48,7 @@ public class RapidLangEntry
             
             return;
         }
-
-        // --- The rest of your program logic is unchanged ---
-
+        
         var preprocRes = RapidsPreproc.Preprocess(code);
         var lexResult = RapidsLexer.Lex(preprocRes.Output);
         var parseResult = RapidsParser.Parse(lexResult);
@@ -67,6 +66,8 @@ public class RapidLangEntry
         extensions.ForEach(d => interpreter.Context.ModuleRegistry.AddModule(d.ExtensionManifest.ModuleName, new ExtensionModule(d)));
 
         SetupExitHandlers(interpreter);
+        
+        Env.Load();
         
         try
         {

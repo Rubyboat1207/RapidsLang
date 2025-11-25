@@ -16,7 +16,8 @@ public class ModuleRegistry
         { "types", new TypesModule() },
         { "random", new RandomModule() },
         { "math", new MathModule() },
-        { "program", new ProgramModule() }
+        { "program", new ProgramModule() },
+        { "env", new EnvironmentModule() }
     };
 
     private readonly HashSet<Module> _tickingModules = [];

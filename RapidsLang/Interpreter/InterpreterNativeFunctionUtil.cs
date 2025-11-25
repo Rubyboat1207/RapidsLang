@@ -58,13 +58,23 @@ public class InterpreterNativeFunctionUtil(RapidsInterpreter interpreter) : IDis
         _returnValue = rapidsVariable;
     }
     
-    public void Return(double numberRet)
+    public void Return(double? numberRet)
     {
-        _returnValue = new RapidsNumberVariable(numberRet);
+        if (numberRet is null)
+        {
+            _returnValue = new RapidsNullVariable();
+            return;
+        }
+        _returnValue = new RapidsNumberVariable(numberRet.Value);
     }
 
-    public void Return(string strRet)
+    public void Return(string? strRet)
     {
+        if (strRet is null)
+        {
+            _returnValue = new RapidsNullVariable();
+            return;
+        }
         _returnValue = new RapidsStringVariable(strRet);
     }
 
