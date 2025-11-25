@@ -19,7 +19,7 @@ public class StringsModule : Module
     }
 
     private static readonly RapidsType CharFromCodeType = new RapidsFunctionType(
-        [RapidsPrimitiveType.Number],
+        [new("value", RapidsPrimitiveType.Number)],
         RapidsPrimitiveType.String
     );
 
@@ -36,7 +36,7 @@ public class StringsModule : Module
         ctx.FunctionCallStack.Push(new RapidsNumberVariable(str.Value[0]));
     }
     private static readonly RapidsType CodeFromCharType = new RapidsFunctionType(
-        [RapidsPrimitiveType.String],
+        [new("value", RapidsPrimitiveType.String)],
         RapidsPrimitiveType.Number
     );
 

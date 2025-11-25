@@ -96,7 +96,7 @@ public class RapidsListVariable : RapidsVariable
     }
 
     public static RapidsType AddType = new RapidsFunctionType(
-        [RapidsAnyType.Instance],
+        [new("value", RapidsAnyType.Instance)],
         null
     );
 
@@ -121,7 +121,7 @@ public class RapidsListVariable : RapidsVariable
     }
     
     public static RapidsType InsertType = new RapidsFunctionType(
-        [RapidsAnyType.Instance, RapidsPrimitiveType.Number],
+        [new("value", RapidsAnyType.Instance), new("index", RapidsPrimitiveType.Number)],
         null
     );
 
@@ -139,7 +139,7 @@ public class RapidsListVariable : RapidsVariable
     }
     
     public static RapidsType RemoveAtType = new RapidsFunctionType(
-        [RapidsPrimitiveType.Number],
+        [new("index", RapidsPrimitiveType.Number)],
         null
     );
 

@@ -15,9 +15,9 @@ public record ExportStatement(
 public abstract record Exportable(Token BaseToken) : Node(BaseToken);
 
 public record FunctionExportable(
-    Token BaseToken,
+    IdentifierNode Name,
     FunctionNode FunctionNode
-) : Exportable(BaseToken)
+) : Exportable(Name.BaseToken)
 {
     public override int EndIndex => FunctionNode.EndIndex;
     public override IEnumerable<Node> GetChildren() => [FunctionNode];
@@ -39,4 +39,14 @@ public record ExpressionExportable(
 {
     public override int EndIndex => Expression.EndIndex;
     public override IEnumerable<Node> GetChildren() => [Expression];
+}
+
+public record ExternalExportable(
+    Token BaseToken, // extern token
+    IdentifierNode Name,
+    TypeNode Type
+) : Exportable(BaseToken)
+{
+    public override int EndIndex => Type.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [Name, Type];
 }

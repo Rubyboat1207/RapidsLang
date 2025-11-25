@@ -20,7 +20,7 @@ public class TypesModule : Module
     }
 
     private static readonly RapidsType ParseNumberType = new RapidsFunctionType(
-        [RapidsPrimitiveType.String],
+        [new("value", RapidsPrimitiveType.String)],
         RapidsPrimitiveType.Number
     );
 
@@ -34,7 +34,7 @@ public class TypesModule : Module
     }
 
     private static readonly RapidsType TypeofType = new RapidsFunctionType(
-        [RapidsAnyType.Instance],
+        [new("type", RapidsAnyType.Instance)],
         RapidsPrimitiveType.String
     );
 

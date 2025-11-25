@@ -104,6 +104,96 @@ public class RapidsStaticAnalysisResult
     // this one's going to be big.
     public Dictionary<ExpressionNode, RapidsType> ExpressionTypes { get; } = [];
     public Dictionary<IdentifierNode, Symbol> SymbolReferences { get; } = [];
+    
+    public void PrintDiagnostics(string sourcePath, string code, RapidsPreprocMetaData metaData)
+    {
+        if (Diagnostics.Count == 0)
+        {
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.WriteLine("Static analysis passed. No issues found.");
+            Console.ResetColor();
+            return;
+        }
+
+        var errors = Diagnostics.Count(d => d.Severity == RapidsStaticAnalysisSeverity.Error);
+        var warnings = Diagnostics.Count(d => d.Severity == RapidsStaticAnalysisSeverity.Warning);
+        var hints = Diagnostics.Count(d => d.Severity == RapidsStaticAnalysisSeverity.Hint);
+
+        Console.WriteLine($"Analysis finished for {sourcePath}:");
+        if (errors > 0) { Console.ForegroundColor = ConsoleColor.Red; Console.Write($"{errors} Error(s) "); }
+        if (warnings > 0) { Console.ForegroundColor = ConsoleColor.Yellow; Console.Write($"{warnings} Warning(s) "); }
+        if (hints > 0) { Console.ForegroundColor = ConsoleColor.Cyan; Console.Write($"{hints} Hint(s) "); }
+        Console.ResetColor();
+        Console.WriteLine("\n");
+
+        var sortedDiagnostics = Diagnostics
+            .Select(d => new { Diagnostic = d, SourceIndex = RapidsPreproc.GetSourceIdx(d.Index, metaData) })
+            .OrderBy(x => x.SourceIndex);
+
+        foreach (var item in sortedDiagnostics)
+        {
+            var diagnostic = item.Diagnostic;
+            var sourceIndex = item.SourceIndex;
+
+            var (lineNum, colNum) = RapidsPreproc.GetRowColFromIndex(sourceIndex, code);
+
+            ConsoleColor color = diagnostic.Severity switch
+            {
+                RapidsStaticAnalysisSeverity.Error => ConsoleColor.Red,
+                RapidsStaticAnalysisSeverity.Warning => ConsoleColor.Yellow,
+                RapidsStaticAnalysisSeverity.Hint => ConsoleColor.Cyan,
+                _ => ConsoleColor.White
+            };
+
+            Console.Write($"\n--- ");
+            Console.ForegroundColor = color;
+            Console.Write($"{diagnostic.Severity}");
+            Console.ResetColor();
+            Console.WriteLine($" (Line {lineNum}, Col {colNum}) ---");
+
+            Console.ForegroundColor = ConsoleColor.White;
+            Console.WriteLine(diagnostic.Message);
+            Console.ResetColor();
+            
+            var lineStart = sourceIndex;
+            while (lineStart > 0 && code[lineStart - 1] != '\n')
+            {
+                lineStart--;
+            }
+
+            var lineEnd = sourceIndex;
+            while (lineEnd < code.Length && code[lineEnd] != '\n' && code[lineEnd] != '\r')
+            {
+                lineEnd++;
+            }
+
+            if (lineStart < code.Length)
+            {
+                string errorLine = code.Substring(lineStart, lineEnd - lineStart);
+
+                string displayLine = errorLine.Replace("\t", "    ");
+                Console.WriteLine(displayLine);
+                
+                int pointerOffset = 0;
+                int colIndex = colNum - 1; 
+                
+                for (int i = 0; i < colIndex; i++)
+                {
+                    if (i < errorLine.Length && errorLine[i] == '\t') pointerOffset += 4;
+                    else pointerOffset += 1;
+                }
+
+                string padding = new string(' ', pointerOffset);
+                
+                int squiggleLength = Math.Max(1, diagnostic.Length);
+                string arrows = new string('^', squiggleLength);
+
+                Console.ForegroundColor = color;
+                Console.WriteLine(padding + arrows);
+                Console.ResetColor();
+            }
+        }
+    }
 }
 
 public static class RapidsStaticAnalysis
@@ -298,6 +388,15 @@ public static class RapidsStaticAnalysis
                         var funcExportType = GetType(functionExportable.FunctionNode, scope, result);
                         exportedSymbol = new(functionExportable.BaseToken.Value, true, funcExportType,
                             startIndex: exportStatement.StartIndex);
+                        result.SymbolReferences[functionExportable.Name] = exportedSymbol;
+                        result.ExpressionTypes[functionExportable.Name] = funcExportType;
+                        break;
+                    case ExternalExportable externalExportable:
+                        var externType = ComputeFromTypeNode(externalExportable.Type);
+                        exportedSymbol = new(externalExportable.Name.Token.Value, true, externType);
+                        result.SymbolReferences[externalExportable.Name] = exportedSymbol;
+                        result.ExpressionTypes[externalExportable.Name] = externType;
+                        
                         break;
                 }
 
@@ -341,7 +440,7 @@ public static class RapidsStaticAnalysis
                         continue;
                     }
 
-                    if (callArgType.IsSameType(signatureArg))
+                    if (callArgType.IsSameType(signatureArg.Type))
                     {
                         continue;
                     }
@@ -349,7 +448,7 @@ public static class RapidsStaticAnalysis
                     result.Diagnostics.Add(AnalysisDiagnostic.OfArgumentTypeIncorrect(
                         callArgExpr.BaseToken,
                         i,
-                        signatureArg,
+                        signatureArg.Type,
                         callArgType
                     ));
                 }
@@ -492,17 +591,17 @@ public static class RapidsStaticAnalysis
                 // todo: continue this
                 break;
             case FunctionNode functionNode:
-                var argumentTypes = new List<RapidsType>();
+                var argumentTypes = new List<RapidsFunctionParamType>();
                 if (functionNode.Arguments != null)
                     foreach (var arg in functionNode.Arguments)
                     {
                         if (arg.Type is not null)
                         {
-                            argumentTypes.Add(ComputeFromTypeNode(arg.Type));
+                            argumentTypes.Add(new(arg.Name.Value, ComputeFromTypeNode(arg.Type)));
                         }
                         else
                         {
-                            argumentTypes.Add(RapidsAnyType.Instance);
+                            argumentTypes.Add(new(arg.Name.Value, RapidsAnyType.Instance));
                         }
                     }
 
@@ -690,6 +789,16 @@ public static class RapidsStaticAnalysis
                     properties[prop.Name.Value] = propType;
                 }
                 baseType = new RapidsShapeType(properties);
+                break;
+            case FunctionTypeNode functionTypeNode:
+                var args = new List<RapidsFunctionParamType>();
+                foreach (var arg in functionTypeNode.parameters)
+                {
+                    args.Add(new(arg.Name.Value, ComputeFromTypeNode(arg.Type)));
+                }
+
+                baseType = new RapidsFunctionType(args, ComputeFromTypeNode(functionTypeNode.ReturnType));
+
                 break;
 
             default:

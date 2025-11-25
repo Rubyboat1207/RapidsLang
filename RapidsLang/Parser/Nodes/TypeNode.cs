@@ -1,9 +1,12 @@
 using RapidsLang.Lexer;
+using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Parser.Nodes;
 
 public abstract record TypeNode(Token BaseToken, bool Optional) : Node(BaseToken);
 
+
+// eg: number, string, bool
 public record IdentifierTypeNode(
     Token Identifier,
     bool Optional
@@ -43,11 +46,14 @@ public record ObjectTypeNode(
 
 public record ChannelSourceTypeNode(
     Token Minus, 
-    Token Caret, 
-    TypeNode InnerType
-) : TypeNode(Minus, InnerType.Optional) // Optionality usually bubbles up or is handled by parent
+    Token Caret,
+    TypeNode InnerType,
+    Token? OpenTriangle,
+    IdentifierNode? DataName,
+    Token? ClosedTriangle
+) : TypeNode(Minus, InnerType.Optional)
 {
-    public override int EndIndex => InnerType.EndIndex;
+    public override int EndIndex => ClosedTriangle?.EndIndex ?? InnerType.EndIndex;
     public override IEnumerable<Node> GetChildren() => [InnerType];
 }
 
@@ -71,4 +77,49 @@ public record BiDirectionalChannelTypeNode(
 {
     public override int EndIndex => CloseParen.EndIndex;
     public override IEnumerable<Node> GetChildren() => [Left, Right];
+}
+
+public record FunctionParamTypeNode(
+    IdentifierNode Name,
+    TypeNode Type
+) : Node(Name.BaseToken)
+{
+    public override int EndIndex => Type.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [Name, Type];
+}
+
+public record FunctionTypeNode(
+    Token OpenParen,
+    List<FunctionParamTypeNode> parameters,
+    Token ClosedParen,
+    Token OpenTriangle,
+    TypeNode ReturnType,
+    bool Optional
+) : TypeNode(OpenParen, Optional)
+{
+    // should be the question mark if optional but whatever
+    public override int EndIndex => ReturnType.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [..parameters, ReturnType];
+}
+
+public record UnionTypeNode(
+    TypeNode A,
+    Token Ampersand,
+    TypeNode B,
+    bool Optional
+) : TypeNode(A.BaseToken, Optional)
+{
+    public override int EndIndex => B.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [A, B];
+}
+
+public record ParenthesizedTypeNode(
+    Token OpenParen,
+    TypeNode InnerType,
+    Token CloseParen,
+    bool Optional
+) : TypeNode(OpenParen, Optional)
+{
+    public override int EndIndex => Optional ? CloseParen.EndIndex + 1 : CloseParen.EndIndex; // +1 for the '?'
+    public override IEnumerable<Node> GetChildren() => [InnerType];
 }

@@ -33,7 +33,7 @@ public class TimeModule : Module
     }
 
     private static readonly RapidsType SleepType = new RapidsFunctionType(
-        [RapidsPrimitiveType.Number],
+        [new("milliseconds", RapidsPrimitiveType.Number)],
         null
     );
 
@@ -64,7 +64,7 @@ public class TimeModule : Module
     }
 
     private static readonly RapidsType ClockType = new RapidsFunctionType(
-        [RapidsPrimitiveType.Number],
+        [new("seconds", RapidsPrimitiveType.Number)],
         new RapidsChannelSourceType(RapidsPrimitiveType.Number, "delta")
     );
 
@@ -172,11 +172,11 @@ public class TimeModule : Module
     
     private static readonly RapidsType SlideType = new RapidsFunctionType(
         [
-            RapidsPrimitiveType.Number,
-            RapidsPrimitiveType.Number,
-            RapidsPrimitiveType.Number,
-            RapidsPrimitiveType.String,
-            new RapidsFunctionType([RapidsPrimitiveType.Number], null)
+            new("startVal", RapidsPrimitiveType.Number),
+            new("endVal", RapidsPrimitiveType.Number),
+            new("duration", RapidsPrimitiveType.Number),
+            new("interpolationFunction", RapidsPrimitiveType.String),
+            new("fn", new RapidsFunctionType([new("delta", RapidsPrimitiveType.Number)], null))
         ],
         null 
     );

@@ -8,6 +8,6 @@ public class RapidsChannelTargetType(RapidsType valueType) : RapidsType
     public override Dictionary<string, RapidsType> GetMembers() => new()
     {
         { "writable", RapidsPrimitiveType.Bool },
-        { "send", new RapidsFunctionType([ValueType], null) }
+        { "send", new RapidsFunctionType([new("data", ValueType)], null) }
     };
 }

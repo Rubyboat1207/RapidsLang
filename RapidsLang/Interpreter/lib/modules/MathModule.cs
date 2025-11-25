@@ -20,7 +20,7 @@ public class MathModule : Module
     }
 
     private static readonly RapidsType RoundType = new RapidsFunctionType(
-        [RapidsPrimitiveType.Number],
+        [new("a", RapidsPrimitiveType.Number)],
         RapidsPrimitiveType.Number
     );
 

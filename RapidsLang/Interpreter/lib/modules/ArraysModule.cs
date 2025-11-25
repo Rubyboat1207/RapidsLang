@@ -33,7 +33,7 @@ public class ArraysModule : Module
     }
 
     private static readonly RapidsType MakeArrayOfSizeWithValueType = new RapidsFunctionType(
-        [RapidsAnyType.Instance],
+        [new("size", RapidsAnyType.Instance)],
         RapidsAnyType.Instance
     );
 

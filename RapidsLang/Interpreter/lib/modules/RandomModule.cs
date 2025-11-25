@@ -24,7 +24,7 @@ public class RandomModule : Module
     }
 
     private static readonly RapidsType RangeType = new RapidsFunctionType(
-        [RapidsPrimitiveType.Number, RapidsPrimitiveType.Number],
+        [new("min", RapidsPrimitiveType.Number), new("max", RapidsPrimitiveType.Number)],
         RapidsPrimitiveType.Number
     );
 

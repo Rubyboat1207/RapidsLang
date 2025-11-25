@@ -11,7 +11,7 @@ public class RapidsChannelSourceType(RapidsType valueType, string? callbackVaria
         { "readable", RapidsPrimitiveType.Bool },
         {
             "on_data", new RapidsFunctionType([
-                new RapidsFunctionType([ValueType], null)
+                new("callback", new RapidsFunctionType([new("data", ValueType)], null))
             ], null)
         }
     };

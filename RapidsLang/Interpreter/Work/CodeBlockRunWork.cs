@@ -76,7 +76,6 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             {
                 EvaluateExpression(exprExport.Expression, val =>
                 {
-                    // todo: types
                     Context.Exports.Add(exprExport.BaseToken.Value, new (val));
                     Context.AddVariable(exprExport.BaseToken.Value, new VariableHolder(val, true));
                     ProgramCounter++;
@@ -101,6 +100,11 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
                 Context.AddVariable(channelExportable.BaseToken.Value, new VariableHolder(channel, true));
 
                 ProgramCounter++;
+            }
+
+            if (exportStatement.ExportNode is ExternalExportable)
+            {
+                // this should be skipped when running
             }
 
             return;

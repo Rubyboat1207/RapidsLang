@@ -89,7 +89,10 @@ public class NativeProtocol : CommunicationProtocol, INativeProtocol
         {
             foreach (var dataOutput in _dataOutputs)
             {
-                var listenerGroup = EventListeners[dataOutput.Item1];
+                if (!EventListeners.TryGetValue(dataOutput.Item1, out var listenerGroup))
+                {
+                    continue;
+                }
 
                 foreach (var channelSubscriber in listenerGroup)
                 {

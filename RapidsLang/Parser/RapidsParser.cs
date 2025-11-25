@@ -305,6 +305,49 @@ public static class RapidsParser
 
                 if (stepper.Cur.TokenType is TokenType.Identifier)
                 {
+                    if (stepper.Cur.Value == "extern")
+                    {
+                        var externToken = stepper.Step();
+
+                        if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.Identifier)
+                        {
+                            builder.AddDiagnostic(new Diagnostic(externToken, "Expected name of exported type.", true));
+                            TrashUntilEndOfLine(stepper);
+                            continue;
+                        }
+
+                        var exportedTypeName = stepper.Step();
+
+                        if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.Colon)
+                        {
+                            builder.AddDiagnostic(new Diagnostic(exportedTypeName, "Expected colon", true));
+                            TrashUntilEndOfLine(stepper);
+                            continue;
+                        }
+                        
+                        stepper.Increment(); // trash :
+
+                        var type = ParseTypeNode(stepper, builder);
+
+                        if (type is null)
+                        {
+                            TrashUntilEndOfLine(stepper);
+                            continue;
+                        }
+                        
+                        builder.AddStatement(
+                            new ExportStatement(
+                                export,
+                                new ExternalExportable(
+                                    externToken,
+                                    new IdentifierNode(exportedTypeName),
+                                    type
+                                ),
+                                GetLogLevel(stepper, builder)
+                            )
+                        );
+                        continue;
+                    }
                     var name = stepper.Step();
 
                     if (stepper.Cur.TokenType is TokenType.Assignment)
@@ -337,7 +380,7 @@ public static class RapidsParser
                     
                     builder.AddStatement(new ExportStatement(
                         export,
-                        new FunctionExportable(name, funcNode),
+                        new FunctionExportable(new IdentifierNode(name), funcNode),
                         GetLogLevel(stepper, builder)
                     ));
                     continue;
@@ -662,155 +705,290 @@ public static class RapidsParser
     
     public static TypeNode? ParseTypeNode(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
     {
-        TypeNode? baseType;
+        var left = ParseSimpleTypeNode(stepper, builder);
 
+        if (left is null)
+        {
+            return null;
+        }
+        
+        while (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.Ampersand)
+        {
+            var ampersand = stepper.Step();
+            var right = ParseSimpleTypeNode(stepper, builder);
+
+            if (right is null)
+            {
+                builder.AddDiagnostic(new Diagnostic(ampersand, "Expected type after '&'"));
+                return left;
+            }
+            
+            bool optional = CheckOptional(stepper);
+
+            left = new UnionTypeNode(left, ampersand, right, optional);
+        }
+
+        return left;
+    }
+
+    private static TypeNode? ParseSimpleTypeNode(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
+    {
         if (stepper.AtEnd)
         {
-            builder.AddDiagnostic(new(stepper.Prev!, "Expected a type.", true));
             return null;
         }
 
-        // 1. Handle Prefix: Source Channel (-^)
-        if (stepper.Cur.TokenType is TokenType.Minus && stepper.Next?.TokenType is TokenType.Caret)
-        {
-            var minus = stepper.Step();
-            var caret = stepper.Step();
-            
-            // Recursively parse the inner type (allows for -^-^string, though semantic analysis might reject it)
-            var innerType = ParseTypeNode(stepper, builder);
-            
-            if (innerType == null) return null;
+        var token = stepper.Cur;
 
-            baseType = new ChannelSourceTypeNode(minus, caret, innerType);
-        }
-        // 2. Handle Bi-Directional Channel: (Source&Target)
-        else if (stepper.Cur.TokenType is TokenType.OpenParen)
+        switch (token.TokenType)
         {
-            var openParen = stepper.Step();
-            var left = ParseTypeNode(stepper, builder);
-            
-            if (left == null) return null;
+            case TokenType.Identifier:
+            case TokenType.True:
+            case TokenType.False:
+                return new IdentifierTypeNode(stepper.Step(), CheckOptional(stepper));
 
-            if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.Ampersand)
-            {
-                builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected '&' in bidirectional channel type."));
+            case TokenType.OpenCurly:
+                return ParseObjectType(stepper, builder);
+
+            case TokenType.Caret:
+                return ParseSourceChannelType(stepper, builder);
+
+            case TokenType.OpenParen:
+                return ParseParenStartType(stepper, builder);
+
+            default:
+                builder.AddDiagnostic(new Diagnostic(token, "Unexpected token in type definition."));
                 return null;
+        }
+    }
+
+    private static bool CheckOptional(ListStepper<Token> stepper)
+    {
+        if (!stepper.AtEnd && stepper.Cur.TokenType == TokenType.QuestionMark)
+        {
+            stepper.Increment();
+            return true;
+        }
+        return false;
+    }
+
+    private static TypeNode ParseObjectType(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
+    {
+        var openCurly = stepper.Step();
+        List<ObjectPropertyTypeNode> properties = [];
+
+        while (!stepper.AtEnd && stepper.Cur.TokenType != TokenType.ClosedCurly)
+        {
+            if (stepper.Cur.TokenType is not (TokenType.Identifier or TokenType.StartString))
+            {
+                builder.AddDiagnostic(new Diagnostic(stepper.Cur, "Expected identifier or string key for object type property."));
+                break;
             }
 
-            var ampersand = stepper.Step();
-            var right = ParseTypeNode(stepper, builder);
+            var nameToken = stepper.Step();
 
-            if (right == null) return null;
-
-            if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.ClosedParen)
+            // Handle literal string keys
+            if (nameToken.TokenType == TokenType.StartString)
             {
-                builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected ')' to close bidirectional channel type."));
-                return null;
-            }
-
-            var closeParen = stepper.Step();
-            baseType = new BiDirectionalChannelTypeNode(openParen, left, ampersand, right, closeParen);
-        }
-
-        else if (stepper.Cur.TokenType is TokenType.OpenCurly)
-        {
-            var openCurly = stepper.Step();
-            var properties = new List<ObjectPropertyTypeNode>();
-
-            while (!stepper.AtEnd && stepper.Cur.TokenType is not TokenType.ClosedCurly)
-            {
-                if (stepper.Cur.TokenType is not TokenType.Identifier)
-                {
-                    builder.AddDiagnostic(new(stepper.Cur, "Expected property name (identifier) in object type."));
-                    // Recovery
-                    while (!stepper.AtEnd && stepper.Cur.TokenType is not (TokenType.Comma or TokenType.ClosedCurly))
-                    {
-                        stepper.Increment();
-                    }
-                }
-                else
-                {
-                    var name = stepper.Step();
-                    TypeNode? propType = null;
-
-                    if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.Colon)
-                    {
-                        stepper.Increment(); // Consume ':'
-                        propType = ParseTypeNode(stepper, builder);
-                        if (propType is null)
-                        {
-                            // Recovery
-                            while (!stepper.AtEnd && stepper.Cur.TokenType is not (TokenType.Comma or TokenType.ClosedCurly))
-                            {
-                                stepper.Increment();
-                            }
-                        }
-                    }
-
-                    properties.Add(new ObjectPropertyTypeNode(name, propType));
-                }
-
-                if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.Comma)
+                while (!stepper.AtEnd && stepper.Cur.TokenType != TokenType.EndString)
                 {
                     stepper.Increment();
                 }
-                else if (!stepper.AtEnd && stepper.Cur.TokenType is not TokenType.ClosedCurly)
-                {
-                    builder.AddDiagnostic(new(stepper.Cur, "Expected ',' or '}' in object type definition."));
-                    while (!stepper.AtEnd && stepper.Cur.TokenType is not TokenType.ClosedCurly)
-                    {
-                        stepper.Increment();
-                    }
-                }
+                if (!stepper.AtEnd) stepper.Increment(); 
             }
 
-            if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.ClosedCurly)
+            if (stepper.AtEnd || stepper.Cur.TokenType != TokenType.Colon)
             {
-                builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected '}' to close object type.", true));
-                return null; 
+                builder.AddDiagnostic(new Diagnostic(stepper.Prev!, "Expected ':' after property name."));
+                break;
             }
+            stepper.Increment(); // Consume Colon
 
-            var closeCurly = stepper.Step(); 
-            baseType = new ObjectTypeNode(openCurly, properties, closeCurly, false);
+            var type = ParseTypeNode(stepper, builder);
+            
+            properties.Add(new ObjectPropertyTypeNode(nameToken, type));
+
+            if (!stepper.AtEnd && stepper.Cur.TokenType == TokenType.Comma)
+            {
+                stepper.Increment();
+            }
+            else if (!stepper.AtEnd && stepper.Cur.TokenType != TokenType.ClosedCurly)
+            {
+                builder.AddDiagnostic(new Diagnostic(stepper.Cur, "Expected ',' or '}'"));
+                break;
+            }
         }
 
-        else if (stepper.Cur.TokenType is TokenType.Identifier)
+        if (stepper.AtEnd || stepper.Cur.TokenType != TokenType.ClosedCurly)
         {
-            var identifier = stepper.Step();
-            baseType = new IdentifierTypeNode(identifier, false);
+            builder.AddDiagnostic(new Diagnostic(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected '}'"));
+            return new ObjectTypeNode(openCurly, properties, openCurly, CheckOptional(stepper));
+        }
+
+        var closeCurly = stepper.Step();
+        return new ObjectTypeNode(openCurly, properties, closeCurly, CheckOptional(stepper));
+    }
+
+    private static TypeNode ParseSourceChannelType(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
+    {
+        var caret = stepper.Step(); // ^
+
+        if (stepper.AtEnd || stepper.Cur.TokenType != TokenType.Minus)
+        {
+            builder.AddDiagnostic(new Diagnostic(caret, "Expected '-' after '^' for Source Channel definition."));
+            return new ChannelSourceTypeNode(caret, caret, new IdentifierTypeNode(caret, false), null, null, null);
+        }
+        var minus = stepper.Step(); // -
+
+        TypeNode? innerType;
+        if (stepper.Cur.TokenType == TokenType.OpenParen)
+        {
+             stepper.Increment(); 
+             innerType = ParseTypeNode(stepper, builder);
+             if(stepper.Cur.TokenType == TokenType.ClosedParen) stepper.Increment(); 
+             else builder.AddDiagnostic(new Diagnostic(stepper.Cur, "Expected closing parenthesis for channel type"));
         }
         else
         {
-            builder.AddDiagnostic(new(stepper.Cur, "Expected a type (e.g., 'string', '-^source', or '{...}')."));
-            return null;
+             innerType = ParseTypeNode(stepper, builder);
         }
 
+        if (innerType == null)
+        {
+             innerType = new IdentifierTypeNode(minus, false); // Junk
+        }
 
+        Token? openTri = null;
+        IdentifierNode? dataName = null;
+        Token? closeTri = null;
+
+        if (!stepper.AtEnd && stepper.Cur.TokenType == TokenType.OpenTriangle)
+        {
+            openTri = stepper.Step();
+            
+            if (stepper.Cur.TokenType == TokenType.Identifier)
+            {
+                dataName = new IdentifierNode(stepper.Step());
+            }
+            else
+            {
+                builder.AddDiagnostic(new Diagnostic(openTri, "Expected identifier inside <...> for channel data name"));
+            }
+
+            if (stepper.Cur.TokenType == TokenType.ClosedTriangle)
+            {
+                closeTri = stepper.Step();
+            }
+            else
+            {
+                builder.AddDiagnostic(new Diagnostic(stepper.Cur, "Expected '>'"));
+            }
+        }
+
+        return new ChannelSourceTypeNode(minus, caret, innerType, openTri, dataName, closeTri);
+    }
+
+    private static TypeNode ParseParenStartType(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
+    {
+        var openParen = stepper.Step();
+
+        if (stepper.Cur.TokenType == TokenType.ClosedParen)
+        {
+            var closeParenEmpty = stepper.Step();
+            return FinishParsingFunctionType(stepper, builder, openParen, [], closeParenEmpty);
+        }
+
+        bool isFunction = stepper.Cur.TokenType == TokenType.Identifier && stepper.Next?.TokenType == TokenType.Colon;
+
+        if (isFunction)
+        {
+            List<FunctionParamTypeNode> paramsList = [];
+            while (!stepper.AtEnd && stepper.Cur.TokenType != TokenType.ClosedParen)
+            {
+                var name = stepper.Step();
+                stepper.Increment();
+
+                var type = ParseTypeNode(stepper, builder);
+                if (type != null)
+                {
+                    paramsList.Add(new FunctionParamTypeNode(new IdentifierNode(name), type));
+                }
+
+                if (stepper.Cur.TokenType == TokenType.Comma) stepper.Increment();
+                else if (stepper.Cur.TokenType != TokenType.ClosedParen) break;
+            }
+
+            Token closeParenFunc;
+            if (stepper.Cur.TokenType == TokenType.ClosedParen) closeParenFunc = stepper.Step();
+            else 
+            {
+                closeParenFunc = stepper.Prev!; 
+                builder.AddDiagnostic(new Diagnostic(stepper.Cur, "Expected ')'"));
+            }
+
+            return FinishParsingFunctionType(stepper, builder, openParen, paramsList, closeParenFunc);
+        }
         
-        while (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.Minus && stepper.Next?.TokenType is TokenType.Caret)
+        var innerType = ParseTypeNode(stepper, builder);
+
+        if (stepper.Cur.TokenType != TokenType.ClosedParen)
+        {
+            builder.AddDiagnostic(new Diagnostic(stepper.Cur, "Expected ')'"));
+            return new ParenthesizedTypeNode(openParen, innerType ?? new IdentifierTypeNode(openParen, false), openParen, false);
+        }
+        
+        var closeParen = stepper.Step();
+
+        if (stepper.Cur.TokenType == TokenType.Minus && stepper.Next?.TokenType == TokenType.Caret)
         {
             var minus = stepper.Step();
             var caret = stepper.Step();
-            baseType = new ChannelTargetTypeNode(baseType, minus, caret);
+            return new ChannelTargetTypeNode(innerType!, minus, caret);
         }
-
-
-        if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.QuestionMark)
+        
+        if (innerType is UnionTypeNode union)
         {
-            stepper.Increment();
-
-            baseType = baseType switch 
-            {
-                ObjectTypeNode obj => obj with { Optional = true },
-                IdentifierTypeNode ident => ident with { Optional = true },
-                ChannelSourceTypeNode src => src with { Optional = true },
-                ChannelTargetTypeNode tgt => tgt with { Optional = true },
-                BiDirectionalChannelTypeNode bidi => bidi with { Optional = true },
-                _ => baseType
-            };
+            return new BiDirectionalChannelTypeNode(
+                openParen, 
+                union.A, 
+                union.Ampersand, 
+                union.B, 
+                closeParen
+            );
         }
 
-        return baseType;
+        bool isOptional = CheckOptional(stepper);
+
+        return new ParenthesizedTypeNode(openParen, innerType!, closeParen, isOptional);
+    }
+
+    private static FunctionTypeNode FinishParsingFunctionType(
+        ListStepper<Token> stepper, 
+        RapidsParseResult.Builder builder, 
+        Token openParen, 
+        List<FunctionParamTypeNode> parameters, 
+        Token closeParen)
+    {
+        Token openTri;
+        if (stepper.Cur.TokenType == TokenType.ClosedTriangle || (stepper.Cur.TokenType == TokenType.OpenTriangle))
+        {
+             openTri = stepper.Step();
+        }
+        else 
+        {
+            builder.AddDiagnostic(new Diagnostic(closeParen, "Expected '>' before return type"));
+            openTri = closeParen;
+        }
+
+        var returnType = ParseTypeNode(stepper, builder);
+        
+        if (returnType == null)
+        {
+             builder.AddDiagnostic(new Diagnostic(openTri, "Expected return type"));
+             returnType = new IdentifierTypeNode(openTri, false);
+        }
+
+        return new FunctionTypeNode(openParen, parameters, closeParen, openTri, returnType, CheckOptional(stepper));
     }
 
     private static void TrashUntilEndOfLine(ListStepper<Token> stepper)

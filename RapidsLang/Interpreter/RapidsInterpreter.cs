@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using RapidsLang.Extension.Communication.Native;
 using RapidsLang.Extensions;
 using RapidsLang.Extensions.Channel;
+using RapidsLang.Interpreter.Lib.Modules;
 using RapidsLang.Interpreter.Variables;
 using RapidsLang.Interpreter.Work;
 using RapidsLang.Lexer;
@@ -24,7 +25,6 @@ public class BlockProgress(StatementsNode block, BlockType blockType, int progra
 {
     public int ProgramCounter { get; set; } = programCounter;
     public StatementsNode Block { get; } = block;
-    public RapidsVariable? Return = null;
     public BlockType BlockType { get; } = blockType;
     // only used for the "on" statement's callback. Probably a better way to do this.
     public RapidsDataChannelVariable? Source;
@@ -34,14 +34,13 @@ public class BlockProgress(StatementsNode block, BlockType blockType, int progra
 
 public class RapidsInterpreter
 {
-    private readonly string _sourceCode;
-    private readonly RapidsPreprocMetaData _preprocessorMetadata;
-    public NativeProtocol NativeProtocol = new();
+    public readonly NativeProtocol NativeProtocol = new();
 
     private bool _done;
-    public bool Done
+
+    private bool Done
     {
-        private get => _done;
+        get => _done;
         set
         {
             _done = value;
@@ -55,9 +54,6 @@ public class RapidsInterpreter
 
     public RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preprocessorMetadata, string? mainSourceCodePath=null, bool supportsOnStatements=false)
     {
-        _sourceCode = sourceCode;
-        _preprocessorMetadata = preprocessorMetadata;
-
         MainSourceCodePath = mainSourceCodePath;
         
         ContextStack.Push(new InterpreterContext(sourceCode, preprocessorMetadata, mainSourceCodePath));
@@ -65,12 +61,14 @@ public class RapidsInterpreter
         SupportsOnStatements = supportsOnStatements;
     }
 
-    public Stack<InterpreterContext> ContextStack { get; } = new();
+    private Stack<InterpreterContext> ContextStack { get; } = new();
     public InterpreterContext Context => ContextStack.Peek();
     private Stack<InterpreterWork> WorkStack { get; }  = [];
     public string? MainSourceCodePath { get; }
-    private readonly SemaphoreSlim _workSignal = new SemaphoreSlim(0);
+    private readonly SemaphoreSlim _workSignal = new(0);
     private readonly ConcurrentQueue<Action> _pendingActions = new();
+    private bool _isExiting;
+    private static readonly Lock ExitLock = new();
 
     public void WakeUp()
     {
@@ -93,12 +91,12 @@ public class RapidsInterpreter
         return RapidsPreproc.GetRowCol(Context.SourceCode, token.Index, Context.PreprocMetaData);
     }
 
-    public CodeBlockRunWork StartNewBlock(StatementsNode block, BlockType type, CodeBlockRunWork? Parent, InterpreterContext? ctx=null)
+    public CodeBlockRunWork StartNewBlock(StatementsNode block, BlockType type, CodeBlockRunWork? parent, InterpreterContext? ctx=null)
     {
         ContextStack.Push(ctx ?? new InterpreterContext(Context));
         CollapseStack();
         var progress = new BlockProgress(block, type);
-        var work = new CodeBlockRunWork(progress, this, Parent);
+        var work = new CodeBlockRunWork(progress, this, parent);
         WorkStack.Push(work);
 
         return work;
@@ -112,6 +110,11 @@ public class RapidsInterpreter
         }
         StartNewBlock(root, BlockType.Module, null);
         Done = false;
+        await InterpretLoop(topLevel);
+    }
+
+    private async Task InterpretLoop(bool allowSleeping)
+    {
         while (!Done)
         {
             CollapseStack();
@@ -142,7 +145,7 @@ public class RapidsInterpreter
             }
             else
             {
-                if (!topLevel)
+                if (!allowSleeping)
                 {
                     break;
                 }
@@ -152,11 +155,10 @@ public class RapidsInterpreter
                 Context.ModuleRegistry.TickExternalModules(Context);
                 // Console.WriteLine("interpreter: " + GetHashCode() + " is waking up");
             }
-
         }
     }
 
-    public void CollapseStack()
+    private void CollapseStack()
     {
         while(WorkStack.TryPeek(out var work) && work.IsDone())
         {
@@ -189,8 +191,8 @@ public class RapidsInterpreter
         _pendingActions.Enqueue(action);
         WakeUp();
     }
-    
-    public void ExecutePendingActions()
+
+    private void ExecutePendingActions()
     {
         while (_pendingActions.TryDequeue(out var action))
         {
@@ -204,5 +206,36 @@ public class RapidsInterpreter
                 Console.WriteLine($"Error in pending action: {e.Message}");
             }
         }
+    }
+
+    public async Task HandleExit()
+    {
+        lock (ExitLock)
+        {
+            if (_isExiting)
+            {
+                return;
+            }
+            _isExiting = true;
+        }
+        
+        _pendingActions.Clear();
+        var outermostContext = ContextStack.ToArray().FirstOrDefault();
+        while (ContextStack.TryPeek(out var _))
+        {
+            ContextStack.Pop();
+        }
+        
+        // The idea here is that if this fails, we'll pass in
+        if (outermostContext is not null)
+        {
+            ContextStack.Push(outermostContext);
+        }
+        
+        WorkStack.Clear();
+
+        NativeProtocol.WriteToOutput(ProgramModule.SigintIdent, new RapidsBooleanVariable(outermostContext is null));
+
+        await InterpretLoop(false);
     }
 }

@@ -1,4 +1,6 @@
-﻿using RapidsLang.Extensions;
+﻿using System.Runtime.InteropServices;
+using RapidsLang.Analyzer;
+using RapidsLang.Extensions;
 using RapidsLang.Interpreter;
 using RapidsLang.Lexer;
 using RapidsLang.Parser;
@@ -31,17 +33,19 @@ public class RapidLangEntry
         }
         else
         {
-            // No file path provided. Check if we are in Debug mode.
-#if DEBUG
-            // We are in Debug mode and have no args, so use the test program.
-            Console.WriteLine("No input file specified. Running debug program...");
-            code = TestPrograms.ObjectTest;
-#else
-        // We are NOT in Debug mode and have no args.
-        Console.WriteLine("Error: No input file specified.");
-        Console.WriteLine("Usage: rapids <source_file>.rpd");
-        return; // Exit the program
-#endif
+            Console.WriteLine("Error: No input file specified.");
+            Console.WriteLine("Usage: rapids <source_file>.rpd");
+            return; // Exit the program
+        }
+        
+        if(args.Contains("--lint"))
+        {
+            var (parseRes, metaData, analysis) = RapidsStaticAnalysis.Analyze(code);
+            
+            parseRes.PrintDiagnostics(filePath, code, metaData);
+            analysis?.PrintDiagnostics(filePath, code, metaData);
+            
+            return;
         }
 
         // --- The rest of your program logic is unchanged ---
@@ -61,7 +65,48 @@ public class RapidLangEntry
         var interpreter = new RapidsInterpreter(code, preprocRes.Metadata, filePath, supportsOnStatements:true);
         
         extensions.ForEach(d => interpreter.Context.ModuleRegistry.AddModule(d.ExtensionManifest.ModuleName, new ExtensionModule(d)));
+
+        SetupExitHandlers(interpreter);
         
-        interpreter.Interpret(parseResult.RootNode, true).Wait();
+        try
+        {
+            interpreter.Interpret(parseResult.RootNode, true).Wait();
+        }
+        finally
+        {
+            interpreter.HandleExit().Wait();
+        }
+
+        
+    }
+    
+    private static void SetupExitHandlers(RapidsInterpreter interpreter)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Console.CancelKeyPress += (sender, e) =>
+            {
+                e.Cancel = true;
+                
+                interpreter.HandleExit().Wait();
+                
+                Environment.Exit(0);
+            };
+        }
+        else if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+        {
+            Action<PosixSignalContext> handler = ctx =>
+            {
+                ctx.Cancel = true;
+
+                interpreter.HandleExit().Wait();
+
+                Environment.Exit(0);
+            };
+
+            PosixSignalRegistration.Create(PosixSignal.SIGINT, handler);
+            
+            PosixSignalRegistration.Create(PosixSignal.SIGTERM, handler);
+        }
     }
 }

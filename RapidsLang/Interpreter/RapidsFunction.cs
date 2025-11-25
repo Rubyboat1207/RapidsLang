@@ -62,11 +62,6 @@ public class RapidsUserFunction(FunctionNode func, InterpreterContext closure, R
 
         body.OnCompleted += (_) =>
         {
-            if (body.Scope.Return is not null)
-            {
-                ctx.FunctionCallStack.Push(body.Scope.Return);
-            }
-
             base.EnqueueExecution(interpreter, parentCodeBlock);
         };
         

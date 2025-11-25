@@ -56,6 +56,10 @@ public class SemanticTokenVisitor(
                 break;
             case ReturnNode returnNode:
                 PushToken(returnNode.BaseToken, SemanticTokenType.Keyword);
+                if (returnNode.Value is null)
+                {
+                    break;
+                }
                 Visit(returnNode.Value);
                 break;
             case ObjectNode objectNode:
@@ -181,6 +185,11 @@ public class SemanticTokenVisitor(
                 break;
             case StringModuleIdent stringModuleIdent:
                 Visit(stringModuleIdent.StringNode);
+                break;
+            case ExternalExportable externalExportable:
+                PushToken(externalExportable.BaseToken, SemanticTokenType.Keyword);
+                Visit(externalExportable.Name);
+                Visit(externalExportable.Type);
                 break;
             case ExportStatement exportStatement:
                 PushToken(exportStatement.BaseToken, SemanticTokenType.Keyword);

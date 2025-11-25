@@ -8,4 +8,5 @@ public record IdentifierNode(
 {
     public override int EndIndex => Token.EndIndex;
     public override IEnumerable<Node> GetChildren() => [];
+    public string Value => Token.Value;
 }

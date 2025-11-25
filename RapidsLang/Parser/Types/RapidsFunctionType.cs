@@ -1,10 +1,12 @@
 namespace RapidsLang.Parser.Types;
 
-public class RapidsFunctionType(List<RapidsType> parameterTypes, RapidsType? returnType) : RapidsType
+public record RapidsFunctionParamType(string Name, RapidsType Type);
+
+public class RapidsFunctionType(List<RapidsFunctionParamType> parameterTypes, RapidsType? returnType) : RapidsType
 {
-    public List<RapidsType> ParameterTypes { get; } = parameterTypes;
+    public List<RapidsFunctionParamType> ParameterTypes { get; } = parameterTypes;
     public RapidsType? ReturnType { get; } = returnType;
-    public override string Name => $"({string.Join(", ", ParameterTypes.Select(p => p.Name))}): {ReturnType?.Name ?? "void"}>";
+    public override string Name => $"({string.Join(", ", ParameterTypes.Select(p => p.Name))})> {ReturnType?.Name ?? "void"}";
 
     public override Dictionary<string, RapidsType> GetMembers() => [];
 
@@ -43,7 +45,7 @@ public class RapidsFunctionType(List<RapidsType> parameterTypes, RapidsType? ret
 
                 if (otherParam != null)
                 {
-                    if (!param.IsSameType(otherParam))
+                    if (!param.Type.IsSameType(otherParam.Type))
                     {
                         return false;
                     } 
