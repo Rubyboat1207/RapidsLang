@@ -739,27 +739,48 @@ public static class RapidsParser
         }
 
         var token = stepper.Cur;
-
+        TypeNode type;
         switch (token.TokenType)
         {
             case TokenType.Identifier:
             case TokenType.True:
             case TokenType.False:
-                return new IdentifierTypeNode(stepper.Step(), CheckOptional(stepper));
+                type = new IdentifierTypeNode(stepper.Step(), CheckOptional(stepper));
+                break;
 
             case TokenType.OpenCurly:
-                return ParseObjectType(stepper, builder);
+                type = ParseObjectType(stepper, builder);
+                break;
 
             case TokenType.Caret:
-                return ParseSourceChannelType(stepper, builder);
+                type =  ParseSourceChannelType(stepper, builder);
+                break;
 
             case TokenType.OpenParen:
-                return ParseParenStartType(stepper, builder);
+                type =  ParseParenStartType(stepper, builder);
+                break;
 
             default:
                 builder.AddDiagnostic(new Diagnostic(token, "Unexpected token in type definition."));
                 return null;
         }
+
+        if (stepper is { AtEnd: false, Cur.TokenType: TokenType.OpenSquare })
+        {
+            var openSquare = stepper.Step();
+
+            if (stepper is { AtEnd: false, Cur.TokenType: not TokenType.ClosedSquare })
+            {
+                builder.AddDiagnostic(new Diagnostic(openSquare, "Expected a closed square bracket."));
+                return null;
+            }
+
+            var closedSquare = stepper.Step();
+
+            return new ArrayTypeNode(openSquare, closedSquare, type, CheckOptional(stepper));
+        }
+
+        return type;
     }
 
     private static bool CheckOptional(ListStepper<Token> stepper)

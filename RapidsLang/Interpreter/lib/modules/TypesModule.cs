@@ -1,5 +1,5 @@
+using RapidsLang.Analyzer.Types;
 using RapidsLang.Interpreter.Variables;
-using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter.Lib.Modules;
 
@@ -20,7 +20,7 @@ public class TypesModule : Module
     }
 
     private static readonly RapidsType ParseNumberType = new RapidsFunctionType(
-        [new("value", RapidsPrimitiveType.String)],
+        [new("value", RapidsStringType.Instance)],
         RapidsPrimitiveType.Number
     );
 
@@ -35,7 +35,7 @@ public class TypesModule : Module
 
     private static readonly RapidsType TypeofType = new RapidsFunctionType(
         [new("type", RapidsAnyType.Instance)],
-        RapidsPrimitiveType.String
+        RapidsStringType.Instance
     );
 
     public override ModuleExports Exports { get; } = new(new Dictionary<string, ModuleExport>

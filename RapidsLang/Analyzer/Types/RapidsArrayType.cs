@@ -1,6 +1,6 @@
 using RapidsLang.Interpreter.Variables;
 
-namespace RapidsLang.Parser.Types;
+namespace RapidsLang.Analyzer.Types;
 
 public class RapidsArrayType(RapidsType elementType) : RapidsType
 {
@@ -15,4 +15,6 @@ public class RapidsArrayType(RapidsType elementType) : RapidsType
         { "removeAt", RapidsListVariable.RemoveAtType },
         { "pop", RapidsListVariable.PopType },
     };
+
+    public override RapidsType? IndexType => ElementType;
 }

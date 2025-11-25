@@ -1,4 +1,4 @@
-namespace RapidsLang.Parser.Types;
+namespace RapidsLang.Analyzer.Types;
 
 public class RapidsChannelSourceType(RapidsType valueType, string? callbackVariableName) : RapidsType
 {

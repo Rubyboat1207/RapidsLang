@@ -1,4 +1,4 @@
-namespace RapidsLang.Parser.Types;
+namespace RapidsLang.Analyzer.Types;
 
 public class RapidsBiDirectionalChannelType(RapidsChannelSourceType source, RapidsChannelTargetType target) : RapidsType
 {

@@ -1,4 +1,4 @@
-namespace RapidsLang.Parser.Types;
+namespace RapidsLang.Analyzer.Types;
 
 public record RapidsFunctionParamType(string Name, RapidsType Type);
 
@@ -6,7 +6,7 @@ public class RapidsFunctionType(List<RapidsFunctionParamType> parameterTypes, Ra
 {
     public List<RapidsFunctionParamType> ParameterTypes { get; } = parameterTypes;
     public RapidsType? ReturnType { get; } = returnType;
-    public override string Name => $"({string.Join(", ", ParameterTypes.Select(p => p.Name))})> {ReturnType?.Name ?? "void"}";
+    public override string Name => $"({string.Join(", ", ParameterTypes.Select(p => p.Name + ": " + p.Type.Name))})> {ReturnType?.Name ?? "void"}";
 
     public override Dictionary<string, RapidsType> GetMembers() => [];
 
@@ -25,7 +25,7 @@ public class RapidsFunctionType(List<RapidsFunctionParamType> parameterTypes, Ra
         // ReSharper disable once InvertIf
         if (other is RapidsFunctionType rapidsFunctionType)
         {
-            if (rapidsFunctionType.ReturnType is not null == ReturnType is not null)
+            if (rapidsFunctionType.ReturnType is not null != ReturnType is not null)
             {
                 return false;
             }
@@ -55,6 +55,8 @@ public class RapidsFunctionType(List<RapidsFunctionParamType> parameterTypes, Ra
                     return false;
                 }
             }
+
+            return true;
         }
         
         return base.IsSameType(other);

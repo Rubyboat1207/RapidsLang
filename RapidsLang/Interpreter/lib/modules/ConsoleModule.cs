@@ -1,5 +1,5 @@
+using RapidsLang.Analyzer.Types;
 using RapidsLang.Interpreter.Variables;
-using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter.Lib.Modules;
 
@@ -38,7 +38,7 @@ public class ConsoleModule : Module
 
     private static readonly RapidsType InputType = new RapidsFunctionType(
         [],
-        RapidsPrimitiveType.String
+        RapidsStringType.Instance
     );
 
     private static void Write(RapidsInterpreter interpreter)

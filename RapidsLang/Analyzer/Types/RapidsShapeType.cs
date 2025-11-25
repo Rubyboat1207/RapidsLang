@@ -1,4 +1,4 @@
-namespace RapidsLang.Parser.Types;
+namespace RapidsLang.Analyzer.Types;
 
 public class RapidsShapeType(Dictionary<string, RapidsType> properties) : RapidsType
 {
@@ -17,6 +17,12 @@ public class RapidsShapeType(Dictionary<string, RapidsType> properties) : Rapids
 
     public override RapidsType? GetMember(string memberName)
     {
+        if (memberName == "__keys__")
+        {
+            return new RapidsArrayType(RapidsStringType.Instance);
+        }
         return Properties.GetValueOrDefault(memberName);
     }
+
+    public override RapidsType? IndexType => RapidsAnyType.Instance;
 }

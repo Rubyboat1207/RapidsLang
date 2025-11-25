@@ -1,4 +1,4 @@
-namespace RapidsLang.Parser.Types;
+namespace RapidsLang.Analyzer.Types;
 
 public class RapidsChannelTargetType(RapidsType valueType) : RapidsType
 {

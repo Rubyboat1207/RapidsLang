@@ -1,4 +1,4 @@
-namespace RapidsLang.Parser.Types;
+namespace RapidsLang.Analyzer.Types;
 
 public class RapidsDictionaryType(RapidsType valueType) : RapidsType
 {
@@ -13,4 +13,6 @@ public class RapidsDictionaryType(RapidsType valueType) : RapidsType
     }
 
     public static readonly RapidsDictionaryType Unparameterized = new(RapidsAnyType.Instance);
+
+    public override RapidsType? IndexType => RapidsAnyType.Instance;
 }

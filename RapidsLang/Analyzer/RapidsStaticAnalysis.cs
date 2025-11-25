@@ -1,9 +1,9 @@
+using RapidsLang.Analyzer.Types;
 using RapidsLang.Extensions;
 using RapidsLang.Interpreter;
 using RapidsLang.Lexer;
 using RapidsLang.Parser;
 using RapidsLang.Parser.Nodes;
-using RapidsLang.Parser.Types;
 using RapidsLang.PreProcessor;
 
 namespace RapidsLang.Analyzer;
@@ -41,6 +41,8 @@ public class AnalysisDiagnostic(string message, int index, int length, RapidsSta
     // ------ ERRORS ------ //
     public static AnalysisDiagnostic OfConstantModified(int index, int length, string variableName)
         => new($"Constant {variableName} was modified.", index, length, RapidsStaticAnalysisSeverity.Error);
+    public static AnalysisDiagnostic OfUnableToIndexType(int index, int length, RapidsType type)
+        => new($"Unable to Index type of {type.Name}", index, length, RapidsStaticAnalysisSeverity.Error);
     public static AnalysisDiagnostic OfInvalidBreak(int index, int length)
         => new($"Break was used in a non loop context.", index, length, RapidsStaticAnalysisSeverity.Error);
     public static AnalysisDiagnostic OfInvalidContinue(int index, int length)
@@ -695,6 +697,11 @@ public static class RapidsStaticAnalysis
                 break;
             case MemberAccessNode memberAccessNode:
                 var leftType = GetType(memberAccessNode.Left, scope, result);
+                
+                if (leftType is RapidsAnyType)
+                {
+                    break;
+                }
 
                 var memberType = leftType.GetMember(memberAccessNode.MemberName.Value);
 
@@ -703,7 +710,6 @@ public static class RapidsStaticAnalysis
                     computedType = memberType;
                     break;
                 }
-                
                 
                 result.Diagnostics.Add(AnalysisDiagnostic.OfMayNotBeDefined(
                     memberAccessNode.MemberName.Index,
@@ -736,8 +742,20 @@ public static class RapidsStaticAnalysis
                 break;
             }
             case OperationNode operationNode:
-                _ = GetType(operationNode.Left, scope, result);
-                _ = GetType(operationNode.Right, scope, result);
+                var a = GetType(operationNode.Left, scope, result);
+                var b = GetType(operationNode.Right, scope, result);
+
+                if (operationNode.Operator.Value == "[")
+                {
+                    if (a.IndexType is null)
+                    {
+                        result.Diagnostics.Add(AnalysisDiagnostic.OfUnableToIndexType(operationNode.Left.EndIndex, 1, a));
+                    }
+                    else
+                    {
+                        computedType = a.IndexType;
+                    }
+                }
                 break;
             case StringNode stringNode:
                 foreach (var stringNodePart in stringNode.Parts)
@@ -747,7 +765,7 @@ public static class RapidsStaticAnalysis
                         _ = GetType(templateStringPart.Value, scope, result);
                     }
                 }
-                computedType = RapidsPrimitiveType.String;
+                computedType = RapidsStringType.Instance;
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(expressionNode));
@@ -772,7 +790,7 @@ public static class RapidsStaticAnalysis
             case IdentifierTypeNode identNode:
                 baseType = identNode.Identifier.Value switch
                 {
-                    "string"  => RapidsPrimitiveType.String,
+                    "string"  => RapidsStringType.Instance,
                     "number"  => RapidsPrimitiveType.Number,
                     "bool"    => RapidsPrimitiveType.Bool,
                     "void"    => RapidsPrimitiveType.Null,
@@ -800,7 +818,8 @@ public static class RapidsStaticAnalysis
                 baseType = new RapidsFunctionType(args, ComputeFromTypeNode(functionTypeNode.ReturnType));
 
                 break;
-
+            case ArrayTypeNode arrayTypeNode:
+                return new RapidsArrayType(ComputeFromTypeNode(arrayTypeNode.ArrayType));
             default:
                 baseType = RapidsAnyType.Instance;
                 break;

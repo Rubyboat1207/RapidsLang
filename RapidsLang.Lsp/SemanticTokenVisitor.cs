@@ -1,9 +1,9 @@
 using OmniSharp.Extensions.LanguageServer.Protocol.Document;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using RapidsLang.Analyzer;
+using RapidsLang.Analyzer.Types;
 using RapidsLang.Lexer;
 using RapidsLang.Parser.Nodes;
-using RapidsLang.Parser.Types;
 using RapidsLang.PreProcessor;
 
 namespace RapidsLang.LanguageServer;

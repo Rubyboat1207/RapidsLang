@@ -1,5 +1,3 @@
-using RapidsLang.Parser.Types;
-
 namespace RapidsLang.Interpreter.Variables;
 
 public class RapidsStringVariable : RapidsVariable

@@ -1,4 +1,4 @@
-using RapidsLang.Parser.Types;
+using RapidsLang.Analyzer.Types;
 
 namespace RapidsLang.Interpreter.Variables;
 

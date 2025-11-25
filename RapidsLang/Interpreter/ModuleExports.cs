@@ -1,5 +1,5 @@
+using RapidsLang.Analyzer.Types;
 using RapidsLang.Interpreter.Variables;
-using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter;
 

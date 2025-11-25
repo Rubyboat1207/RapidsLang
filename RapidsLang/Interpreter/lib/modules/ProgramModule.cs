@@ -1,9 +1,9 @@
+using RapidsLang.Analyzer.Types;
 using RapidsLang.Extension.Channel;
 using RapidsLang.Extension.Communication;
 using RapidsLang.Extension.Communication.Native;
 using RapidsLang.Interpreter.Variables;
 using RapidsLang.Parser.Nodes;
-using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter.Lib.Modules;
 

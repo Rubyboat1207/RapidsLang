@@ -1,5 +1,5 @@
+using RapidsLang.Analyzer.Types;
 using RapidsLang.Interpreter.Variables;
-using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter.Lib.Modules;
 
@@ -20,7 +20,7 @@ public class StringsModule : Module
 
     private static readonly RapidsType CharFromCodeType = new RapidsFunctionType(
         [new("value", RapidsPrimitiveType.Number)],
-        RapidsPrimitiveType.String
+        RapidsStringType.Instance
     );
 
     private static void CodeFromChar(RapidsInterpreter interpreter)
@@ -36,7 +36,7 @@ public class StringsModule : Module
         ctx.FunctionCallStack.Push(new RapidsNumberVariable(str.Value[0]));
     }
     private static readonly RapidsType CodeFromCharType = new RapidsFunctionType(
-        [new("value", RapidsPrimitiveType.String)],
+        [new("value", RapidsStringType.Instance)],
         RapidsPrimitiveType.Number
     );
 

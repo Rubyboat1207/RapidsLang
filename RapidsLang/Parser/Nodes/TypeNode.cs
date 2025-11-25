@@ -1,5 +1,4 @@
 using RapidsLang.Lexer;
-using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Parser.Nodes;
 
@@ -122,4 +121,15 @@ public record ParenthesizedTypeNode(
 {
     public override int EndIndex => Optional ? CloseParen.EndIndex + 1 : CloseParen.EndIndex; // +1 for the '?'
     public override IEnumerable<Node> GetChildren() => [InnerType];
+}
+
+public record ArrayTypeNode(
+    Token OpenSquare,
+    Token CloseSquare,
+    TypeNode ArrayType,
+    bool Optional
+) : TypeNode(OpenSquare, Optional)
+{
+    public override int EndIndex => CloseSquare.EndIndex;
+    public override IEnumerable<Node> GetChildren() => [ArrayType];
 }

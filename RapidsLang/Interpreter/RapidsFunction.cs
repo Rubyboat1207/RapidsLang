@@ -1,6 +1,6 @@
+using RapidsLang.Analyzer.Types;
 using RapidsLang.Interpreter.Work;
 using RapidsLang.Parser.Nodes;
-using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter;
 

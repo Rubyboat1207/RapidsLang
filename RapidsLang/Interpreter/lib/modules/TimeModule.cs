@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using RapidsLang.Analyzer.Types;
 using RapidsLang.Extension.Channel;
 using RapidsLang.Extension.Communication;
 using RapidsLang.Extension.Communication.Native;
@@ -7,7 +8,6 @@ using RapidsLang.Extensions.Communication;
 using RapidsLang.Interpreter.Variables;
 using RapidsLang.Interpreter.Work;
 using RapidsLang.Parser.Nodes;
-using RapidsLang.Parser.Types;
 
 namespace RapidsLang.Interpreter.Lib.Modules;
 
@@ -175,7 +175,7 @@ public class TimeModule : Module
             new("startVal", RapidsPrimitiveType.Number),
             new("endVal", RapidsPrimitiveType.Number),
             new("duration", RapidsPrimitiveType.Number),
-            new("interpolationFunction", RapidsPrimitiveType.String),
+            new("interpolationFunction", RapidsStringType.Instance),
             new("fn", new RapidsFunctionType([new("delta", RapidsPrimitiveType.Number)], null))
         ],
         null 
