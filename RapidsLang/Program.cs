@@ -41,7 +41,7 @@ public class RapidLangEntry
         
         if(args.Contains("--lint"))
         {
-            var (parseRes, metaData, analysis) = RapidsStaticAnalysis.Analyze(code);
+            var (parseRes, metaData, analysis) = RapidsStaticAnalysis.Analyze(code, filePath);
             
             parseRes.PrintDiagnostics(filePath, code, metaData);
             analysis?.PrintDiagnostics(filePath, code, metaData);

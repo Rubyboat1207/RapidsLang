@@ -81,7 +81,7 @@ public class RapidsTextDocumentHandler : TextDocumentSyncHandlerBase
     
     private void AnalyzeAndCache(DocumentUri uri, string code)
     {
-        var (parseResult, metaData, staticAnalysisResult) = RapidsStaticAnalysis.Analyze(code);
+        var (parseResult, metaData, staticAnalysisResult) = RapidsStaticAnalysis.Analyze(code, uri.Path);
         
         var parentMap = ParentMapper.BuildParentMap(parseResult.RootNode);
 

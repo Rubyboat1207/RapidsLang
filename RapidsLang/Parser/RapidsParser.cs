@@ -1331,7 +1331,21 @@ public static class RapidsParser
 
     private static ExpressionNode? ParseExpression(ListStepper<Token> stepper, RapidsParseResult.Builder builder, int minPrecedence = 0)
     {
-        var left = ParseSimpleExpression(stepper, builder);
+        ExpressionNode? left;
+        if (stepper is { AtEnd: false, Cur.TokenType: TokenType.Not })
+        {
+            var not = stepper.Step();
+
+            left = ParseSimpleExpression(stepper, builder);
+            if (left is not null)
+            {
+                left = new NotNode(not, left);
+            }
+        }
+        else
+        {
+            left = ParseSimpleExpression(stepper, builder);
+        }
 
         if (left is null)
         {
@@ -1393,13 +1407,7 @@ public static class RapidsParser
                 return null;
             }
             
-            if (stepper.Cur.TokenType == TokenType.OpenParen)
-            {
-                if (!CheckIfIsFunctionDeclaration(stepper))
-                {
-                    right = ParseFunctionCall(stepper, left, builder);
-                }
-            }
+            
             if (right is null)
             {
                 return null;

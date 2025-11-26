@@ -1,3 +1,5 @@
+using RapidsLang.Interpreter.Variables;
+
 namespace RapidsLang.Analyzer.Types;
 
 public class RapidsStringType : RapidsType
@@ -8,19 +10,40 @@ public class RapidsStringType : RapidsType
     {
         { "length", RapidsPrimitiveType.Number },
         {
-            "substr", new RapidsFunctionType(
+            "substr",
+            new RapidsFunctionType(
                 [
                     new("from", RapidsPrimitiveType.Number),
                     new("to", RapidsPrimitiveType.Number)
                 ],
-                this)
+                this
+            )
         },
         {
-            "split", new RapidsFunctionType(
+            "split",
+            new RapidsFunctionType(
                 [
                     new("splitter", this)
                 ],
                 new RapidsArrayType(this)
+            )
+        },
+        {
+            "contains",
+            new RapidsFunctionType(
+                [
+                    new("substring", this)
+                ],
+                RapidsPrimitiveType.Bool
+            )
+        },
+        {
+            "lastIndexOf",
+            new RapidsFunctionType(
+                [
+                    new("substring", this)
+                ],
+                RapidsPrimitiveType.Number
             )
         }
     };

@@ -118,6 +118,13 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                     });
                 });
                 break;
+            case NotNode notNode:
+                _done = true;
+                EvaluateExpression(notNode.ExpressionNode, expr =>
+                {
+                    Callback.Invoke(new RapidsBooleanVariable(!expr.Truthy));
+                });
+                break;
             default:
                 throw new NotImplementedException("Expression not supported");
         }

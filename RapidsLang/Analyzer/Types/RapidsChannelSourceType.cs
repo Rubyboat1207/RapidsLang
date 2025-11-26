@@ -4,7 +4,7 @@ public class RapidsChannelSourceType(RapidsType valueType, string? callbackVaria
 {
     public RapidsType ValueType { get; } = valueType;
     public string? CallbackVariableName { get; } = callbackVariableName;
-    public override string Name => $"-^{ValueType.Name}";
+    public override string Name => $"-^{ValueType.Name}({CallbackVariableName})";
 
     public override Dictionary<string, RapidsType> GetMembers() => new()
     {

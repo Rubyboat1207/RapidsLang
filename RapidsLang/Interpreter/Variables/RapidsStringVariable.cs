@@ -53,38 +53,30 @@ public class RapidsStringVariable : RapidsVariable
     public override bool Truthy => !string.IsNullOrEmpty(Value);
     public override RapidsVariable? GetMember(string memberName)
     {
-        if (memberName == "length")
+        return memberName switch
         {
-            return new RapidsNumberVariable(Value.Length);
-        }
-
-        if (memberName == "substr")
-        {
-            return new RapidsFunctionReferenceVariable(_substrFunction);
-        }
-
-        if (memberName == "split")
-        {
-            return RapidsFunctionReferenceVariable.OfNative(Split);
-        }
-
-        return null;
+            "length" => new RapidsNumberVariable(Value.Length),
+            "substr" => new RapidsFunctionReferenceVariable(_substrFunction),
+            "split" => RapidsFunctionReferenceVariable.OfNative(Split),
+            "contains" => RapidsFunctionReferenceVariable.OfNative(Contains),
+            "lastIndexOf" => RapidsFunctionReferenceVariable.OfNative(LastIndexOf),
+            _ => null
+        };
     }
 
     public void SubStr(RapidsInterpreter interpreter)
     {
         var ctx = interpreter.Context;
-        if (!ctx.FunctionCallStack.TryPop(out var index) || index is not RapidsNumberVariable start)
+        if (!ctx.FunctionCallStack.TryPop(out var index) || index is not RapidsNumberVariable end)
         {
             // todo error
             ctx.FunctionCallStack.Push(new RapidsNullVariable());
             return;
         }
         
-        if (!ctx.FunctionCallStack.TryPop(out var endIndex) || endIndex is not RapidsNumberVariable end)
+        if (!ctx.FunctionCallStack.TryPop(out var endIndex) || endIndex is not RapidsNumberVariable start)
         {
-            // only start
-            ctx.FunctionCallStack.Push(new RapidsStringVariable(Value[(int) start.Value..]));
+            ctx.FunctionCallStack.Push(new RapidsNullVariable());
 
             return;
         }
@@ -104,6 +96,34 @@ public class RapidsStringVariable : RapidsVariable
         }
 
         util.Return(new RapidsListVariable(Value.Split(splitter.Value).Select(s => (RapidsVariable) new RapidsStringVariable(s)).ToList()));
+    }
+
+    public void Contains(RapidsInterpreter interpreter)
+    {
+        using var util = interpreter.GetNativeUtil().GuaranteeReturn();
+
+        var substring = util.LatestString();
+
+        if (substring is null)
+        {
+            return;
+        }
+        
+        util.Return(new RapidsBooleanVariable(Value.Contains(substring.Value)));
+    }
+
+    public void LastIndexOf(RapidsInterpreter interpreter)
+    {
+        using var util = interpreter.GetNativeUtil().GuaranteeReturn();
+
+        var substring = util.LatestString();
+
+        if (substring is null)
+        {
+            return;
+        }
+        
+        util.Return(new RapidsNumberVariable(Value.LastIndexOf(substring.Value, StringComparison.Ordinal)));
     }
 
     public override RapidsVariable ShallowCopy()

@@ -228,6 +228,9 @@ public class SemanticTokenVisitor(
                 Visit(onSourceStatement.Source);
                 Visit(onSourceStatement.Body);
                 break;
+            case NotNode notNode:
+                Visit(notNode.ExpressionNode);
+                break;
             case IdentifierNode identifierNode:
             {
                 var idType = SemanticTokenType.Variable;

@@ -72,7 +72,8 @@ public class TimeModule : Module
     {
         {"sleep", new(RapidsFunctionReferenceVariable.OfNative(Sleep, SleepType), SleepType)},
         {"clock", new(RapidsFunctionReferenceVariable.OfNative(Clock, ClockType), ClockType)},
-        {"slide", new(RapidsFunctionReferenceVariable.OfNative(Slide, SlideType), SlideType)}
+        {"slide", new(RapidsFunctionReferenceVariable.OfNative(Slide, SlideType), SlideType)},
+        {"getTime", new(RapidsFunctionReferenceVariable.OfNative(Timestamp, TimestampType), TimestampType)}
     });
 
 
@@ -213,5 +214,14 @@ public class TimeModule : Module
             EasingStyle.EaseInOutQuad => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
             _ => t // Linear
         };
+    }
+
+    private static readonly RapidsType TimestampType = new RapidsFunctionType(
+        [],
+        RapidsPrimitiveType.Number
+    );
+    private static void Timestamp(RapidsInterpreter interpreter)
+    {
+        interpreter.Context.FunctionCallStack.Push(new RapidsNumberVariable((double) DateTime.Now.Ticks / TimeSpan.TicksPerSecond));
     }
 }

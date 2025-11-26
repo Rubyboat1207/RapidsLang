@@ -6,7 +6,6 @@ public static class Env
     {
         if (!File.Exists(filePath))
         {
-            Console.WriteLine($"Warning: '{filePath}' not found. Skipping environment load.");
             return;
         }
 

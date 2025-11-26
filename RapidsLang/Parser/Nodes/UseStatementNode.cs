@@ -49,7 +49,7 @@ public record StringModuleIdent(StringNode StringNode) : ModuleIdent(StringNode.
         {
             if (part is LiteralStringPart literalStringPart)
             {
-                str += literalStringPart.Value;
+                str += literalStringPart.Value.Value;
             }
         }
 
