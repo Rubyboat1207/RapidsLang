@@ -1381,6 +1381,11 @@ public static class RapidsParser
                 }
                 break;
             }
+            
+            case TokenType.True:
+            case TokenType.False:
+                left = new BooleanNode(stepper.Step());
+                break;
 
             default:
                 builder.AddDiagnostic(new Diagnostic(stepper.Cur, $"Unexpected token {stepper.Cur.TokenType} at start of expression."));
@@ -1391,6 +1396,11 @@ public static class RapidsParser
         
         while (!stepper.AtEnd && Token.GetPrecedence(stepper.Cur.TokenType) > minPrecedence)
         {
+            if (stepper.Next?.TokenType is TokenType.Assignment)
+            {
+                break;
+            }
+            
             if (left is null) return null;
             
             var opToken = stepper.Cur;
@@ -1429,7 +1439,8 @@ public static class RapidsParser
     {
         if (stepper.Cur.TokenType == TokenType.ClosedParen)
         {
-             return ParseFunctionDefinition(stepper, builder, openParen, new List<ArgumentNode>());
+            stepper.Increment(); // eat '('
+            return ParseFunctionDefinition(stepper, builder, openParen, new List<ArgumentNode>());
         }
 
         if (stepper.Cur.TokenType != TokenType.Identifier)
@@ -1453,7 +1464,7 @@ public static class RapidsParser
         stepper.Increment(); 
         stepper.Increment(); 
 
-        var hasArrow = stepper is { AtEnd: false, Cur.TokenType: TokenType.OpenTriangle };
+        var hasArrow = stepper is { AtEnd: false, Cur.TokenType: TokenType.ClosedTriangle };
 
         if (!hasArrow || stepper.Next is { TokenType: TokenType.OpenCurly } && IsObjectLiteral(stepper, 2)) return new IdentifierNode(potentialArgName);
 
@@ -1554,7 +1565,7 @@ public static class RapidsParser
             returnType = ParseTypeNode(stepper, builder);
         }
 
-        if (stepper.Cur.TokenType != TokenType.OpenTriangle)
+        if (stepper.Cur.TokenType != TokenType.ClosedTriangle)
         {
             builder.AddDiagnostic(new(stepper.Cur, "Expected '>' after function parameters."));
             return null;
