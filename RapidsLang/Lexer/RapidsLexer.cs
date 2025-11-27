@@ -142,6 +142,7 @@ public class Token(TokenType type, int index, int endIndex, string? value = null
     {
         return type switch
         {
+            TokenType.OpenParen => 7,
             TokenType.Dot                     => 7,  // Member access (highest precedence)
             TokenType.OpenSquare              => 7,  // Indexing []
             TokenType.Star                    => 6,  // Multiplication / division / modulo

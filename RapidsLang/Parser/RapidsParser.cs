@@ -1328,264 +1328,293 @@ public static class RapidsParser
                 return 0;
         }
     }
+    
 
     private static ExpressionNode? ParseExpression(ListStepper<Token> stepper, RapidsParseResult.Builder builder, int minPrecedence = 0)
     {
-        ExpressionNode? left;
-        if (stepper is { AtEnd: false, Cur.TokenType: TokenType.Not })
-        {
-            var not = stepper.Step();
-
-            left = ParseSimpleExpression(stepper, builder);
-            if (left is not null)
-            {
-                left = new NotNode(not, left);
-            }
-        }
-        else
-        {
-            left = ParseSimpleExpression(stepper, builder);
-        }
-
-        if (left is null)
-        {
-            return null;
-        }
-
-        if (!stepper.AtEnd)
-        {
-            switch (stepper.Cur.TokenType)
-            {
-                case TokenType.Plus or TokenType.Minus or TokenType.Slash or TokenType.Star or TokenType.Modulo when stepper.Next?.TokenType == TokenType.Assignment:
-                {
-                    if (left is not (MemberAccessNode or IdentifierNode))
-                    {
-                        builder.AddDiagnostic(new(left.BaseToken, "cannot assign to non member access or identifier nodes"));
-                        return null;
-                    }
-
-                    return left;
-                }
-                case TokenType.OpenParen:
-                {
-                    if (!CheckIfIsFunctionDeclaration(stepper))
-                    {
-                        left = ParseFunctionCall(stepper, left, builder);
-                        if (left is null)
-                        {
-                            return null;
-                        }
-                    }
-
-                    break;
-                }
-            }
-        }
-        
-        while (!stepper.AtEnd && Token.GetPrecedence(stepper.Cur.TokenType) >= minPrecedence && stepper.Next?.TokenType != TokenType.Assignment)
-        {
-            if (stepper.Cur.TokenType is TokenType.Dot)
-            {
-                var dot = stepper.Step();
-                if (stepper is { HasNext: true, Cur: not { TokenType: TokenType.Identifier } })
-                {
-                    builder.AddDiagnostic(new(stepper.Cur, "Expected an identifier", ignoreInLanguageServer:true));
-                    return new MemberAccessNode(left, dot); // sort of garbage data here
-                }
-                var member = stepper.Step();
-
-                left = new MemberAccessNode(left, member);
-                continue;
-            }
-
-            var op = stepper.Step();
-            var precedence = Token.GetPrecedence(op.TokenType);
-            var right = ParseExpression(stepper, builder, precedence + 1);
-
-            if (stepper.AtEnd)
-            {
-                return null;
-            }
-            
-            
-            if (right is null)
-            {
-                return null;
-            }
-            if (op.TokenType is TokenType.OpenSquare)
-                stepper.Increment();
-
-            left = new OperationNode(left, op, right);
-        }
+        ExpressionNode? left = null;
 
         if (stepper.AtEnd)
         {
-            return left;
+            builder.AddDiagnostic(new Diagnostic(stepper.Prev ?? stepper.ActiveList.Last(), "Unexpected end of file."));
+            return null;
         }
-        
-        // ReSharper disable once InvertIf
-        if (stepper.Cur.TokenType == TokenType.OpenParen)
+
+        switch (stepper.Cur.TokenType)
         {
-            if (!CheckIfIsFunctionDeclaration(stepper))
+            case TokenType.OpenCurly:
+                left = new ObjectNode(stepper.Cur, ParseObjectKeyValues(stepper, builder));
+                break;
+            case TokenType.StartString: 
+                left = ParseString(stepper.Step(), stepper, builder); 
+                break;
+                
+            case TokenType.LiteralNumber:
             {
-                left = ParseFunctionCall(stepper, left, builder);
+                if (!double.TryParse(stepper.Cur.Value, out var num))
+                {
+                    builder.AddDiagnostic(new Diagnostic(stepper.Cur, "Unable to parse number"));
+                    return null;
+                }
+                left = new LiteralNumberNode(stepper.Step(), num);
+                break;
+            }
+
+            case TokenType.Identifier:
+                left = new IdentifierNode(stepper.Step());
+                break;
+
+            case TokenType.OpenParen:
+                // This calls the complex method we wrote previously
+                var openParen = stepper.Step(); 
+                left = ParseGroupOrFunction(stepper, builder, openParen);
+                break;
+
+            case TokenType.Minus:
+            case TokenType.Not:
+            {
+                var opToken = stepper.Step();
+                var right = ParseExpression(stepper, builder, 8); 
+                if (right != null)
+                {
+                    left = new NotNode(opToken, right);
+                }
+                break;
+            }
+
+            default:
+                builder.AddDiagnostic(new Diagnostic(stepper.Cur, $"Unexpected token {stepper.Cur.TokenType} at start of expression."));
+                return null;
+        }
+
+        
+        
+        while (!stepper.AtEnd && Token.GetPrecedence(stepper.Cur.TokenType) > minPrecedence)
+        {
+            if (left is null) return null;
+            
+            var opToken = stepper.Cur;
+
+            switch (opToken.TokenType)
+            {
+                case TokenType.OpenParen:
+                    left = ParseFunctionCall(stepper, left, builder);
+                    break;
+
+                case TokenType.OpenSquare:
+                    left = ParseIndexing(stepper, builder, left);
+                    break;
+
+                case TokenType.Dot:
+                    left = ParseMemberAccess(stepper, builder, left);
+                    break;
+
+                default:
+                    stepper.Increment();
+
+                    var right = ParseExpression(stepper, builder, Token.GetPrecedence(opToken.TokenType));
+                    
+                    if (right != null)
+                    {
+                        left = new OperationNode(left, opToken, right);
+                    }
+                    break;
             }
         }
 
         return left;
     }
-
-    private static ExpressionNode? ParseSimpleExpression(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
+    
+    private static ExpressionNode? ParseGroupOrFunction(ListStepper<Token> stepper, RapidsParseResult.Builder builder, Token openParen)
     {
-        if (!stepper.HasNext)
+        if (stepper.Cur.TokenType == TokenType.ClosedParen)
+        {
+             return ParseFunctionDefinition(stepper, builder, openParen, new List<ArgumentNode>());
+        }
+
+        if (stepper.Cur.TokenType != TokenType.Identifier)
+        {
+            return ParseParenthesizedExpression(stepper, builder);
+        }
+
+        var nextType = stepper.Next?.TokenType;
+
+        if (nextType is TokenType.Colon or TokenType.Comma)
+        {
+            return ParseFunctionDefinition(stepper, builder, openParen, null);
+        }
+        
+        if (nextType != TokenType.ClosedParen)
+        {
+            return ParseParenthesizedExpression(stepper, builder);
+        }
+
+        var potentialArgName = stepper.Cur;
+        stepper.Increment(); 
+        stepper.Increment(); 
+
+        var hasArrow = stepper is { AtEnd: false, Cur.TokenType: TokenType.OpenTriangle };
+
+        if (!hasArrow || stepper.Next is { TokenType: TokenType.OpenCurly } && IsObjectLiteral(stepper, 2)) return new IdentifierNode(potentialArgName);
+
+
+        var args = new List<ArgumentNode> { new(potentialArgName, null) };
+        return ParseFunctionBody(stepper, builder, openParen, args, null);
+
+    }
+    
+    private static bool IsObjectLiteral(ListStepper<Token> stepper, int offset)
+    {
+        var i = offset + 1;
+        while (stepper.Index + i < stepper.ActiveList.Count)
+        {
+            var t = stepper.ActiveList[stepper.Index + i];
+            switch (t.TokenType)
+            {
+                case TokenType.ClosedCurly:
+                    // Statement -> Block
+                case TokenType.SemiColon:
+                    // Empty {} -> Block
+                    return false; 
+                case TokenType.Colon:
+                    // Pair -> Object
+                    return true;
+                default:
+                    i++;
+                    break;
+            }
+        }
+        return false;
+    }
+
+    private static ExpressionNode? ParseParenthesizedExpression(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
+    {
+        var expr = ParseExpression(stepper, builder);
+
+        if (expr is null)
         {
             return null;
         }
-        var start = stepper.Step();
-
-        switch (start.TokenType)
+        
+        if (stepper.Cur.TokenType != TokenType.ClosedParen)
         {
-            case TokenType.Identifier:
-                return new IdentifierNode(start);
-            case TokenType.LiteralNumber:
-                return new LiteralNumberNode(start, double.Parse(start.Value));
-            case TokenType.StartString:
-                return ParseString(start, stepper, builder);
-            case TokenType.True or TokenType.False:
-                return new BooleanNode(start);
-            case TokenType.OpenCurly:
-                return new ObjectNode(start, ParseObjectKeyValues(stepper, builder));
-            case TokenType.Null:
-                return new NullExpression(start);
-            case TokenType.OpenParen:
-            {
-                if (CheckIfIsFunctionDeclaration(stepper))
-                {
-                    var arguments = new List<ArgumentNode>();
-                    while (!stepper.AtEnd && stepper.Cur.TokenType is not TokenType.ClosedParen)
-                    {
-                        if (stepper.Cur.TokenType is not TokenType.Identifier)
-                        {
-                            builder.AddDiagnostic(new(stepper.Cur, "Expected argument name (identifier)."));
-                            while (!stepper.AtEnd && stepper.Cur.TokenType is not (TokenType.Comma or TokenType.ClosedParen))
-                            {
-                                stepper.Increment();
-                            }
-                        }
-                        else
-                        {
-                            var name = stepper.Step();
-                            TypeNode? argType = null;
-                            if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.Colon)
-                            {
-                                stepper.Increment(); // Consume ':'
-                                argType = ParseTypeNode(stepper, builder);
-                            }
-                            arguments.Add(new ArgumentNode(name, argType));
-                        }
-                        
-                        if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.Comma)
-                        {
-                            stepper.Increment();
-                        }
-                        else if (!stepper.AtEnd && stepper.Cur.TokenType is not TokenType.ClosedParen)
-                        {
-                            builder.AddDiagnostic(new(stepper.Cur, "Expected ',' or ')' after argument."));
-                            while (!stepper.AtEnd && stepper.Cur.TokenType is not (TokenType.Comma or TokenType.ClosedParen))
-                            {
-                                stepper.Increment();
-                            }
-                        }
-                    }
-                    
-                    if (stepper.AtEnd)
-                    {
-                        builder.AddDiagnostic(new(stepper.Prev!, "Unexpected end of function definition, expected ')'.", true));
-                        return null;
-                    }
-                    
-                    stepper.Increment(); // closed paren
-
-                    TypeNode? returnType = null;
-                    if (!stepper.AtEnd && stepper.Cur.TokenType is TokenType.Colon)
-                    {
-                        stepper.Increment(); // Consume ':'
-                        returnType = ParseTypeNode(stepper, builder);
-                    }
-
-                    if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.ClosedTriangle)
-                    {
-                        builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected '>' before function body.", true));
-                        TrashUntilEndOfLine(stepper);
-                        return null;
-                    }
-
-                    var openTriangle = stepper.Step(); // consume '>'
-
-                    if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.OpenCurly)
-                    {
-                        builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected '{' to start function body.", true));
-                        TrashUntilEndOfLine(stepper);
-                        return null;
-                    }
-                    
-                    var openCurly = stepper.Step(); // open curly
-
-                    var functionBody = Parse(stepper, new StatementsNode(openCurly));
-                    RapidsParseResult? debugBody = null;
-
-                    if (stepper is { HasNext: true, Cur.TokenType: TokenType.QuestionMark })
-                    {
-                        var openCurlyDebug = stepper.Step();
-                        debugBody = Parse(stepper, new StatementsNode(openCurlyDebug));
-                        builder.AddDiagnostics(debugBody.Diagnostics);
-                    }
-                    
-                    builder.AddDiagnostics(functionBody.Diagnostics);
-
-                    return new FunctionNode(openTriangle, arguments, functionBody.RootNode, debugBody?.RootNode, returnType);
-                }
-                
-                var expr = ParseExpression(stepper, builder);
-
-                if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.ClosedParen)
-                {
-                    builder.AddDiagnostic(new(stepper.AtEnd ? stepper.Prev! : stepper.Cur, "Expected closed parenthesis"));
-                    return null;
-                }
-                
-                stepper.Increment();
-                
-                return expr;
-            }
-            case TokenType.OpenSquare:
-                List<ExpressionNode> list = [];
-                while (stepper.Cur.TokenType != TokenType.ClosedSquare)
-                {
-                    if (list.Count > 0 && stepper.Step().TokenType != TokenType.Comma)
-                    {
-                        builder.AddIssue("Expected a comma");
-                        continue;
-                    }
-
-                    var item = ParseExpression(stepper, builder);
-                    if (item is null)
-                    {
-                        while (stepper.Cur.TokenType != TokenType.ClosedSquare)
-                        {
-                            stepper.Increment();
-                        }
-
-                        break;
-                    }
-                    list.Add(item);
-                }
-                stepper.Increment();
-                return new ListNode(start, list);
-            default:
-                builder.AddDiagnostic(new(start, "Unexpected end of expression"));
-                return null;
+            builder.AddDiagnostic(new Diagnostic(stepper.Cur, "Expected ')' after expression."));
         }
+        else
+        {
+            stepper.Increment(); // Eat ')'
+        }
+        
+        return expr; 
+    }
+
+    private static FunctionNode? ParseFunctionDefinition(
+        ListStepper<Token> stepper, 
+        RapidsParseResult.Builder builder, 
+        Token openParen,
+        List<ArgumentNode>? knownArgs) // Pass list if we already parsed some, null if we need to parse them
+    {
+        var arguments = knownArgs ?? new List<ArgumentNode>();
+
+        // If we haven't parsed args yet, do it now
+        if (knownArgs == null)
+        {
+            while (stepper is { AtEnd: false, Cur.TokenType: not TokenType.ClosedParen })
+            {
+                if (stepper.Cur.TokenType != TokenType.Identifier)
+                {
+                     builder.AddDiagnostic(new(stepper.Cur, "Expected argument name."));
+                     break; 
+                }
+                
+                var name = stepper.Step();
+                TypeNode? type = null;
+                
+                if (stepper.Cur.TokenType == TokenType.Colon)
+                {
+                    stepper.Increment(); // Eat :
+                    type = ParseTypeNode(stepper, builder);
+                }
+                
+                arguments.Add(new ArgumentNode(name, type));
+                
+                if (stepper.Cur.TokenType == TokenType.Comma)
+                {
+                    stepper.Increment();
+                }
+            }
+            stepper.Increment(); // Eat ')'
+        }
+
+        // Check optional return type: (args): Int >
+        TypeNode? returnType = null;
+        if (stepper.Cur.TokenType == TokenType.Colon)
+        {
+            stepper.Increment();
+            returnType = ParseTypeNode(stepper, builder);
+        }
+
+        if (stepper.Cur.TokenType != TokenType.OpenTriangle)
+        {
+            builder.AddDiagnostic(new(stepper.Cur, "Expected '>' after function parameters."));
+            return null;
+        }
+
+        return ParseFunctionBody(stepper, builder, openParen, arguments, returnType);
+    }
+    
+    private static FunctionNode ParseFunctionBody(
+        ListStepper<Token> stepper,
+        RapidsParseResult.Builder builder,
+        Token openParen,
+        List<ArgumentNode> args,
+        TypeNode? returnType)
+    {
+        stepper.Increment(); // Eat '>'
+    
+        if (stepper.Cur.TokenType != TokenType.OpenCurly)
+        {
+            builder.AddDiagnostic(new(stepper.Cur, "Expected '{' to start function body."));
+        }
+        stepper.Increment(); // Eat '{'
+
+        var body = Parse(stepper); // Your existing block parser
+        builder.AddDiagnostics(body.Diagnostics);
+    
+        return new FunctionNode(openParen, args, body.RootNode, null, returnType);
+    }
+    
+    private static ExpressionNode ParseMemberAccess(ListStepper<Token> stepper, RapidsParseResult.Builder builder, ExpressionNode target)
+    {
+        stepper.Increment(); // Consume '.'
+
+        if (stepper.Cur.TokenType != TokenType.Identifier)
+        {
+            builder.AddDiagnostic(new Diagnostic(stepper.Cur, "Expected identifier after '.'."));
+            return target; 
+        }
+
+        var memberName = stepper.Step();
+
+        return new MemberAccessNode(target, memberName);
+    }
+    
+    private static ExpressionNode? ParseIndexing(ListStepper<Token> stepper, RapidsParseResult.Builder builder, ExpressionNode target)
+    {
+        var openBracket = stepper.Step(); // Consume '['
+    
+        var indexExpr = ParseExpression(stepper, builder);
+
+        if (stepper.Cur.TokenType != TokenType.ClosedSquare)
+        {
+            builder.AddDiagnostic(new Diagnostic(stepper.Cur, "Expected ']' after index."));
+        }
+        else
+        {
+            stepper.Increment(); // Consume ']'
+        }
+
+        return indexExpr != null ? new OperationNode(target, openBracket, indexExpr) : null;
     }
 
     private static StringNode? ParseString(Token startString, ListStepper<Token> stepper, RapidsParseResult.Builder builder)
@@ -1622,6 +1651,8 @@ public static class RapidsParser
 
         return stringNode;
     }
+
+    
     
     private static bool CheckIfIsFunctionDeclaration(ListStepper<Token> stepper)
     {
@@ -1631,7 +1662,8 @@ public static class RapidsParser
         {
             explorer.Increment();
         }
-
+        
+        // Parens
         while (openParens > 0)
         {
             if (!explorer.HasNext)
@@ -1652,6 +1684,11 @@ public static class RapidsParser
         if (!explorer.HasNext)
         {
             return false;
+        }
+
+        if (explorer.Cur.TokenType is TokenType.Colon)
+        {
+            
         }
         
         // so in theory this is ambiguous in the exact situation where you are trying to compare the result of a function with a property of an object declared inline
