@@ -117,6 +117,12 @@ public class ExtensionLoadContext : AssemblyLoadContext
             // Ignore
         }
         
+        var existing = Assemblies.FirstOrDefault(x => x.GetName().Name == assemblyName.Name);
+        if (existing != null)
+        {
+            return existing;
+        }
+        
         // Step 2: Ask resolver (.deps.json)
         var assemblyPath = _resolver.ResolveAssemblyToPath(assemblyName);
         if (assemblyPath != null)

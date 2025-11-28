@@ -45,6 +45,13 @@ public class RapidsStringType : RapidsType
                 ],
                 RapidsPrimitiveType.Number
             )
+        },
+        {
+            "trim",
+            new RapidsFunctionType(
+                [],
+                this
+            )
         }
     };
 

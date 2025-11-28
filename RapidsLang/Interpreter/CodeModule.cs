@@ -26,12 +26,13 @@ public class CodeModule(string code, string? path=null) : Module
                 throw new Exception($"Failed to parse module at {Path}. See above diagnostics");
             }
 
-            var moduleInterpreter = new RapidsInterpreter(Code, preprocMetaData, Path)
+            var moduleInterpreter = new RapidsInterpreter(Code, preprocMetaData, Path, nativeProtocol:interpreter.NativeProtocol)
             {
                 Context =
                 {
                     Exports = Exports,
-                    ModuleRegistry = context.ModuleRegistry
+                    ModuleRegistry = context.ModuleRegistry,
+                    CurrentModule = this
                 }
             };
 

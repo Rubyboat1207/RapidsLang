@@ -86,7 +86,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             {
                 var func = new RapidsFunctionReferenceVariable(
                     new RapidsUserFunction(funcExportable.FunctionNode, new InterpreterContext(Context)
-                    ));
+                ));
                 Context.Exports.Add(funcExportable.BaseToken.Value, new(func));
                 
                 Context.AddVariable(funcExportable.BaseToken.Value, new VariableHolder(func, true));

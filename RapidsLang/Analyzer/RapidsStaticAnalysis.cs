@@ -37,6 +37,10 @@ public class AnalysisDiagnostic(string message, int index, int length, RapidsSta
         => new($"Module \"{import}\" is unknown.", index, length, RapidsStaticAnalysisSeverity.Warning);
     public static AnalysisDiagnostic OfNeverMutated(int index, int length, string variableName)
         => new($"Variable {variableName} was defined as a let, but was never mutated. Maybe use \"const\" instead to better convey the purpose?", index, length, RapidsStaticAnalysisSeverity.Warning);
+
+    public static AnalysisDiagnostic OfModuleFailedAnalysis(ModuleIdent ident)
+        => new($"Module {ident.GetName()}'s code failed static analysis", ident.StartIndex,
+            ident.EndIndex - ident.StartIndex, RapidsStaticAnalysisSeverity.Warning);
     
     // ------ ERRORS ------ //
     public static AnalysisDiagnostic OfConstantModified(int index, int length, string variableName)
@@ -293,8 +297,6 @@ public static class RapidsStaticAnalysis
                     {
                         symbol.IsMutated = true;
                     }
-
-                    
                 }
                 break;
             case DeclarationNode declarationNode:
@@ -877,6 +879,7 @@ public static class RapidsStaticAnalysis
             var (parseResult, metaData, analysis) = Analyze(File.ReadAllText(moduleFilePath), moduleFilePath);
             if (analysis is null)
             {
+                result.Diagnostics.Add(AnalysisDiagnostic.OfModuleFailedAnalysis(ident));
                 return [];
             }
             return analysis.ExportedSymbols.Select(ex => (ex.Name, ex)).ToDictionary();

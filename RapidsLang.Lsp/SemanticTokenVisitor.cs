@@ -231,6 +231,9 @@ public class SemanticTokenVisitor(
             case NotNode notNode:
                 Visit(notNode.ExpressionNode);
                 break;
+            case ListNode listNode:
+                listNode.Values.ForEach(Visit);
+                break;
             case IdentifierNode identifierNode:
             {
                 var idType = SemanticTokenType.Variable;

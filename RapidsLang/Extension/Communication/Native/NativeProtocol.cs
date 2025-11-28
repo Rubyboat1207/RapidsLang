@@ -28,6 +28,8 @@ public class NativeProtocol : CommunicationProtocol, INativeProtocol
 
     private readonly Dictionary<Action<NativeIdentifier>, Action<Identifier>> _externalDisabled = [];
     private readonly Dictionary<Action<NativeIdentifier>, Action<Identifier>> _externalEnabled = [];
+    
+    public ExtensionLoadContext? LoadContext { get; set; }
     event Action<NativeIdentifier> INativeProtocol.OutputDisabled
     {
         add
@@ -128,9 +130,16 @@ public class NativeProtocol : CommunicationProtocol, INativeProtocol
         ResponsibleInterpreter?.WakeUp();
     }
 
+    private bool failedLoad;
+
     public override void Init(RapidsInterpreter interpreter, ExtensionData? extension)
     {
         base.Init(interpreter, extension);
+        if (failedLoad)
+        {
+            Console.WriteLine("Attempted loading DLL again after failed. Not bothering.");
+            return;
+        }
 
         if (NativeEntrypoint is not null)
         {
@@ -146,10 +155,10 @@ public class NativeProtocol : CommunicationProtocol, INativeProtocol
         {
             return;
         }
+        
+        LoadContext = new ExtensionLoadContext(DllPath, extension?.DirectoryPath);
 
-        var loadContext = new ExtensionLoadContext(DllPath, extension?.DirectoryPath);
-
-        var assembly = loadContext.LoadFromAssemblyPath(DllPath);
+        var assembly = LoadContext.LoadFromAssemblyPath(DllPath);
         
         var entryPointType = assembly.GetTypes().FirstOrDefault(t => 
             typeof(IExtensionEntrypoint).IsAssignableFrom(t) 
@@ -158,7 +167,8 @@ public class NativeProtocol : CommunicationProtocol, INativeProtocol
 
         if (entryPointType is null || Activator.CreateInstance(entryPointType) is not IExtensionEntrypoint instance)
         {
-            loadContext.Unload();
+            LoadContext.Unload();
+            failedLoad = true;
             return;
         }
 

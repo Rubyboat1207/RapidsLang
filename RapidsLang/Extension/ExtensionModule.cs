@@ -44,7 +44,7 @@ public class ExtensionModule : Module
             
             var program = RapidsParser.Parse(Extension.GetMainCodeString(), out var preprocMetaData);
 
-            var subInterpreter = new RapidsInterpreter(Extension.GetMainCodeString(), preprocMetaData, Extension.MainCodePath)
+            var subInterpreter = new RapidsInterpreter(Extension.GetMainCodeString(), preprocMetaData, Extension.MainCodePath, nativeProtocol:interpreter.NativeProtocol)
                 {
                     Context =
                     {

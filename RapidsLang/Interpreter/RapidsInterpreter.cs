@@ -34,7 +34,7 @@ public class BlockProgress(StatementsNode block, BlockType blockType, int progra
 
 public class RapidsInterpreter
 {
-    public readonly NativeProtocol NativeProtocol = new();
+    public readonly NativeProtocol NativeProtocol;
 
     private bool _done;
 
@@ -52,13 +52,14 @@ public class RapidsInterpreter
     }
     public bool SupportsOnStatements { get; set; }
 
-    public RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preprocessorMetadata, string? mainSourceCodePath=null, bool supportsOnStatements=false)
+    public RapidsInterpreter(string sourceCode, RapidsPreprocMetaData preprocessorMetadata, string? mainSourceCodePath=null, bool supportsOnStatements=false, NativeProtocol? nativeProtocol=null)
     {
         MainSourceCodePath = mainSourceCodePath;
         
         ContextStack.Push(new InterpreterContext(sourceCode, preprocessorMetadata, mainSourceCodePath));
 
         SupportsOnStatements = supportsOnStatements;
+        NativeProtocol = nativeProtocol ?? new();
     }
 
     private Stack<InterpreterContext> ContextStack { get; } = new();

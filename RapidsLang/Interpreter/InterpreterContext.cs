@@ -62,7 +62,8 @@ public class InterpreterContext
         if (Parent != null)
             return new InterpreterContext(Parent)
             {
-                Variables = new Dictionary<string, VariableHolder>(Variables)
+                Variables = new Dictionary<string, VariableHolder>(Variables),
+                // CurrentModule = CurrentModule
             };
         
         throw new Exception("but why though?");

@@ -44,6 +44,28 @@ public static class RapidsParser
         {
             if (stepper.Cur.TokenType is TokenType.Identifier)
             {
+                if (stepper.Next?.TokenType == TokenType.OpenParen)
+                {
+                    if (IsNamedFunctionDefinition(stepper))
+                    {
+            
+                        var nameToken = stepper.Step();
+                        stepper.Increment(); // eat '('
+                        
+                        var funcNode = ParseFunctionDefinition(stepper, builder, nameToken, null);
+
+                        if (funcNode != null)
+                        {
+                            builder.AddStatement(new FunctionDeclarationNode(
+                                nameToken,
+                                funcNode,
+                                0
+                            ));
+                        }
+                        continue;
+                    }
+                }
+                
                 var expression = ParseExpression(stepper, builder);
                 if (expression is null)
                 {
@@ -1085,7 +1107,7 @@ public static class RapidsParser
 
         if (stepper.Cur.TokenType is not TokenType.Identifier)
         {
-            builder.AddDiagnostic(new(stepper.Cur, $"Expected name (identifier) after 'define {typeToken.Value}'."));
+            builder.AddDiagnostic(new(stepper.Cur, $"Expected name (identifier) after 'define {(typeToken.TokenType is TokenType.Target ? "target" : "source")} {typeToken.Value}'."));
             return null;
         }
         
@@ -1343,7 +1365,10 @@ public static class RapidsParser
         switch (stepper.Cur.TokenType)
         {
             case TokenType.OpenCurly:
-                left = new ObjectNode(stepper.Cur, ParseObjectKeyValues(stepper, builder));
+                left = new ObjectNode(stepper.Step(), ParseObjectKeyValues(stepper, builder));
+                break;
+            case TokenType.OpenSquare:
+                left = new ListNode(stepper.Step(), ParseList(stepper, builder));
                 break;
             case TokenType.StartString: 
                 left = ParseString(stepper.Step(), stepper, builder); 
@@ -1385,6 +1410,9 @@ public static class RapidsParser
             case TokenType.True:
             case TokenType.False:
                 left = new BooleanNode(stepper.Step());
+                break;
+            case TokenType.Null:
+                left = new NullExpression(stepper.Step());
                 break;
 
             default:
@@ -1433,6 +1461,40 @@ public static class RapidsParser
         }
 
         return left;
+    }
+
+    private static List<ExpressionNode> ParseList(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
+    {
+        List<ExpressionNode> items = [];
+        while (!stepper.AtEnd && stepper.Cur.TokenType is not TokenType.ClosedSquare)
+        {
+            var item = ParseExpression(stepper, builder);
+
+            if (item is null)
+            {
+                return items;
+            }
+            
+            items.Add(item);
+
+            if (!stepper.AtEnd)
+            {
+                if (stepper.Cur.TokenType is TokenType.Comma)
+                {
+                    stepper.Increment();
+                    continue;
+                }
+                if (stepper.Cur.TokenType is TokenType.ClosedSquare)
+                {
+                    break;
+                }
+                
+            }
+            builder.AddDiagnostic(new(stepper.AtEnd ? stepper.ActiveList.Last() : stepper.Cur, "Expected Comma"));
+        }
+        stepper.Increment(); // trash ']'
+
+        return items;
     }
     
     private static ExpressionNode? ParseGroupOrFunction(ListStepper<Token> stepper, RapidsParseResult.Builder builder, Token openParen)
@@ -1495,6 +1557,53 @@ public static class RapidsParser
                     break;
             }
         }
+        return false;
+    }
+    
+    private static bool IsNamedFunctionDefinition(ListStepper<Token> stepper)
+    {
+        if (stepper.Index + 1 >= stepper.ActiveList.Count) return false;
+        if (stepper.ActiveList[stepper.Index + 1].TokenType != TokenType.OpenParen) return false;
+        
+        int i = 2; 
+
+        while (stepper.Index + i < stepper.ActiveList.Count)
+        {
+            var t = stepper.ActiveList[stepper.Index + i];
+
+            if (t.TokenType == TokenType.ClosedParen)
+            {
+                break; 
+            }
+            
+            if (t.TokenType == TokenType.Colon) return true;
+            
+            if (Token.GetPrecedence(t.TokenType) > 0) return false;
+
+            i++;
+        }
+        
+        int afterParenOffset = i + 1; 
+        
+        if (stepper.Index + afterParenOffset >= stepper.ActiveList.Count) return false;
+        
+        var tokenAfterParen = stepper.ActiveList[stepper.Index + afterParenOffset];
+
+        if (tokenAfterParen.TokenType == TokenType.Colon) return true;
+
+        if (tokenAfterParen.TokenType == TokenType.ClosedTriangle)
+        {
+            int afterArrowOffset = afterParenOffset + 1;
+            if (stepper.Index + afterArrowOffset < stepper.ActiveList.Count)
+            {
+                var tokenAfterArrow = stepper.ActiveList[stepper.Index + afterArrowOffset];
+                if (tokenAfterArrow.TokenType == TokenType.OpenCurly)
+                {
+                    return true;
+                }
+            }
+        }
+
         return false;
     }
 

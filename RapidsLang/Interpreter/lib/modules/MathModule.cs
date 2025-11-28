@@ -24,6 +24,44 @@ public class MathModule : Module
         RapidsPrimitiveType.Number
     );
 
+    private static void Floor(RapidsInterpreter interpreter)
+    {
+        using var utils = interpreter.GetNativeUtil().GuaranteeReturn();
+        
+        var a = utils.LatestNumber();
+
+        if (a == null)
+        {
+            return;
+        }
+
+        utils.Return(Math.Floor(a.Value));
+    }
+
+    private static readonly RapidsType FloorType = new RapidsFunctionType(
+        [new("a", RapidsPrimitiveType.Number)],
+        RapidsPrimitiveType.Number
+    );
+
+    private static void Ceil(RapidsInterpreter interpreter)
+    {
+        using var utils = interpreter.GetNativeUtil().GuaranteeReturn();
+        
+        var a = utils.LatestNumber();
+
+        if (a == null)
+        {
+            return;
+        }
+
+        utils.Return(Math.Ceiling(a.Value));
+    }
+
+    private static readonly RapidsType CeilType = new RapidsFunctionType(
+        [new("a", RapidsPrimitiveType.Number)],
+        RapidsPrimitiveType.Number
+    );
+
     private static void Map(RapidsInterpreter interpreter)
     {
         using var utils = interpreter.GetNativeUtil().GuaranteeReturn();
@@ -58,6 +96,8 @@ public class MathModule : Module
     public override ModuleExports Exports { get; } = new(new()
     {
         {"round", new(RapidsFunctionReferenceVariable.OfNative(Round, RoundType), RoundType)},
-        {"map", new(RapidsFunctionReferenceVariable.OfNative(Map, MapType), MapType)}
+        {"map", new(RapidsFunctionReferenceVariable.OfNative(Map, MapType), MapType)},
+        {"floor", new(RapidsFunctionReferenceVariable.OfNative(Floor, FloorType), FloorType)},
+        {"ceil", new(RapidsFunctionReferenceVariable.OfNative(Ceil, CeilType), CeilType)},
     });
 }

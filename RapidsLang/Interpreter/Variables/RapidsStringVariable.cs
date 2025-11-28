@@ -60,6 +60,7 @@ public class RapidsStringVariable : RapidsVariable
             "split" => RapidsFunctionReferenceVariable.OfNative(Split),
             "contains" => RapidsFunctionReferenceVariable.OfNative(Contains),
             "lastIndexOf" => RapidsFunctionReferenceVariable.OfNative(LastIndexOf),
+            "trim" => RapidsFunctionReferenceVariable.OfNative(Trim),
             _ => null
         };
     }
@@ -124,6 +125,11 @@ public class RapidsStringVariable : RapidsVariable
         }
         
         util.Return(new RapidsNumberVariable(Value.LastIndexOf(substring.Value, StringComparison.Ordinal)));
+    }
+
+    public void Trim(RapidsInterpreter interpreter)
+    {
+        interpreter.Context.FunctionCallStack.Push(new RapidsStringVariable(Value.Trim()));
     }
 
     public override RapidsVariable ShallowCopy()
