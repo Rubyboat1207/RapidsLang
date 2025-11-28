@@ -15,5 +15,6 @@ public enum RapidsOperator
     Inequal,
     Index,
     AndAnd,
-    OrOr
+    OrOr,
+    Negate
 }

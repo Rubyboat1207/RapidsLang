@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RapidsLang.Lsp", "RapidsLan
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RapidsLang.NativeExtension", "RapidsLang.NativeExtension\RapidsLang.NativeExtension.csproj", "{992694CB-1A4E-4E92-818E-AB7973C22698}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RapidsLang.Testing", "RapidsLang.Testing\RapidsLang.Testing.csproj", "{B17CD584-9685-435A-B5A6-DEEFF823F402}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{992694CB-1A4E-4E92-818E-AB7973C22698}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{992694CB-1A4E-4E92-818E-AB7973C22698}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{992694CB-1A4E-4E92-818E-AB7973C22698}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B17CD584-9685-435A-B5A6-DEEFF823F402}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B17CD584-9685-435A-B5A6-DEEFF823F402}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B17CD584-9685-435A-B5A6-DEEFF823F402}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B17CD584-9685-435A-B5A6-DEEFF823F402}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

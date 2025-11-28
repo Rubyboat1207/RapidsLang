@@ -771,7 +771,7 @@ public static class RapidsStaticAnalysis
                 }
                 computedType = RapidsStringType.Instance;
                 break;
-            case NotNode notNode:
+            case UnaryOperationNode notNode:
                 _ = GetType(notNode.ExpressionNode, scope, result, path);
                 computedType = RapidsPrimitiveType.Bool;
                 break;

@@ -118,11 +118,24 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                     });
                 });
                 break;
-            case NotNode notNode:
+            case UnaryOperationNode notNode:
                 _done = true;
                 EvaluateExpression(notNode.ExpressionNode, expr =>
                 {
-                    Callback.Invoke(new RapidsBooleanVariable(!expr.Truthy));
+                    if (notNode.Operation.TokenType is TokenType.Not)
+                    {
+                        Callback.Invoke(new RapidsBooleanVariable(!expr.Truthy));
+                    }else if (notNode.Operation.TokenType is TokenType.Minus)
+                    {
+                        var negative = expr.GetResult(RapidsOperator.Negate, null);
+
+                        if (negative is null)
+                        {
+                            throw new Exception("Attempted to negate variable that does not support that operation.");
+                        }
+                        Callback.Invoke(negative);
+                    }
+                    
                 });
                 break;
             default:

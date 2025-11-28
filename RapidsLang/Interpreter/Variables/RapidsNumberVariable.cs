@@ -12,8 +12,12 @@ public class RapidsNumberVariable(double value) : RapidsVariable
 
     public double Value { get; init; } = value;
     
-    public override RapidsVariable? GetResult(RapidsOperator op, RapidsVariable other)
+    public override RapidsVariable? GetResult(RapidsOperator op, RapidsVariable? other)
     {
+        if (op is RapidsOperator.Negate)
+        {
+            return new RapidsNumberVariable(-Value);
+        }
         if (other is RapidsNumberVariable oNum)
         {
             return op switch

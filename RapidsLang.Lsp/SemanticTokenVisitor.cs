@@ -228,7 +228,7 @@ public class SemanticTokenVisitor(
                 Visit(onSourceStatement.Source);
                 Visit(onSourceStatement.Body);
                 break;
-            case NotNode notNode:
+            case UnaryOperationNode notNode:
                 Visit(notNode.ExpressionNode);
                 break;
             case ListNode listNode:

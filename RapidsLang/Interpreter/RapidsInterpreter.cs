@@ -79,6 +79,20 @@ public class RapidsInterpreter
             _workSignal.Release();
         }
     }
+
+    public async Task<RapidsVariable?> InterpretExpressionAndThenDie(ExpressionNode expressionNode)
+    {
+        RapidsVariable? variable = null;
+        EvaluateExpression(expressionNode, (value) =>
+        {
+            Done = true;
+            variable = value;
+        }, null);
+
+        await InterpretLoop(false);
+
+        return variable;
+    }
     
 
     public void PushWork(InterpreterWork work)
@@ -238,5 +252,44 @@ public class RapidsInterpreter
         NativeProtocol.WriteToOutput(ProgramModule.SigintIdent, new RapidsBooleanVariable(outermostContext is null));
 
         await InterpretLoop(false);
+    }
+    
+    public void EvaluateExpression(ExpressionNode expressionNode, Action<RapidsVariable> callback, CodeBlockRunWork parent)
+    {
+        if (expressionNode is FunctionCallExpressionNode fcen)
+        { 
+            PushWork(new FunctionCallExpressionEvaluateWork(fcen, callback, this, parent));
+            return;
+        }
+        if (expressionNode is StringNode str)
+        {
+            PushWork(new StringExpressionEvaluateWork(str, callback, this, parent));
+            return;
+        }
+        PushWork(new DefaultExpressionEvaluateWork(expressionNode, callback, this, parent));
+    }
+
+    public void EvaluateExpressions(List<ExpressionNode> expressionNodes, Action<List<RapidsVariable>> callback, CodeBlockRunWork parent)
+    {
+        List<RapidsVariable> variables = [];
+
+        for (var i = 0; i < expressionNodes.Count; i++)
+        {
+            var node = expressionNodes[expressionNodes.Count - 1 - i];
+
+            EvaluateExpression(node, v =>
+            {
+                variables.Add(v);
+
+                if (variables.Count == expressionNodes.Count)
+                {
+                    callback.Invoke(variables);
+                }
+            }, parent);
+        }
+        if(expressionNodes.Count == 0)
+        {
+            callback.Invoke(variables);
+        }
     }
 }

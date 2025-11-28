@@ -1350,7 +1350,17 @@ public static class RapidsParser
                 return 0;
         }
     }
-    
+
+    public static (ExpressionNode?, RapidsPreprocMetaData metaData) ParseExpression(string code)
+    {
+        var metadata = RapidsPreproc.Preprocess(code);
+        var tokens = RapidsLexer.Lex(metadata.Output);
+
+        var stepper = new ListStepper<Token>(tokens);
+        var builder = new RapidsParseResult.Builder(stepper, null);
+
+        return (ParseExpression(stepper, builder), metadata.Metadata);
+    }
 
     private static ExpressionNode? ParseExpression(ListStepper<Token> stepper, RapidsParseResult.Builder builder, int minPrecedence = 0)
     {
@@ -1402,7 +1412,7 @@ public static class RapidsParser
                 var right = ParseExpression(stepper, builder, 8); 
                 if (right != null)
                 {
-                    left = new NotNode(opToken, right);
+                    left = new UnaryOperationNode(opToken, right);
                 }
                 break;
             }
