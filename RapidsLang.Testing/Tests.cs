@@ -47,6 +47,8 @@ public class Tests
     
     [TestCase("1 + (1 + (1 + (1 + (1 + 1))))", "6")]
     [TestCase("((((((5))))))", "5")]
+    
+    [TestCase("{test: 5}.test", "5")]
     public async Task ExpressionsEvaluateCorrectly(string source, string expected)
     {
         var (expr, metaData) = RapidsParser.ParseExpression(source);

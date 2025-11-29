@@ -220,6 +220,26 @@ public class SemanticTokenVisitor(
                 }
                 Visit(elseNode.Block);
                 break;
+            case NumericForLoop numericForLoop:
+                PushToken(numericForLoop.For, SemanticTokenType.Keyword);
+                Visit(numericForLoop.Index);
+                Visit(numericForLoop.Start);
+                if (numericForLoop.To.Value is "to" or "until")
+                {
+                    PushToken(numericForLoop.To, SemanticTokenType.Keyword);
+                }
+                Visit(numericForLoop.End);
+                if (numericForLoop.StepKeyword is not null)
+                {
+                    PushToken(numericForLoop.StepKeyword, SemanticTokenType.Keyword);
+                }
+
+                if (numericForLoop.StepExpr is not null)
+                {
+                    Visit(numericForLoop.StepExpr);
+                }
+                Visit(numericForLoop.Body);
+                break;
             case BreakNode breakNode:
                 PushToken(breakNode.BaseToken, SemanticTokenType.Keyword);
                 break;

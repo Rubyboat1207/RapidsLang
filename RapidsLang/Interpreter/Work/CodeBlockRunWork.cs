@@ -310,6 +310,34 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             return;
         }
 
+        if (ActiveNode is NumericForLoop numericForLoop)
+        {
+            List<ExpressionNode> expressions = [numericForLoop.Start, numericForLoop.End];
+
+            if (numericForLoop.StepExpr is not null)
+            {
+                expressions.Add(numericForLoop.StepExpr);
+            }
+            EvaluateExpressions(expressions, values =>
+            {
+                var start = values.ElementAtOrDefault(0);
+                var end = values.ElementAtOrDefault(1);
+                var step = values.ElementAtOrDefault(2);
+
+                if (start is RapidsNumberVariable startNum && end is RapidsNumberVariable endNum)
+                {
+                    RapidsNumberVariable? stepNum = null;
+                    if (step is RapidsNumberVariable definedStepNum)
+                    {
+                        stepNum = definedStepNum;
+                    }
+                    Interpreter.PushWork(new NumericForLoopRunWork(Interpreter, this, numericForLoop, startNum, endNum, stepNum));
+                }
+
+                ProgramCounter++;
+            });
+        }
+
         if (ActiveNode is BreakNode)
         {
             // Interpreter.PushWork(new ResumeExecutionWork(BlockType.Loop, Interpreter, this));

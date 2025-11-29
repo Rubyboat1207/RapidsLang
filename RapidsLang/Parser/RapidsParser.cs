@@ -477,6 +477,12 @@ public static class RapidsParser
                 continue;
             }
 
+            if (stepper.Cur.TokenType is TokenType.For)
+            {
+                ParseForLoop(stepper, builder);
+                continue;
+            }
+
             if (stepper.Cur.TokenType is TokenType.While )
             {
                 var whileToken = stepper.Step();
@@ -702,6 +708,117 @@ public static class RapidsParser
         }
 
         return builder.Build();
+    }
+
+    private static void ParseForLoop(ListStepper<Token> stepper, RapidsParseResult.Builder builder)
+    {
+        var @for = stepper.Step();
+
+        if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.OpenParen)
+        {
+            builder.AddDiagnostic(new(@for, "Expected '(' after for"));
+            TrashUntilEndOfLine(stepper);
+            return;
+        }
+        
+        var openParen = stepper.Step();
+
+        if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.Identifier)
+        {
+            builder.AddDiagnostic(new(stepper.AtEnd ? stepper.ActiveList.Last() : stepper.Cur, "expected index identifier"));
+            TrashUntilEndOfLine(stepper);
+            return;
+        }
+
+        var index = new IdentifierNode(stepper.Step());
+        
+        if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.Assignment)
+        {
+            builder.AddDiagnostic(new(stepper.AtEnd ? stepper.ActiveList.Last() : stepper.Cur, "Expected '=' after index"));
+            if (stepper.AtEnd) return;
+        }
+
+        var equal = stepper.Step();
+
+        var start = ParseExpression(stepper, builder);
+
+        if (start is null)
+        {
+            builder.AddDiagnostic(new(openParen, "expected starting index expression"));
+            TrashUntilEndOfLine(stepper);
+            return;
+        }
+
+        if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.Identifier)
+        {
+            builder.AddDiagnostic(new(stepper.AtEnd ? stepper.ActiveList.Last() : stepper.Cur, "expected 'to' or 'until' after starting index."));
+            if (stepper.AtEnd) return;
+        }
+
+        var to = stepper.Step();
+
+        var end = ParseExpression(stepper, builder);
+        
+        if (end is null)
+        {
+            builder.AddDiagnostic(new(openParen, "expected ending index expression"));
+            TrashUntilEndOfLine(stepper);
+            return;
+        }
+
+        if (stepper.AtEnd)
+        {
+            return;
+        }
+
+        Token? step = null;
+        ExpressionNode? stepExpr = null;
+        
+        if (stepper.Cur is { TokenType: TokenType.Identifier, Value: "step" })
+        {
+            // this is a lot of stepping
+            step = stepper.Step();
+
+            stepExpr = ParseExpression(stepper, builder);
+
+            if (stepExpr is null)
+            {
+                builder.AddDiagnostic(new(step, "Expected step size expression after step token"));
+            }
+        }
+        
+        if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.ClosedParen)
+        {
+            builder.AddDiagnostic(new(stepper.AtEnd ? stepper.ActiveList.Last() : stepper.Cur, "Expected ')' ending index"));
+            TrashUntilEndOfLine(stepper);
+            return;
+        }
+        
+        stepper.Increment(); // trash closed paren
+        
+        if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.OpenCurly)
+        {
+            builder.AddDiagnostic(new(stepper.AtEnd ? stepper.ActiveList.Last() : stepper.Cur, "expected '{' after for loop"));
+            TrashUntilEndOfLine(stepper);
+            return;
+        }
+
+        stepper.Increment();
+        
+        var body = Parse(stepper);
+        builder.AddDiagnostics(body.Diagnostics);
+        
+        builder.AddStatement(new NumericForLoop(
+            @for,
+            index,
+            equal,
+            start,
+            to,
+            end,
+            body.RootNode,
+            step,
+            stepExpr
+        ));
     }
 
     public static TypeNode? ParseTypeNode(string typeStr)
@@ -1096,18 +1213,18 @@ public static class RapidsParser
         // This function assumes the stepper.Cur is TokenType.Define
         var defineToken = stepper.Step();
 
-        if (stepper.Cur.TokenType is not (TokenType.Target or TokenType.Source))
+        if (stepper.Cur.TokenType is not (TokenType.Identifier) && stepper.Cur.Value is "target" or "source")
         {
             builder.AddDiagnostic(new(stepper.Cur, "Expected 'target' or 'source' after 'define'."));
             return null;
         }
 
         var typeToken = stepper.Step();
-        bool isTarget = typeToken.TokenType == TokenType.Target;
+        var isTarget = typeToken.Value == "target";
 
         if (stepper.Cur.TokenType is not TokenType.Identifier)
         {
-            builder.AddDiagnostic(new(stepper.Cur, $"Expected name (identifier) after 'define {(typeToken.TokenType is TokenType.Target ? "target" : "source")} {typeToken.Value}'."));
+            builder.AddDiagnostic(new(stepper.Cur, $"Expected name (identifier) after 'define {typeToken.Value} {typeToken.Value}'."));
             return null;
         }
         
@@ -1549,23 +1666,40 @@ public static class RapidsParser
     private static bool IsObjectLiteral(ListStepper<Token> stepper, int offset)
     {
         var i = offset + 1;
+        var depth = 0; // Track bracket depth
+
         while (stepper.Index + i < stepper.ActiveList.Count)
         {
             var t = stepper.ActiveList[stepper.Index + i];
+        
             switch (t.TokenType)
             {
+                case TokenType.OpenCurly:
+                case TokenType.OpenParen:
+                case TokenType.OpenSquare:
+                    depth++;
+                    break;
+
                 case TokenType.ClosedCurly:
-                    // Statement -> Block
+                case TokenType.ClosedParen:
+                case TokenType.ClosedSquare:
+                    if (depth == 0) 
+                    {
+                        return false; 
+                    }
+                    depth--;
+                    break;
+
                 case TokenType.SemiColon:
-                    // Empty {} -> Block
-                    return false; 
+                    if (depth == 0) return false; 
+                    break;
+
                 case TokenType.Colon:
-                    // Pair -> Object
-                    return true;
-                default:
-                    i++;
+                    // If we find a colon at depth 0, it is definitely an object key:pair
+                    if (depth == 0) return true;
                     break;
             }
+            i++;
         }
         return false;
     }
@@ -1576,19 +1710,31 @@ public static class RapidsParser
         if (stepper.ActiveList[stepper.Index + 1].TokenType != TokenType.OpenParen) return false;
         
         int i = 2; 
+        int depth = 0;
 
         while (stepper.Index + i < stepper.ActiveList.Count)
         {
             var t = stepper.ActiveList[stepper.Index + i];
 
-            if (t.TokenType == TokenType.ClosedParen)
+            if (t.TokenType == TokenType.OpenParen || t.TokenType == TokenType.OpenCurly || t.TokenType == TokenType.OpenSquare)
             {
-                break; 
+                depth++;
             }
+            else if (t.TokenType == TokenType.ClosedParen || t.TokenType == TokenType.ClosedCurly || t.TokenType == TokenType.OpenSquare)
+            {
+                if (depth == 0 && t.TokenType == TokenType.ClosedParen)
+                {
+                    break; 
+                }
+                if (depth > 0) depth--;
+            }
+
+            if (depth == 0)
+            {
+                if (t.TokenType == TokenType.Colon) return true;
             
-            if (t.TokenType == TokenType.Colon) return true;
-            
-            if (Token.GetPrecedence(t.TokenType) > 0) return false;
+                if (Token.GetPrecedence(t.TokenType) > 0) return false;
+            }
 
             i++;
         }

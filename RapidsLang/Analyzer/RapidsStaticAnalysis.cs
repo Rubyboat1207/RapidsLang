@@ -27,6 +27,8 @@ public class AnalysisDiagnostic(string message, int index, int length, RapidsSta
         => new("This block of code is unreachable", index, length, RapidsStaticAnalysisSeverity.Warning);
     public static AnalysisDiagnostic OfCalledNonFunction(int index, int length)
         => new("Attempted to call non function", index, length, RapidsStaticAnalysisSeverity.Warning);
+    public static AnalysisDiagnostic OfAlreadyDefined(IdentifierNode identifierNode)
+        => new($"{identifierNode} was already defined", identifierNode.StartIndex, identifierNode.EndIndex - identifierNode.StartIndex, RapidsStaticAnalysisSeverity.Warning);
     public static AnalysisDiagnostic OfIncorrectAmountOfArguments(int index, int length)
         => new("Attempted to call function with incorrect amount of arguments", index, length, RapidsStaticAnalysisSeverity.Warning);
     public static AnalysisDiagnostic OfArgumentTypeIncorrect(Token token, int argumentIndex, RapidsType expected, RapidsType actual)
@@ -37,7 +39,6 @@ public class AnalysisDiagnostic(string message, int index, int length, RapidsSta
         => new($"Module \"{import}\" is unknown.", index, length, RapidsStaticAnalysisSeverity.Warning);
     public static AnalysisDiagnostic OfNeverMutated(int index, int length, string variableName)
         => new($"Variable {variableName} was defined as a let, but was never mutated. Maybe use \"const\" instead to better convey the purpose?", index, length, RapidsStaticAnalysisSeverity.Warning);
-
     public static AnalysisDiagnostic OfModuleFailedAnalysis(ModuleIdent ident)
         => new($"Module {ident.GetName()}'s code failed static analysis", ident.StartIndex,
             ident.EndIndex - ident.StartIndex, RapidsStaticAnalysisSeverity.Warning);
@@ -57,12 +58,15 @@ public class AnalysisDiagnostic(string message, int index, int length, RapidsSta
         => new($"On statement's source was not a source, was {actual.Name}", token.Index, token.EndIndex - token.Index, RapidsStaticAnalysisSeverity.Error);
     public static AnalysisDiagnostic OfMustReturnHintedType(int index, int length, string? name, string expectedType, string actualType)
         => new($"Function {name ?? "anonymous"} must return {expectedType}. Actually returns {actualType}", index, length, RapidsStaticAnalysisSeverity.Error);
+    public static AnalysisDiagnostic OfGenericWrongTypeStrict(ExpressionNode expressionNode, string? name, string expectedType, string actualType)
+        => new($"{(name is null ? $"Expected {name} to be " : "Expected")} {expectedType} but found {actualType}", expressionNode.StartIndex, expressionNode.EndIndex - expressionNode.StartIndex, RapidsStaticAnalysisSeverity.Error);
 }
 
-public class Symbol(string name, bool isConstant, RapidsType? type=null, bool isArgument=false, int? startIndex=null)
+public class Symbol(string name, bool isConstant, RapidsType? type=null, bool isArgument=false, int? startIndex=null, bool isForLoopArgument=false)
 {
     public string Name { get; } = name;
     public bool IsConstant { get; } = isConstant;
+    public bool IsForLoopArgument { get; } = isForLoopArgument;
     public bool IsArgument { get; } = isArgument;
     public bool IsMutated { get; set; } = false;
     public RapidsType Type { get; set; } = type ?? RapidsAnyType.Instance;
@@ -263,7 +267,7 @@ public static class RapidsStaticAnalysis
                 continue;
             }
 
-            if (symbol is { IsConstant: false, IsMutated: false })
+            if (symbol is { IsConstant: false, IsMutated: false, IsForLoopArgument: false })
             {
                 result.Diagnostics.Add(AnalysisDiagnostic.OfNeverMutated(symbol.StartIndex!.Value, symbol.Name.Length, symbol.Name));
             }
@@ -530,6 +534,47 @@ public static class RapidsStaticAnalysis
             case WhileLoopNode whileLoopNode:
                 _ = GetType(whileLoopNode.Condition, scope, result, path);
                 VisitStatements(whileLoopNode.Block, scope.Child(BlockType.Loop), result, path);
+                break;
+            case NumericForLoop numericForLoop:
+                var start = GetType(numericForLoop.Start, scope, result, path);
+                var end = GetType(numericForLoop.Start, scope, result, path);
+
+                if (scope.Symbols.Any(s => s.Name == numericForLoop.Index.Value))
+                {
+                    result.Diagnostics.Add(AnalysisDiagnostic.OfAlreadyDefined(numericForLoop.Index));
+                }
+
+                if (!start.IsSameType(RapidsPrimitiveType.Number))
+                {
+                    result.Diagnostics.Add(AnalysisDiagnostic.OfGenericWrongTypeStrict(
+                        numericForLoop.Start, "Starting index", RapidsPrimitiveType.Number.Name, start.Name
+                    ));
+                }
+
+                if (!end.IsSameType(RapidsPrimitiveType.Number))
+                {
+                    result.Diagnostics.Add(AnalysisDiagnostic.OfGenericWrongTypeStrict(
+                        numericForLoop.Start, "Ending index", RapidsPrimitiveType.Number.Name, end.Name
+                    ));
+                }
+
+                if (numericForLoop.StepExpr is not null)
+                {
+                    var step = GetType(numericForLoop.StepExpr, scope, result, path);
+
+                    if (!step.IsSameType(RapidsPrimitiveType.Number))
+                    {
+                        result.Diagnostics.Add(AnalysisDiagnostic.OfGenericWrongTypeStrict(
+                            numericForLoop.StepExpr, "Step size", RapidsPrimitiveType.Number.Name, step.Name
+                        ));
+                    }
+                }
+
+                var innerScope = scope.Child(BlockType.Loop);
+                
+                innerScope.Symbols.Add(new Symbol(numericForLoop.Index.Value, false, RapidsPrimitiveType.Number, false, numericForLoop.StartIndex, true));
+                
+                VisitStatements(numericForLoop.Body, innerScope, result, path);
                 break;
             case ReturnNode returnNode:
                 if (!scope.ParentScopeIncludes(BlockType.Function))
