@@ -65,4 +65,6 @@ public class RapidsFunctionReferenceVariable(RapidsFunction function) : RapidsVa
         
         return new RapidsFunctionReferenceVariable(value);
     }
+    
+    public override List<(RapidsVariable, RapidsVariable)>? GetIterable() => null;
 }

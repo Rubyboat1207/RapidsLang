@@ -9,6 +9,7 @@ public abstract class RapidsVariable
     public abstract bool Truthy { get; }
     public abstract RapidsVariable? GetMember(string memberName);
     public abstract RapidsVariable ShallowCopy();
+    public abstract List<(RapidsVariable, RapidsVariable)>? GetIterable();
 
     public static RapidsVariable FromJSON(JsonElement element)
     {

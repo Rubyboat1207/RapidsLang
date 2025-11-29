@@ -17,4 +17,6 @@ public class RapidsArrayType(RapidsType elementType) : RapidsType
     };
 
     public override RapidsType? IndexType => ElementType;
+
+    public override RapidsType? IterableType => ElementType;
 }

@@ -84,6 +84,10 @@ public class RapidsObjectVariable(Dictionary<string, RapidsVariable>? initialVal
             return new VariableHolder(member, true);
         }
     }
+    
+    public override List<(RapidsVariable, RapidsVariable)>? GetIterable() => ObjectValues.Select(
+            (RapidsVariable, RapidsVariable) (v) => (new RapidsStringVariable(v.Key), v.Value)
+        ).ToList();
 }
 
 public class ObjectMemberVariableHolder(RapidsVariable InitialValue, RapidsObjectVariable Object, string Key) : VariableHolder(InitialValue, false)

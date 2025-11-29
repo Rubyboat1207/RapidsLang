@@ -310,6 +310,21 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             return;
         }
 
+        if (ActiveNode is IterativeForLoop iterativeForLoop)
+        {
+            EvaluateExpression(iterativeForLoop.Iterable, iterable =>
+            {
+                var list = iterable.GetIterable();
+                if (list is null)
+                {
+                    throw new Exception($"variable type {iterable.VariableTypeName} is not iterable");
+                }
+                Interpreter.PushWork(new IterativeForLoopRunWork(Interpreter, this, iterativeForLoop, list));
+                ProgramCounter++;
+            });
+            return;
+        }
+
         if (ActiveNode is NumericForLoop numericForLoop)
         {
             List<ExpressionNode> expressions = [numericForLoop.Start, numericForLoop.End];

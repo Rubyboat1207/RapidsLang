@@ -136,4 +136,6 @@ public class RapidsStringVariable : RapidsVariable
     {
         return new RapidsStringVariable(Value);
     }
+    
+    public override List<(RapidsVariable, RapidsVariable)>? GetIterable() => Value.Select((RapidsVariable, RapidsVariable) (s, idx) => (new RapidsNumberVariable(idx), new RapidsStringVariable(s.ToString()))).ToList();
 }

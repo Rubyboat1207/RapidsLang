@@ -55,7 +55,9 @@ public class RapidsStringType : RapidsType
         }
     };
 
-    public static RapidsStringType Instance = new();
+    public static readonly RapidsStringType Instance = new();
 
     public override RapidsType? IndexType => Instance;
+
+    public override RapidsType? IterableType => Instance;
 }

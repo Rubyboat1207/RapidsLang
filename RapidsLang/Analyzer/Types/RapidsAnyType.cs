@@ -7,4 +7,5 @@ public class RapidsAnyType : RapidsType
     public override bool IsSameType(RapidsType other) => true;
 
     public static RapidsAnyType Instance { get; } = new();
+    public override RapidsType? IterableType => Instance;
 }

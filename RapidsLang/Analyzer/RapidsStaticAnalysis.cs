@@ -60,6 +60,8 @@ public class AnalysisDiagnostic(string message, int index, int length, RapidsSta
         => new($"Function {name ?? "anonymous"} must return {expectedType}. Actually returns {actualType}", index, length, RapidsStaticAnalysisSeverity.Error);
     public static AnalysisDiagnostic OfGenericWrongTypeStrict(ExpressionNode expressionNode, string? name, string expectedType, string actualType)
         => new($"{(name is null ? $"Expected {name} to be " : "Expected")} {expectedType} but found {actualType}", expressionNode.StartIndex, expressionNode.EndIndex - expressionNode.StartIndex, RapidsStaticAnalysisSeverity.Error);
+    public static AnalysisDiagnostic OfNotIterable(ExpressionNode expressionNode, string type)
+        => new($"Type {type} is not iterable", expressionNode.StartIndex, expressionNode.EndIndex - expressionNode.StartIndex, RapidsStaticAnalysisSeverity.Error);
 }
 
 public class Symbol(string name, bool isConstant, RapidsType? type=null, bool isArgument=false, int? startIndex=null, bool isForLoopArgument=false)
@@ -536,6 +538,7 @@ public static class RapidsStaticAnalysis
                 VisitStatements(whileLoopNode.Block, scope.Child(BlockType.Loop), result, path);
                 break;
             case NumericForLoop numericForLoop:
+            {
                 var start = GetType(numericForLoop.Start, scope, result, path);
                 var end = GetType(numericForLoop.Start, scope, result, path);
 
@@ -571,11 +574,37 @@ public static class RapidsStaticAnalysis
                 }
 
                 var innerScope = scope.Child(BlockType.Loop);
-                
-                innerScope.Symbols.Add(new Symbol(numericForLoop.Index.Value, false, RapidsPrimitiveType.Number, false, numericForLoop.StartIndex, true));
-                
+
+                innerScope.Symbols.Add(new Symbol(numericForLoop.Index.Value, false, RapidsPrimitiveType.Number, false,
+                    numericForLoop.Index.StartIndex, true));
+
                 VisitStatements(numericForLoop.Body, innerScope, result, path);
                 break;
+            }
+            case IterativeForLoop iterativeForLoop:
+            {
+                var iterableType = GetType(iterativeForLoop.Iterable, scope, result, path);
+
+                if (iterableType.IterableType is null)
+                {
+                    result.Diagnostics.Add(AnalysisDiagnostic.OfNotIterable(iterativeForLoop.Iterable, iterableType.Name));
+                }
+                
+                var innerScope = scope.Child(BlockType.Loop);
+                
+                innerScope.Symbols.Add(new Symbol(iterativeForLoop.Item.Value, false, iterableType.IterableType, false,
+                    iterativeForLoop.Item.StartIndex, true));
+
+                if (iterativeForLoop.Index is not null)
+                {
+                    innerScope.Symbols.Add(new Symbol(iterativeForLoop.Index.Value, false, iterableType.IndexType, false,
+                        iterativeForLoop.Item.StartIndex, true));
+                }
+
+                VisitStatements(iterativeForLoop.Body, innerScope, result, path);
+                
+                break;
+            }
             case ReturnNode returnNode:
                 if (!scope.ParentScopeIncludes(BlockType.Function))
                 {

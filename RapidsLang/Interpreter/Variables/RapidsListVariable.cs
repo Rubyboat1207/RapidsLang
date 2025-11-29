@@ -159,6 +159,10 @@ public class RapidsListVariable : RapidsVariable
         [],
         RapidsAnyType.Instance
     );
+    
+    public override List<(RapidsVariable, RapidsVariable)>? GetIterable() => List.Select(
+            (RapidsVariable, RapidsVariable) (item, idx) => (new RapidsNumberVariable(idx), item)
+        ).ToList();
 }
 
 

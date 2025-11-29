@@ -51,4 +51,6 @@ public class RapidsBooleanVariable(bool value): RapidsVariable
     {
         return new RapidsBooleanVariable(Value);
     }
+
+    public override List<(RapidsVariable, RapidsVariable)>? GetIterable() => null;
 }

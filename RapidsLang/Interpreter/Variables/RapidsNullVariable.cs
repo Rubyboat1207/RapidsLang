@@ -37,4 +37,6 @@ public class RapidsNullVariable : RapidsVariable
     {
         return new RapidsNullVariable();
     }
+    
+    public override List<(RapidsVariable, RapidsVariable)>? GetIterable() => null;
 }

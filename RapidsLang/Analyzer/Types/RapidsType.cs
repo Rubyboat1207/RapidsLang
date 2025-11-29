@@ -8,4 +8,5 @@ public abstract class RapidsType
 
     public virtual bool IsSameType(RapidsType other) => other is RapidsAnyType || Name == other.Name;
     public virtual RapidsType? IndexType { get; } = null;
+    public virtual RapidsType? IterableType => null;
 }

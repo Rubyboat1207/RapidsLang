@@ -25,4 +25,5 @@ public class RapidsShapeType(Dictionary<string, RapidsType> properties) : Rapids
     }
 
     public override RapidsType? IndexType => RapidsAnyType.Instance;
+    public override RapidsType? IterableType => RapidsAnyType.Instance;
 }

@@ -725,17 +725,101 @@ public static class RapidsParser
 
         if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.Identifier)
         {
-            builder.AddDiagnostic(new(stepper.AtEnd ? stepper.ActiveList.Last() : stepper.Cur, "expected index identifier"));
+            builder.AddDiagnostic(new(stepper.AtEnd ? stepper.ActiveList.Last() : stepper.Cur, "expected index or item name identifier"));
             TrashUntilEndOfLine(stepper);
             return;
         }
 
-        var index = new IdentifierNode(stepper.Step());
+        var item = new IdentifierNode(stepper.Step());
+
+        if (stepper.AtEnd)
+        {
+            return;
+        }
+
+        if (stepper.Cur is { TokenType: TokenType.Identifier, Value: "in" or "at" })
+        {
+            Token @in;
+            Token? at = null;
+            IdentifierNode? index = null;
+            // ExpressionNode? index;
+
+            if (stepper.Cur.Value == "at")
+            {
+                at = stepper.Step();
+
+                if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.Identifier)
+                {
+                    builder.AddDiagnostic(new(stepper.AtEnd ? stepper.ActiveList.Last() : stepper.Cur, "expected an index identifier"));
+                    return;
+                }
+
+                index = new(stepper.Step());
+                
+                if (stepper.AtEnd || stepper.Cur is not {TokenType: TokenType.Identifier, Value: "in"})
+                {
+                    builder.AddDiagnostic(new(stepper.AtEnd ? stepper.ActiveList.Last() : stepper.Cur, "expected in after the index identifier"));
+                    return;
+                }
+
+                @in = stepper.Step();
+            }
+            else
+            {
+                @in = stepper.Step();
+            }
+
+            if (stepper.AtEnd)
+            {
+                TrashUntilEndOfLine(stepper);
+                return;
+            }
+
+            var iterable = ParseExpression(stepper, builder);
+
+            if (iterable is null)
+            {
+                builder.AddDiagnostic(new(stepper.AtEnd ? stepper.ActiveList.Last() : stepper.Cur, "Expected iterable after index"));
+                return;
+            }
+            
+            if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.ClosedParen)
+            {
+                builder.AddDiagnostic(new(stepper.AtEnd ? stepper.ActiveList.Last() : stepper.Cur, "Expected ')' after iterable"));
+                TrashUntilEndOfLine(stepper);
+                return;
+            }
+
+            stepper.Increment();
+
+            if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.OpenCurly)
+            {
+                builder.AddDiagnostic(new(stepper.AtEnd ? stepper.ActiveList.Last() : stepper.Cur, "expected '{' after for loop"));
+                TrashUntilEndOfLine(stepper);
+                return;
+            }
+            
+            stepper.Increment();
+            
+            var iterativeBody = Parse(stepper);
+            builder.AddDiagnostics(iterativeBody.Diagnostics);
+            
+            builder.AddStatement(new IterativeForLoop(
+                @for,
+                item,
+                at,
+                index,
+                @in,
+                iterable,
+                iterativeBody.RootNode
+            ));
+
+            return;
+        }
         
-        if (stepper.AtEnd || stepper.Cur.TokenType is not TokenType.Assignment)
+        if (stepper.Cur.TokenType is not TokenType.Assignment)
         {
             builder.AddDiagnostic(new(stepper.AtEnd ? stepper.ActiveList.Last() : stepper.Cur, "Expected '=' after index"));
-            if (stepper.AtEnd) return;
         }
 
         var equal = stepper.Step();
@@ -805,17 +889,17 @@ public static class RapidsParser
 
         stepper.Increment();
         
-        var body = Parse(stepper);
-        builder.AddDiagnostics(body.Diagnostics);
+        var numericBody = Parse(stepper);
+        builder.AddDiagnostics(numericBody.Diagnostics);
         
         builder.AddStatement(new NumericForLoop(
             @for,
-            index,
+            item,
             equal,
             start,
             to,
             end,
-            body.RootNode,
+            numericBody.RootNode,
             step,
             stepExpr
         ));

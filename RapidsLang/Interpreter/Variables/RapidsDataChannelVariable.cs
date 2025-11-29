@@ -143,4 +143,6 @@ public class RapidsDataChannelVariable : RapidsVariable
     {
         DataChannel.OnData -= OnStatementSubscriptions[id];
     }
+    
+    public override List<(RapidsVariable, RapidsVariable)>? GetIterable() => null;
 }

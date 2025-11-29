@@ -19,4 +19,5 @@ public class RapidsDictionaryType(RapidsType valueType) : RapidsType
     public static readonly RapidsDictionaryType Unparameterized = new(RapidsAnyType.Instance);
 
     public override RapidsType? IndexType => RapidsAnyType.Instance;
+    public override RapidsType? IterableType => ValueType;
 }

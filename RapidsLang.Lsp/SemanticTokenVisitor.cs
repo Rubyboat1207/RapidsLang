@@ -240,6 +240,23 @@ public class SemanticTokenVisitor(
                 }
                 Visit(numericForLoop.Body);
                 break;
+            case IterativeForLoop iterativeForLoop:
+                PushToken(iterativeForLoop.For, SemanticTokenType.Keyword);
+                Visit(iterativeForLoop.Item);
+                if (iterativeForLoop.At is not null)
+                {
+                    PushToken(iterativeForLoop.At, SemanticTokenType.Keyword);
+                }
+
+                if (iterativeForLoop.Index is not null)
+                {
+                    Visit(iterativeForLoop.Index);
+                }
+                
+                PushToken(iterativeForLoop.In, SemanticTokenType.Keyword);
+                Visit(iterativeForLoop.Iterable);
+                Visit(iterativeForLoop.Body);
+                break;
             case BreakNode breakNode:
                 PushToken(breakNode.BaseToken, SemanticTokenType.Keyword);
                 break;

@@ -53,4 +53,6 @@ public class RapidsNumberVariable(double value) : RapidsVariable
     {
         return new RapidsNumberVariable(Value);
     }
+    
+    public override List<(RapidsVariable, RapidsVariable)>? GetIterable() => null;
 }
