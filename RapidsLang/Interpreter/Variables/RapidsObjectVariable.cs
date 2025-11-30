@@ -90,11 +90,11 @@ public class RapidsObjectVariable(Dictionary<string, RapidsVariable>? initialVal
         ).ToList();
 }
 
-public class ObjectMemberVariableHolder(RapidsVariable InitialValue, RapidsObjectVariable Object, string Key) : VariableHolder(InitialValue, false)
+public class ObjectMemberVariableHolder(RapidsVariable initialValue, RapidsObjectVariable @object, string key) : VariableHolder(initialValue, false)
 {
     public override RapidsVariable Variable
     {
-        get => Object.ObjectValues[Key];
-        set => Object.ObjectValues[Key] = value;
+        get => @object.ObjectValues[key];
+        set => @object.ObjectValues[key] = value;
     }
 }

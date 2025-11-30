@@ -42,6 +42,8 @@ public class AnalysisDiagnostic(string message, int index, int length, RapidsSta
     public static AnalysisDiagnostic OfModuleFailedAnalysis(ModuleIdent ident)
         => new($"Module {ident.GetName()}'s code failed static analysis", ident.StartIndex,
             ident.EndIndex - ident.StartIndex, RapidsStaticAnalysisSeverity.Warning);
+    public static AnalysisDiagnostic OfShouldReturnHintedType(int index, int length, string? name, string expectedType, string actualType)
+        => new($"Function {name ?? "anonymous"} should return {expectedType}. Actually returns {actualType}", index, length, RapidsStaticAnalysisSeverity.Warning);
     
     // ------ ERRORS ------ //
     public static AnalysisDiagnostic OfConstantModified(int index, int length, string variableName)
@@ -56,8 +58,6 @@ public class AnalysisDiagnostic(string message, int index, int length, RapidsSta
         => new($"Return was used in a non function context.", index, length, RapidsStaticAnalysisSeverity.Error);
     public static AnalysisDiagnostic OfOnStatementUsedOnNonSource(Token token, RapidsType actual)
         => new($"On statement's source was not a source, was {actual.Name}", token.Index, token.EndIndex - token.Index, RapidsStaticAnalysisSeverity.Error);
-    public static AnalysisDiagnostic OfMustReturnHintedType(int index, int length, string? name, string expectedType, string actualType)
-        => new($"Function {name ?? "anonymous"} must return {expectedType}. Actually returns {actualType}", index, length, RapidsStaticAnalysisSeverity.Error);
     public static AnalysisDiagnostic OfGenericWrongTypeStrict(ExpressionNode expressionNode, string? name, string expectedType, string actualType)
         => new($"{(name is null ? $"Expected {name} to be " : "Expected")} {expectedType} but found {actualType}", expressionNode.StartIndex, expressionNode.EndIndex - expressionNode.StartIndex, RapidsStaticAnalysisSeverity.Error);
     public static AnalysisDiagnostic OfNotIterable(ExpressionNode expressionNode, string type)
@@ -428,7 +428,7 @@ public static class RapidsStaticAnalysis
                     result.Diagnostics.Add(AnalysisDiagnostic.OfCalledNonFunction(functionCallStatementNode.BaseToken.Index, functionCallStatementNode.BaseToken.Value.Length));
                 }
 
-                var func = functionType is RapidsFunctionType rapidsFuncType ? rapidsFuncType : null;
+                var func = functionType as RapidsFunctionType;
                 
                 if (func is not null)
                 {
@@ -606,6 +606,9 @@ public static class RapidsStaticAnalysis
                 break;
             }
             case ReturnNode returnNode:
+                var ret = GetType(returnNode.Value, scope, result, path);
+                // ideally this should be turned into a union
+                scope.ReturnValue = ret;
                 if (!scope.ParentScopeIncludes(BlockType.Function))
                 {
                     result.Diagnostics.Add(AnalysisDiagnostic.OfInvalidReturn(returnNode.BaseToken.Index, returnNode.BaseToken.Value.Length));
@@ -702,7 +705,7 @@ public static class RapidsStaticAnalysis
                 {
                     if (!statedReturnType.IsSameType(computedReturnType))
                     {
-                        result.Diagnostics.Add(AnalysisDiagnostic.OfMustReturnHintedType(
+                        result.Diagnostics.Add(AnalysisDiagnostic.OfShouldReturnHintedType(
                             functionNode.BaseToken.Index,
                             functionNode.BaseToken.Value.Length,
                             null,
@@ -712,7 +715,7 @@ public static class RapidsStaticAnalysis
                     }
                 } else if (statedReturnType is not null && computedReturnType is null)
                 {
-                    result.Diagnostics.Add(AnalysisDiagnostic.OfMustReturnHintedType(
+                    result.Diagnostics.Add(AnalysisDiagnostic.OfShouldReturnHintedType(
                         functionNode.BaseToken.Index,
                         functionNode.BaseToken.Value.Length,
                         null,
@@ -721,7 +724,7 @@ public static class RapidsStaticAnalysis
                     ));
                 }else if (statedReturnType is null && computedReturnType is not null)
                 {
-                    result.Diagnostics.Add(AnalysisDiagnostic.OfMustReturnHintedType(
+                    result.Diagnostics.Add(AnalysisDiagnostic.OfShouldReturnHintedType(
                         functionNode.BaseToken.Index,
                         functionNode.BaseToken.Value.Length,
                         null,
