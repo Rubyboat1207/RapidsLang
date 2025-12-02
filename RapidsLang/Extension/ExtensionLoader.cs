@@ -6,7 +6,7 @@ namespace RapidsLang.Extension;
 
 public static class ExtensionLoader
 {
-    public static readonly string[] LanguageFeatureSets = ["core"];
+    public static readonly string[] LanguageFeatureSets = ["core", "audio"];
     
     public static List<ExtensionData> GetExternalExtensions()
     {
