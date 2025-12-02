@@ -1,4 +1,5 @@
 using RapidsLang.Analyzer.Types;
+using RapidsLang.Extension;
 using RapidsLang.Extensions;
 using RapidsLang.Interpreter;
 using RapidsLang.Lexer;

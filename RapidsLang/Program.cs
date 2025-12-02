@@ -1,5 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using RapidsLang.Analyzer;
+using RapidsLang.Extension;
 using RapidsLang.Extensions;
 using RapidsLang.Interpreter;
 using RapidsLang.Lexer;

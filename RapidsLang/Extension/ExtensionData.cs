@@ -1,3 +1,4 @@
+using RapidsLang.Extension.Manifest;
 using RapidsLang.Extensions.Manifest;
 
 namespace RapidsLang.Extensions;

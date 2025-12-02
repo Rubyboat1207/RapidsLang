@@ -1,10 +1,13 @@
 using System.Text.Json;
+using RapidsLang.Extensions;
 using RapidsLang.Extensions.Manifest;
 
-namespace RapidsLang.Extensions;
+namespace RapidsLang.Extension;
 
 public static class ExtensionLoader
 {
+    public static readonly string[] LanguageFeatureSets = ["core"];
+    
     public static List<ExtensionData> GetExternalExtensions()
     {
         List<ExtensionData> list = [];
@@ -31,8 +34,26 @@ public static class ExtensionLoader
                     {
                         continue;
                     }
+
+                    var data = new ExtensionData(manifest.MigrateToLatest(), directory);
+
+                    var notIncludedFeatureSets =
+                        (data.ExtensionManifest.RequiredFeatureSets ?? ["core"]).Where(s =>
+                            !LanguageFeatureSets.Contains(s)).ToList();
                     
-                    list.Add(new ExtensionData(manifest.MigrateToLatest(), directory));
+                    if (notIncludedFeatureSets.Count > 0)
+                    {
+                        Console.WriteLine($"" +
+                          $"[WARNING] Extension module requires feature(s) that are not currently supported. Will cause issues. " +
+                          $"\nRequires:" +
+                          $"\n{string.Join(",\n", data.ExtensionManifest.RequiredFeatureSets ?? ["core"])}" +
+                          $"\nbut current interpreter features only includes: " +
+                          $"\n{string.Join(",\n", LanguageFeatureSets)}" +
+                          $"\n Missing: " +
+                          $"{string.Join(",\n", notIncludedFeatureSets)}");
+                    }
+                    
+                    list.Add(data);
                 }
                 catch(Exception e)
                 {

@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using RapidsLang.Extension.Manifest;
 
 namespace RapidsLang.Extensions.Manifest;
 
