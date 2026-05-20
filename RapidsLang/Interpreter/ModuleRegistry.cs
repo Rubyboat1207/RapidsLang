@@ -17,7 +17,8 @@ public class ModuleRegistry
         { "random", new RandomModule() },
         { "math", new MathModule() },
         { "program", new ProgramModule() },
-        { "env", new EnvironmentModule() }
+        { "env", new EnvironmentModule() },
+        { "files", new FilesModule() }
     };
 
     private readonly HashSet<Module> _tickingModules = [];
