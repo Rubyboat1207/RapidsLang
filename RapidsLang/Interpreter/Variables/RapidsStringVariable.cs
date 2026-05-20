@@ -61,6 +61,7 @@ public class RapidsStringVariable : RapidsVariable
             "contains" => RapidsFunctionReferenceVariable.OfNative(Contains),
             "lastIndexOf" => RapidsFunctionReferenceVariable.OfNative(LastIndexOf),
             "trim" => RapidsFunctionReferenceVariable.OfNative(Trim),
+            "startsWith" => RapidsFunctionReferenceVariable.OfNative(StartsWith),
             _ => null
         };
     }
@@ -97,6 +98,20 @@ public class RapidsStringVariable : RapidsVariable
         }
 
         util.Return(new RapidsListVariable(Value.Split(splitter.Value).Select(s => (RapidsVariable) new RapidsStringVariable(s)).ToList()));
+    }
+
+    private void StartsWith(RapidsInterpreter interpreter)
+    {
+        using var util = interpreter.GetNativeUtil().GuaranteeReturn();
+
+        var substring = util.LatestString();
+
+        if (substring is null)
+        {
+            return;
+        }
+        
+        util.Return(new RapidsBooleanVariable(Value.StartsWith(substring.Value)));
     }
 
     public void Contains(RapidsInterpreter interpreter)
