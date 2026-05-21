@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using RapidsLang.Extensions;
 using RapidsLang.Extensions.Channel;
 using RapidsLang.Interpreter.Work;
@@ -16,6 +17,7 @@ public class RapidsDataChannelVariable : RapidsVariable
     public string? DataVariableName
     {
         set => DataChannel.DataVariableName = value;
+        get => DataChannel.DataVariableName;
     }
 
     public RapidsDataChannelVariable(DataChannel dataChannel, Module module)
@@ -101,7 +103,7 @@ public class RapidsDataChannelVariable : RapidsVariable
         }
     }
 
-    private Dictionary<Guid, Action<RapidsVariable>> OnStatementSubscriptions = [];
+    private Dictionary<Guid, DataChannelSubscription> OnStatementSubscriptions = [];
 
     public void SubscribeUsingOnStatement(OnSourceStatement node, RapidsInterpreter interpreter, CodeBlockRunWork? parent)
     {
@@ -117,32 +119,283 @@ public class RapidsDataChannelVariable : RapidsVariable
         var closure = new InterpreterContext(interpreter.Context);
         var subscriptionId = Guid.CreateVersion7();
 
-        void OnTargetStatementCallback(RapidsVariable rv)
+        if (node.Every is not null)
         {
-            interpreter.EnqueueAction(() => 
+            interpreter.EvaluateExpression(node.Every.Time, measurement =>
             {
-                var closureInstance = new InterpreterContext(closure);
-                if (DataChannel.DataVariableName is not null)
+                if (measurement is not RapidsNumberVariable number)
                 {
-                    closureInstance.AddVariable(DataChannel.DataVariableName, new VariableHolder(rv, true));
+                    throw new Exception("Expected number for pipe subscription timing");
                 }
+                DataChannelSubscription subscription = node.Every?.BaseToken.Value switch
+                {
+                    "queue" => new DataChannelQueued(
+                        subscriptionId,
+                        node.Body,
+                        interpreter,
+                        parent,
+                        closure,
+                        this,
+                        number.Value
+                    ),
+                    "latest" => new DataChannelLatest(
+                        subscriptionId,
+                        node.Body,
+                        interpreter,
+                        parent,
+                        closure,
+                        this,
+                        number.Value
+                    ),
+                    "throttle" => new DataChannelThrottled(
+                        subscriptionId,
+                        node.Body,
+                        interpreter,
+                        parent,
+                        closure,
+                        this,
+                        number.Value
+                    ),
+                    _ => throw new Exception("Expected, latest, throttle or queue as timing method for pipe")
+                };
+                
+                DataChannel.OnData += subscription.OnTargetStatementCallback;
 
-                var block = interpreter.StartNewBlock(node.Body, BlockType.SourceCallback, parent, closureInstance);
-
-                block.Scope.Source = this;
-                block.Scope.SourceSubscriptionId = subscriptionId;
-            });
+                OnStatementSubscriptions[subscriptionId] = subscription;
+            }, parent);
+            
         }
+        else
+        {
+            var subscription = new DataChannelSubscription(
+                subscriptionId,
+                node.Body,
+                interpreter,
+                parent,
+                closure,
+                this
+            );
+            DataChannel.OnData += subscription.OnTargetStatementCallback;
 
-        DataChannel.OnData += OnTargetStatementCallback;
-
-        OnStatementSubscriptions[subscriptionId] = OnTargetStatementCallback;
+            OnStatementSubscriptions[subscriptionId] = subscription;
+        }
     }
 
     public void UnsubscribeOnStatement(Guid id)
     {
-        DataChannel.OnData -= OnStatementSubscriptions[id];
+        var subscription = OnStatementSubscriptions[id];
+        DataChannel.OnData -= subscription.OnTargetStatementCallback;
+        // todo: call when everyone has unsubscribed
+        // subscription.OnUnsubscribed();
     }
     
     public override List<(RapidsVariable, RapidsVariable)>? GetIterable() => null;
+}
+
+public class DataChannelSubscription(
+    Guid id,
+    StatementsNode body,
+    RapidsInterpreter interpreter,
+    CodeBlockRunWork? parent,
+    InterpreterContext closure,
+    RapidsDataChannelVariable dataChannel
+)
+{
+    protected readonly RapidsInterpreter Interpreter = interpreter;
+    public virtual void OnTargetStatementCallback(RapidsVariable rv)
+    {
+        Interpreter.EnqueueAction(() => 
+        {
+            var closureInstance = new InterpreterContext(closure);
+            if (dataChannel.DataVariableName is not null)
+            {
+                closureInstance.AddVariable(dataChannel.DataVariableName, new VariableHolder(rv, true));
+            }
+
+            var block = Interpreter.StartNewBlock(body, BlockType.SourceCallback, parent, closureInstance);
+
+            block.Scope.Source = dataChannel;
+            block.Scope.SourceSubscriptionId = id;
+        });
+    }
+
+    public virtual void OnUnsubscribed() { }
+}
+
+public class DataChannelThrottled(
+    Guid id,
+    StatementsNode body,
+    RapidsInterpreter interpreter,
+    CodeBlockRunWork? parent,
+    InterpreterContext closure,
+    RapidsDataChannelVariable dataChannel,
+    double seconds
+) : DataChannelSubscription(id, body, interpreter, parent, closure, dataChannel)
+{
+    private DateTime? _lastFired = null;
+    public override void OnTargetStatementCallback(RapidsVariable rv)
+    {
+        if (_lastFired is null)
+        {
+            _lastFired = DateTime.Now;
+            base.OnTargetStatementCallback(rv);
+            return;
+        }
+            
+        if (DateTime.Now < _lastFired.Value.AddSeconds(seconds)) return;
+            
+        _lastFired = DateTime.Now;
+        base.OnTargetStatementCallback(rv);
+    }
+}
+
+public class DataChannelQueued(
+    Guid id,
+    StatementsNode body,
+    RapidsInterpreter interpreter,
+    CodeBlockRunWork? parent,
+    InterpreterContext closure,
+    RapidsDataChannelVariable dataChannel,
+    double seconds
+) : DataChannelSubscription(id, body, interpreter, parent, closure, dataChannel)
+{
+    private DateTime? _lastFired;
+    private readonly ConcurrentQueue<RapidsVariable> _queuedData = [];
+    private bool _tickRunning;
+    private readonly Lock _lock = new();
+    
+    public override void OnTargetStatementCallback(RapidsVariable rv)
+    {
+        lock (_lock)
+        {
+            if (_lastFired is null)
+            {
+                _lastFired = DateTime.Now;
+                base.OnTargetStatementCallback(rv);
+                return;
+            }
+            
+            _queuedData.Enqueue(rv);
+            
+            if (_tickRunning) return;
+            
+            Task.Run(Tick);
+            _tickRunning = true;
+        }
+    }
+
+    private async Task Tick()
+    {
+        while (true)
+        {
+            TimeSpan delay;
+            if (_lastFired is null)
+            {
+                delay = TimeSpan.FromSeconds(seconds);
+            }
+            else
+            {
+                delay = (_lastFired.Value + TimeSpan.FromSeconds(seconds)) - DateTime.Now;
+            }
+            await Task.Delay(delay < TimeSpan.Zero ? TimeSpan.Zero : delay);
+
+            lock (_lock)
+            {
+                if (!_tickRunning)
+                {
+                    return;
+                }
+                
+                if (_queuedData.IsEmpty)
+                {
+                    _lastFired = null;
+                    _tickRunning = false;
+                    return;
+                }
+                _lastFired = DateTime.Now;
+                
+                if (_queuedData.TryDequeue(out var rv))
+                {
+                    base.OnTargetStatementCallback(rv);
+                }
+            }
+        }
+    }
+    
+    public override void OnUnsubscribed()
+    {
+        lock (_lock)
+        {
+            _tickRunning = false;
+        }
+    }
+}
+
+public class DataChannelLatest(
+    Guid id,
+    StatementsNode body,
+    RapidsInterpreter interpreter,
+    CodeBlockRunWork? parent,
+    InterpreterContext closure,
+    RapidsDataChannelVariable dataChannel,
+    double seconds
+) : DataChannelSubscription(id, body, interpreter, parent, closure, dataChannel)
+{
+    private DateTime? _lastFired;
+    private RapidsVariable? _latest;
+    private bool _enqueueRunning;
+    private readonly Lock _lock = new();
+    
+    public override void OnTargetStatementCallback(RapidsVariable rv)
+    {
+        lock (_lock)
+        {
+            if (_lastFired is null)
+            {
+                _lastFired = DateTime.Now;
+                base.OnTargetStatementCallback(rv);
+                return;
+            }
+            
+            _latest = rv;
+
+            if (_enqueueRunning) return;
+
+            _enqueueRunning = true;
+            Task.Run(Enqueue);
+        }
+    }
+
+    private async Task Enqueue()
+    {
+        TimeSpan delay;
+        if (_lastFired is null)
+        {
+            delay = TimeSpan.FromSeconds(seconds);
+        }
+        else
+        {
+            delay = _lastFired.Value + TimeSpan.FromSeconds(seconds) - DateTime.Now;
+        }
+        await Task.Delay(delay < TimeSpan.Zero ? TimeSpan.Zero : delay);
+        lock (_lock)
+        {
+            if (!_enqueueRunning)
+            {
+                return;
+            }
+
+            _lastFired = DateTime.Now;
+            base.OnTargetStatementCallback(_latest!);
+            _enqueueRunning = false;
+        }
+    }
+
+    public override void OnUnsubscribed()
+    {
+        lock (_lock)
+        {
+            _enqueueRunning = false;
+        }
+    }
 }

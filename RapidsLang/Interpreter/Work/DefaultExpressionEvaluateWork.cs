@@ -17,6 +17,21 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                 _done = true;
                 Callback.Invoke(new RapidsNumberVariable(numNode.Number));
                 break;
+            case LiteralMeasurementNode measurementNode:
+                _done = true;
+                
+                Callback.Invoke(new RapidsNumberVariable(measurementNode.Quantity.Number * (measurementNode.Unit.Value switch
+                {
+                    "us" => 1.0/1000000,
+                    "ms" => 1.0/1000,
+                    "s" => 1,
+                    "m" => 60,
+                    "h" => 60*60,
+                    "d" => 60*60*24,
+                    
+                    _ => throw new Exception($"Internal Error: Did not recognize unit \"{measurementNode.Unit.Value}\".")
+                })));
+                break;
             case OperationNode operationNode:
                 EvaluateExpression(operationNode.Left, left =>
                 {

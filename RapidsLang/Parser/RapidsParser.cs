@@ -456,19 +456,44 @@ public static class RapidsParser
 
                 var expr = ParseExpression(stepper, builder);
 
-                var openCurly = stepper.Step();
-                if (openCurly.TokenType is not TokenType.OpenCurly)
+                var curlyOrTiming = stepper.Step();
+                Token curly;
+                TimingNode? timing = null;
+                if(curlyOrTiming.TokenType is TokenType.Identifier && curlyOrTiming.Value is "throttle" or "queue" or "latest")
+                {
+                    var measurement = ParseExpression(stepper, builder);
+                    if (measurement is not null)
+                    {
+                        timing = new TimingNode(curlyOrTiming, measurement);
+                    }
+                    else
+                    {
+                        builder.AddDiagnostic(new(on, "expected a measurement after every or after in on source statement", true));
+                        TrashUntilEndOfLine(stepper);
+                        continue; 
+                    }
+
+                    curly = stepper.Step();
+                }
+                else
+                {
+                    curly = curlyOrTiming;
+                }
+                
+                
+                if(curly.TokenType is not TokenType.OpenCurly)
                 {
                     builder.AddDiagnostic(new(on, "expected start of block", true));
                     TrashUntilEndOfLine(stepper);
-                    continue;
+                    continue; 
                 }
-
-                var block = Parse(stepper, new StatementsNode(openCurly));
+                
+                var block = Parse(stepper, new StatementsNode(curly));
                 
                 builder.AddStatement(new OnSourceStatement(
                     on,
                     expr!,
+                    timing,
                     block.RootNode,
                     GetLogLevel(stepper, builder)
                 ));
@@ -1592,7 +1617,17 @@ public static class RapidsParser
                     builder.AddDiagnostic(new Diagnostic(stepper.Cur, "Unable to parse number"));
                     return null;
                 }
-                left = new LiteralNumberNode(stepper.Step(), num);
+
+                var numberNode = new LiteralNumberNode(stepper.Step(), num);
+
+                if (stepper is { AtEnd: false, Cur.TokenType: TokenType.Identifier })
+                {
+                    left = new LiteralMeasurementNode(numberNode, new IdentifierNode(stepper.Step()));
+                }
+                else
+                {
+                    left = numberNode;
+                }
                 break;
             }
 

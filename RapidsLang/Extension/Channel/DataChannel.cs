@@ -18,7 +18,7 @@ public class DataChannel
     }
 
     private CommunicationProtocol Protocol { get; }
-    private Identifier SourceIdentifier { get; }
+    public Identifier SourceIdentifier { get; }
     private event Action<RapidsVariable>? _onData;
     private int _dataSubscriberCount = 0;
     private ChannelSubscriber _subscriber;

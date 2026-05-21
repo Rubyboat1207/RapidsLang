@@ -254,7 +254,7 @@ public class RapidsInterpreter
         await InterpretLoop(false);
     }
     
-    public void EvaluateExpression(ExpressionNode expressionNode, Action<RapidsVariable> callback, CodeBlockRunWork parent)
+    public void EvaluateExpression(ExpressionNode expressionNode, Action<RapidsVariable> callback, CodeBlockRunWork? parent)
     {
         if (expressionNode is FunctionCallExpressionNode fcen)
         { 
