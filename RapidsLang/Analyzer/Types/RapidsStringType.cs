@@ -52,6 +52,13 @@ public class RapidsStringType : RapidsType
                 [],
                 this
             )
+        },
+        {
+            "startsWith",
+            new RapidsFunctionType(
+                [new("substring", this)],
+                RapidsPrimitiveType.Bool
+            )
         }
     };
 

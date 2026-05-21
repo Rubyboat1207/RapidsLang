@@ -32,6 +32,13 @@ public class SemanticTokenVisitor(
                     Visit(statement);
                 }
                 break;
+            case ContinueNode continueNode:
+                PushToken(continueNode.BaseToken, SemanticTokenType.Keyword);
+                if (continueNode.Timing is not null)
+                {
+                    PushToken(continueNode.Timing, SemanticTokenType.Keyword);
+                }
+                break;
             case IfNode ifNode:
                 PushToken(ifNode.BaseToken, SemanticTokenType.Keyword);
                 Visit(ifNode.Condition);
@@ -263,6 +270,8 @@ public class SemanticTokenVisitor(
             case OnSourceStatement onSourceStatement:
                 PushToken(onSourceStatement.BaseToken, SemanticTokenType.Keyword);
                 Visit(onSourceStatement.Source);
+                if(onSourceStatement.Every is not null) 
+                    Visit(onSourceStatement.Every);
                 Visit(onSourceStatement.Body);
                 break;
             case UnaryOperationNode notNode:
@@ -270,6 +279,14 @@ public class SemanticTokenVisitor(
                 break;
             case ListNode listNode:
                 listNode.Values.ForEach(Visit);
+                break;
+            case TimingNode timingNode:
+                PushToken(timingNode.BaseToken, SemanticTokenType.Keyword);
+                Visit(timingNode.Time);
+                break;
+            case LiteralMeasurementNode measurementNode:
+                Visit(measurementNode.Quantity);
+                PushToken(measurementNode.Unit.Token, SemanticTokenType.Keyword);
                 break;
             case IdentifierNode identifierNode:
             {

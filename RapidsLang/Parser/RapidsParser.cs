@@ -715,10 +715,24 @@ public static class RapidsParser
             
             if (stepper.Cur.TokenType is TokenType.Continue)
             {
+                var cont = stepper.Step();
+                Token? timing = null;
+                if (stepper is { AtEnd: false, Cur.TokenType: TokenType.Identifier })
+                {
+                    if (stepper.Cur.Value != "now")
+                    {
+                        builder.AddIssue("Expected \"now\" or nothing after continue.");
+                        TrashUntilEndOfLine(stepper);
+                        continue;
+                    }
+                    timing = stepper.Step();
+                }
                 builder.AddStatement(new ContinueNode(
-                    stepper.Step(),
+                    cont,
+                    timing,
                     GetLogLevel(stepper, builder)
                 ));
+                continue;
             }
 
             if (stepper.Cur.TokenType is TokenType.ClosedCurly)

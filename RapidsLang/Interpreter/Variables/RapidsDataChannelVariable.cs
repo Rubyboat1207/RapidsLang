@@ -188,6 +188,8 @@ public class RapidsDataChannelVariable : RapidsVariable
         // todo: call when everyone has unsubscribed
         // subscription.OnUnsubscribed();
     }
+
+    public DataChannelSubscription GetSubscription(Guid id) => OnStatementSubscriptions[id];
     
     public override List<(RapidsVariable, RapidsVariable)>? GetIterable() => null;
 }
@@ -230,7 +232,7 @@ public class DataChannelThrottled(
     InterpreterContext closure,
     RapidsDataChannelVariable dataChannel,
     double seconds
-) : DataChannelSubscription(id, body, interpreter, parent, closure, dataChannel)
+) : DataChannelSubscription(id, body, interpreter, parent, closure, dataChannel), IDataChannelSubscriptionTimed
 {
     private DateTime? _lastFired = null;
     public override void OnTargetStatementCallback(RapidsVariable rv)
@@ -247,6 +249,16 @@ public class DataChannelThrottled(
         _lastFired = DateTime.Now;
         base.OnTargetStatementCallback(rv);
     }
+    
+    public void OnContinuedNow()
+    {
+        _lastFired = null;
+    }
+}
+
+public interface IDataChannelSubscriptionTimed
+{
+    void OnContinuedNow();
 }
 
 public class DataChannelQueued(
@@ -257,7 +269,7 @@ public class DataChannelQueued(
     InterpreterContext closure,
     RapidsDataChannelVariable dataChannel,
     double seconds
-) : DataChannelSubscription(id, body, interpreter, parent, closure, dataChannel)
+) : DataChannelSubscription(id, body, interpreter, parent, closure, dataChannel), IDataChannelSubscriptionTimed
 {
     private DateTime? _lastFired;
     private readonly ConcurrentQueue<RapidsVariable> _queuedData = [];
@@ -329,6 +341,14 @@ public class DataChannelQueued(
             _tickRunning = false;
         }
     }
+
+    public void OnContinuedNow()
+    {
+        lock (_lock)
+        {
+            _lastFired = null;
+        }
+    }
 }
 
 public class DataChannelLatest(
@@ -339,7 +359,7 @@ public class DataChannelLatest(
     InterpreterContext closure,
     RapidsDataChannelVariable dataChannel,
     double seconds
-) : DataChannelSubscription(id, body, interpreter, parent, closure, dataChannel)
+) : DataChannelSubscription(id, body, interpreter, parent, closure, dataChannel), IDataChannelSubscriptionTimed
 {
     private DateTime? _lastFired;
     private RapidsVariable? _latest;
@@ -396,6 +416,14 @@ public class DataChannelLatest(
         lock (_lock)
         {
             _enqueueRunning = false;
+        }
+    }
+    
+    public void OnContinuedNow()
+    {
+        lock (_lock)
+        {
+            _lastFired = null;
         }
     }
 }

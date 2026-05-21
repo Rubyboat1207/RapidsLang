@@ -54,7 +54,7 @@ public class AnalysisDiagnostic(string message, int index, int length, RapidsSta
     public static AnalysisDiagnostic OfInvalidBreak(int index, int length)
         => new($"Break was used in a non loop context.", index, length, RapidsStaticAnalysisSeverity.Error);
     public static AnalysisDiagnostic OfInvalidContinue(int index, int length)
-        => new($"Continue was used in a non loop context.", index, length, RapidsStaticAnalysisSeverity.Error);
+        => new($"Continue was used in a non loop or source context.", index, length, RapidsStaticAnalysisSeverity.Error);
     public static AnalysisDiagnostic OfInvalidReturn(int index, int length)
         => new($"Return was used in a non function context.", index, length, RapidsStaticAnalysisSeverity.Error);
     public static AnalysisDiagnostic OfOnStatementUsedOnNonSource(Token token, RapidsType actual)
@@ -622,7 +622,7 @@ public static class RapidsStaticAnalysis
                 }
                 break;
             case ContinueNode continueNode:
-                if (!scope.ParentScopeIncludes(BlockType.Loop))
+                if (!scope.ParentScopeIncludes(BlockType.Loop) && !scope.ParentScopeIncludes(BlockType.SourceCallback))
                 {
                     result.Diagnostics.Add(AnalysisDiagnostic.OfInvalidContinue(continueNode.BaseToken.Index, continueNode.BaseToken.Value.Length));
                 }
@@ -661,16 +661,15 @@ public static class RapidsStaticAnalysis
                     break;
                 }
                 
-                if (functionCallExpressionNode.Function is IdentifierNode)
-                {
-                    var value = GetType(fn, scope, result, path);
+                var retType = GetType(fn, scope, result, path);
 
-                    if (value is RapidsFunctionType functionType)
-                    {
-                        computedType = functionType.ReturnType ?? RapidsAnyType.Instance;
-                        break;
-                    }
+                if (retType is RapidsFunctionType functionType)
+                {
+                    computedType = functionType.ReturnType ?? RapidsAnyType.Instance;
+                    break;
                 }
+                
+                
                 
                 // todo: continue this
                 break;

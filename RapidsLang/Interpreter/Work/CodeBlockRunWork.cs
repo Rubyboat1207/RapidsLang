@@ -367,7 +367,7 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
 
             if (codeBlock == null)
             {
-                throw new Exception("Return can only be used under a while loop");
+                throw new Exception("Break can only be used under a while loop or source callback");
             }
             
             codeBlock.Scope.ShouldBreakOut = true;
@@ -378,9 +378,32 @@ public record CodeBlockRunWork(BlockProgress Scope, RapidsInterpreter Interprete
             return;
         }
 
-        if (ActiveNode is ContinueNode)
+        if (ActiveNode is ContinueNode continueNode)
         {
             ProgramCounter = Block.Statements.Count;
+            if (continueNode.Timing?.Value != "now") return;
+            
+            var codeBlock = this;
+            
+            while (codeBlock is { Scope.BlockType: not BlockType.SourceCallback })
+            {
+                codeBlock.Scope.ShouldBreakOut = true;
+                codeBlock = codeBlock.Parent;
+            }
+
+            if (codeBlock == null)
+            {
+                throw new Exception("continue now can only be used under a source callback");
+            }
+
+            if (codeBlock.Scope.Source?.GetSubscription(codeBlock.Scope.SourceSubscriptionId) is not
+                IDataChannelSubscriptionTimed timed)
+            {
+                throw new Exception(
+                    "continue now can only be used under a queue, throttle, or latest timed source callback.");
+            }
+                
+            timed.OnContinuedNow();
             return;
         }
 
