@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using RapidsLang.Extensions;
 using RapidsLang.Interpreter.Lib.Modules;
 
@@ -23,8 +24,8 @@ public class ModuleRegistry
     };
 
     private readonly HashSet<Module> _tickingModules = [];
-
-    public bool TryGetModule(string identifier, out Module? module)
+    
+    public bool TryGetModule(string identifier, [NotNullWhen(true)] out Module? module)
     {
         return RegisteredModules.TryGetValue(identifier, out module);
     }

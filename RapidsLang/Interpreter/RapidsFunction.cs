@@ -1,5 +1,6 @@
 using RapidsLang.Analyzer.Types;
 using RapidsLang.Interpreter.Work;
+using RapidsLang.InterpreterVM;
 using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.Interpreter;
@@ -18,14 +19,20 @@ public abstract class RapidsFunction(RapidsType? type)
     }
 }
 
-public class RapidsNativeFunction(Action<RapidsInterpreter> func, RapidsType? type = null) : RapidsFunction(type)
+public class RapidsNativeFunction(Action<RapidsInterpreter> func, RapidsType? type = null, Action<Frame>? vmFunc = null, int parameterCount=0) : RapidsFunction(type)
 {
+    public int ParameterCount { get; } = parameterCount;
     private Action<RapidsInterpreter> Function { get; } = func;
     public override void EnqueueExecution(RapidsInterpreter interpreter, CodeBlockRunWork? parentCodeBlock)
     {
         Function.Invoke(interpreter);
 
         base.EnqueueExecution(interpreter, parentCodeBlock);
+    }
+
+    public void Execute(Frame frame)
+    {
+        vmFunc.Invoke(frame);
     }
 }
 
@@ -40,8 +47,10 @@ public class RapidsNativeFunctionWithCodeBlock(Action<RapidsInterpreter, CodeBlo
     }
 }
 
-public class RapidsUserFunction(FunctionNode func, InterpreterContext closure, RapidsType? rapidsType = null)  : RapidsFunction(rapidsType)
+public class RapidsUserFunction(FunctionNode func, InterpreterContext closure, RapidsType? rapidsType = null, int index=0)  : RapidsFunction(rapidsType)
 {
+    public int Index { get; } = index;
+    public int ParameterCount => Func.Arguments?.Count ?? 0;
     private FunctionNode Func { get; } = func;
     public override void EnqueueExecution(RapidsInterpreter interpreter, CodeBlockRunWork? parentCodeBlock)
     {

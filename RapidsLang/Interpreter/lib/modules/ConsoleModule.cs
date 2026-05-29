@@ -1,5 +1,6 @@
 using RapidsLang.Analyzer.Types;
 using RapidsLang.Interpreter.Variables;
+using RapidsLang.InterpreterVM;
 
 namespace RapidsLang.Interpreter.Lib.Modules;
 
@@ -17,6 +18,19 @@ public class ConsoleModule : Module
         {
             Console.WriteLine(Utils.StringifyVariable(variable));
         }
+    }
+    
+    private static void PrintVm(Frame frame)
+    {
+        if (frame.Stack.TryPop(out var variable))
+        {
+            Console.WriteLine(Utils.StringifyVariable(variable));
+        }else
+        {
+            Console.WriteLine();
+        }
+        
+        frame.Stack.Push(new RapidsBooleanVariable(false));
     }
     
     private static readonly RapidsType PrintType = new RapidsFunctionType(
@@ -58,7 +72,7 @@ public class ConsoleModule : Module
     );
 
     public override ModuleExports Exports { get; } = new(new Dictionary<string, ModuleExport> {
-        {"print", new(RapidsFunctionReferenceVariable.OfNative(Print, PrintType), PrintType)},
+        {"print", new(RapidsFunctionReferenceVariable.OfNativeWithVm(Print, PrintVm, 1, PrintType), PrintType)},
         {"input", new(RapidsFunctionReferenceVariable.OfNative(Input, InputType), PrintType)},
         {"write", new(RapidsFunctionReferenceVariable.OfNative(Write, WriteType), PrintType)}
     });

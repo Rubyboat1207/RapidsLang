@@ -3,6 +3,7 @@ using RapidsLang.Analyzer;
 using RapidsLang.Extension;
 using RapidsLang.Extensions;
 using RapidsLang.Interpreter;
+using RapidsLang.InterpreterVM;
 using RapidsLang.Lexer;
 using RapidsLang.Parser;
 using RapidsLang.PreProcessor;
@@ -80,6 +81,32 @@ public class RapidLangEntry
         }
 
         
+    }
+
+    public static void MainVM()
+    {
+        var vm = new VirtualMachine();
+        
+        vm.Run(new RapidProgram
+        {
+            Header = new BytecodeHeader
+            {
+                GlobalsCount = 1,
+                Modules = [new ModuleImport
+                {
+                    ModuleName = "console",
+                    Imports = ["print"]
+                }],
+                Strings = [
+                    "Hello, World"
+                ]
+            },
+            Code = [
+                new LoadString(0),
+                new LoadGlobal(0),
+                new Call()
+            ]
+        });
     }
     
     private static void SetupExitHandlers(RapidsInterpreter interpreter)

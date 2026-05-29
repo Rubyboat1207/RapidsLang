@@ -1,5 +1,6 @@
 using RapidsLang.Analyzer.Types;
 using RapidsLang.Interpreter.Work;
+using RapidsLang.InterpreterVM;
 
 namespace RapidsLang.Interpreter.Variables;
 
@@ -54,6 +55,17 @@ public class RapidsFunctionReferenceVariable(RapidsFunction function) : RapidsVa
         
         return new RapidsFunctionReferenceVariable(value);
     }
+    
+    public static RapidsFunctionReferenceVariable OfNativeWithVm(Action<RapidsInterpreter> nativeFunc, Action<Frame> nativeFuncVm, int paramCount, RapidsType? type=null)
+        {
+            if (!NativeFunctions.TryGetValue(nativeFunc, out var value))
+            {
+                value = new RapidsNativeFunction(nativeFunc, type, nativeFuncVm, paramCount);
+                NativeFunctions[nativeFunc] = value;
+            }
+            
+            return new RapidsFunctionReferenceVariable(value);
+        }
     
     public static RapidsFunctionReferenceVariable OfNative(Action<RapidsInterpreter, CodeBlockRunWork?> nativeFunc, RapidsType? type=null)
     {
