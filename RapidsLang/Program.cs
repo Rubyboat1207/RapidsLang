@@ -58,9 +58,14 @@ public class RapidLangEntry
 
         var useVm = args.Contains("--vm");
         var outputFile = args.Contains("-o");
+        var produceDisassembly = args.Contains("--ds");
 
         if (program is not null)
         {
+            if (produceDisassembly)
+            {
+                File.WriteAllText("debug.rpdbd", program.Disassemble());
+            }
             var vm = new RapidsVirtualMachine();
         
             vm.Run(program);
@@ -105,6 +110,13 @@ public class RapidLangEntry
                     path += ".rpdb";
                 }
                 File.WriteAllBytes(path, program.ToBytes());
+            }
+            
+            if (produceDisassembly)
+            {
+                File.WriteAllText("debug.rpdbd", program.Disassemble());
+
+                return 0;
             }
 
             if (!useVm)

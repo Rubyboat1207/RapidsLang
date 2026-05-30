@@ -35,7 +35,7 @@ public record OpCode
                 LoadString         => 23,
                 Concat             => 24,
                 LoadNumber         => 25,
-                LoadFunction       => 26,
+                CaptureLocal       => 26,
                 Exit               => 255,
                 _ => throw new ArgumentOutOfRangeException()
             };
@@ -76,13 +76,21 @@ public record OpCode
             23  => new LoadString(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
             24  => new Concat(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
             25  => new LoadNumber(BitConverter.ToDouble(bytes.AsSpan(1, sizeof(double)))),
-            26  => new LoadFunction(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
+            26  => new CaptureLocal(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
+            27  => new PushFrame(),
+            28  => new PopFrame(),
+            29  => new LoadBool(bytes[1] == 1),
             255 => new Exit(),
             _ => throw new ArgumentOutOfRangeException()
         };
     }
 
     public virtual int Size => 1;
+
+    public virtual string AsString()
+    {
+        return GetType().Name;
+    }
 }
 
 public record Add : OpCode;
@@ -112,6 +120,28 @@ public record SingleArgOp(int Value) : OpCode {
     }
     
     public override int Size => 1 + sizeof(int);
+
+    public override string AsString()
+    {
+        return base.AsString() + " " + Value;
+    }
+}
+
+public record SingleArgByteOp(byte Value) : OpCode {
+    public override byte[] ToBytes()
+    {
+        var bytes = new byte[2];
+        bytes[0] = Code;
+        bytes[1] = Value;
+        return bytes;
+    }
+    
+    public override int Size => 2;
+
+    public override string AsString()
+    {
+        return base.AsString() + " " + Value;
+    }
 }
 
 public record SingleArgNumberOp(double Value) : OpCode {
@@ -124,6 +154,11 @@ public record SingleArgNumberOp(double Value) : OpCode {
     }
     
     public override int Size => 1 + sizeof(double);
+    
+    public override string AsString()
+    {
+        return base.AsString() + " " + Value;
+    }
 }
 
 public record Jump(int Value) : SingleArgOp(Value);
@@ -142,6 +177,18 @@ public record Concat(int Value) : SingleArgOp(Value);
 
 public record LoadNumber(double Value) : SingleArgNumberOp(Value);
 
-public record LoadFunction(int Value) : SingleArgOp(Value);
+public record CaptureLocal(int Value) : SingleArgOp(Value);
+
+public record PushFrame : OpCode;
+public record PopFrame : OpCode;
+
+public record LoadBool(bool Bool) : SingleArgByteOp(Bool ? (byte)0 : (byte)1)
+{
+    public override string AsString()
+    {
+        return "LoadBool " + Bool;
+    }
+}
 
 public record Exit : OpCode;
+public record NoOp : OpCode;

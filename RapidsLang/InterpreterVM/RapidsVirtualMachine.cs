@@ -79,6 +79,34 @@ public class RapidsVirtualMachine
                     Frame.Stack.Push(new RapidsStringVariable(str));
                     break;
                 }
+                case Jump op:
+                {
+                    Frame.Pc = op.Value;
+                    break;
+                }
+                case JumpIfTrue op:
+                {
+                    var value = Frame.Stack.Pop();
+                    if (value.Truthy)
+                    {
+                        Frame.Pc = op.Value;
+                    }
+                    break;
+                }
+                case JumpIfFalse op:
+                {
+                    var value = Frame.Stack.Pop();
+                    if (!value.Truthy)
+                    {
+                        Frame.Pc = op.Value;
+                    }
+                    break;
+                }
+                case LoadBool op:
+                {
+                    Frame.Stack.Push(new RapidsBooleanVariable(op.Bool));
+                    break;
+                }
                 case Call:
                 {
                     var popped = Frame.Stack.Pop();

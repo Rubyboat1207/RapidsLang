@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using RapidsLang.Analyzer;
 using RapidsLang.Interpreter;
+using RapidsLang.Lexer;
 using RapidsLang.Parser.Nodes;
 
 namespace RapidsLang.InterpreterVM;
@@ -9,9 +10,7 @@ public class RapidsCompiler
 {
     private readonly List<string> _strings = [];
     private readonly List<ModuleImport> _modules = [];
-    private readonly List<OpCode> _operations = [];
     private readonly List<Symbol> _definedGlobalSymbols = [];
-    private readonly List<Symbol> _definedSymbols = [];
     private RapidsStaticAnalysisResult _staticAnalysisResult = null!;
 
     public static RapidProgram Compile(StatementsNode root, RapidsStaticAnalysisResult staticAnalysisResult)
@@ -19,10 +18,10 @@ public class RapidsCompiler
         return new RapidsCompiler().GenerateProgram(root, staticAnalysisResult);
     }
     
-    public RapidProgram GenerateProgram(StatementsNode root, RapidsStaticAnalysisResult staticAnalysisResult)
+    private RapidProgram GenerateProgram(StatementsNode root, RapidsStaticAnalysisResult staticAnalysisResult)
     {
         _staticAnalysisResult = staticAnalysisResult;
-        CompileStatements(root);
+        var res = CompileStatements(root, []);
 
         return new RapidProgram
         {
@@ -32,27 +31,36 @@ public class RapidsCompiler
                 Strings = _strings.ToArray(),
                 Modules = _modules.ToArray(),
                 GlobalsCount = (uint) _definedGlobalSymbols.Count,
-                OutermostLocalsCount = (uint) _definedSymbols.Count // for now. This must change with frames and such.
+                OutermostLocalsCount = res.LocalsUsed
             },
-            Code = _operations.ToArray()
+            Code = res.Operations.ToArray()
         };
     }
-    
-    private void CompileStatements(StatementsNode root)
+
+    private struct CompileStatementsResult
     {
+        public uint LocalsUsed;
+        public List<OpCode> Operations;
+    }
+    
+    private CompileStatementsResult CompileStatements(StatementsNode root, List<Symbol> definedSymbols, int startIndex=0, uint locals=0)
+    {
+        var localsUsed = locals;
+        List<OpCode> operations = [];
         foreach (var statement in root.Statements)
         {
             switch (statement)
             {
                 case FunctionCallStatementNode functionCall:
                 {
-                    _operations.AddRange(CompileFunctionCall(functionCall.Function));
+                    operations.AddRange(CompileFunctionCall(functionCall.Function, definedSymbols));
                     break;
                 }
                 case DeclarationNode declarationNode:
                 {
-                    _operations.AddRange(CompileExpression(declarationNode.Expression));
-                    _definedSymbols.Add(_staticAnalysisResult.SymbolReferences[declarationNode.Name]);
+                    operations.AddRange(CompileExpression(declarationNode.Expression, definedSymbols));
+                    operations.Add(new StoreLocal((int) localsUsed++));
+                    definedSymbols.Add(_staticAnalysisResult.SymbolReferences[declarationNode.Name]);
                     break;
                 }
                 case UseStatementNode useStatementNode:
@@ -75,24 +83,73 @@ public class RapidsCompiler
                     
                     break;
                 }
+                case IfNode ifNode:
+                {
+                    operations.AddRange(CompileExpression(ifNode.Condition, definedSymbols));
+                    {
+                        var block = CompileStatements(ifNode.Block, definedSymbols, startIndex + operations.Count, localsUsed);
+                        // +2 b/c this expression is 1 and the jump to end is another
+                        operations.Add(new JumpIfFalse(startIndex + operations.Count + block.Operations.Count + 2)); 
+                        localsUsed += block.LocalsUsed;
+                        operations.AddRange(block.Operations);
+                    }
+
+                    
+                    var opsToReplace = new List<OpCode>();
+                    if (ifNode.ElseNodes.Count > 0)
+                    {
+                        var endOfInitialBlock = new NoOp();
+                        operations.Add(endOfInitialBlock);
+                        opsToReplace.Add(endOfInitialBlock);
+                    }
+                    
+                    var endIndex = 0;
+                    foreach (var eNode in ifNode.ElseNodes)
+                    {
+                        var block = CompileStatements(eNode.Block, definedSymbols, startIndex + operations.Count, localsUsed);
+
+                        if (eNode.Condition is not null)
+                        {
+                            operations.AddRange(CompileExpression(eNode.Condition, definedSymbols));
+                            operations.Add(new JumpIfFalse(startIndex + operations.Count + block.Operations.Count + 2));
+                        }
+                        
+                        localsUsed += block.LocalsUsed;
+                        operations.AddRange(block.Operations);
+                        var endOf = new NoOp();
+                        operations.Add(endOf);
+                        opsToReplace.Add(endOf);
+                    }
+
+                    foreach (var index in opsToReplace.Select(opCode => operations.IndexOf(opCode)))
+                    {
+                        operations.RemoveAt(index);
+                        
+                        operations.Insert(index, new Jump(startIndex + operations.Count));
+                    }
+                    operations.RemoveAt(operations.Count - 1);
+                    break;
+                }
             }
         }
+
+        return new CompileStatementsResult { LocalsUsed = localsUsed, Operations = operations };
     }
 
-    private List<OpCode> CompileFunctionCall(FunctionCallExpressionNode callExpressionNode)
+    private List<OpCode> CompileFunctionCall(FunctionCallExpressionNode callExpressionNode, List<Symbol> definedSymbols)
     {
         List<OpCode> operations = [];
         foreach (var arg in callExpressionNode.Arguments)
         {
-            operations.AddRange(CompileExpression(arg));
+            operations.AddRange(CompileExpression(arg, definedSymbols));
         }
-        operations.AddRange(CompileExpression(callExpressionNode.Function));
+        operations.AddRange(CompileExpression(callExpressionNode.Function, definedSymbols));
         operations.Add(new Call());
 
         return operations;
     }
 
-    private List<OpCode> CompileExpression(ExpressionNode expressionNode)
+    private List<OpCode> CompileExpression(ExpressionNode expressionNode, List<Symbol> definedSymbols)
     {
         List<OpCode> operations = [];
         switch (expressionNode)
@@ -101,9 +158,9 @@ public class RapidsCompiler
             {
                 if (_staticAnalysisResult.SymbolReferences.TryGetValue(identifierNode, out var symbol))
                 {
-                    if (_definedSymbols.Contains(symbol))
+                    if (definedSymbols.Contains(symbol))
                     {
-                        return [new LoadLocal(_definedSymbols.IndexOf(symbol))];
+                        return [new LoadLocal(definedSymbols.IndexOf(symbol))];
                     }
 
                     if (_definedGlobalSymbols.Contains(symbol))
@@ -124,6 +181,10 @@ public class RapidsCompiler
             {
                 return [new LoadNumber(literalNumberNode.Number)];
             }
+            case BooleanNode booleanNode:
+            {
+                return [new LoadBool(booleanNode.Value.TokenType is TokenType.True)];
+            }
             case StringNode stringNode:
             {
                 
@@ -139,7 +200,7 @@ public class RapidsCompiler
                             operations.Add(new LoadString(_strings.IndexOf(lit.Value.Value)));
                             break;
                         case TemplateStringPart template:
-                            operations.AddRange(CompileExpression(template.Value));
+                            operations.AddRange(CompileExpression(template.Value, definedSymbols));
                             break;
                     }
                 }
