@@ -3,7 +3,7 @@ using RapidsLang.Interpreter.Variables;
 
 namespace RapidsLang.InterpreterVM;
 
-public class VirtualMachine
+public class RapidsVirtualMachine
 {
     private readonly Stack<Frame> _frames = [];
     private Frame Frame => _frames.Peek();
@@ -33,22 +33,50 @@ public class VirtualMachine
             {
                 case LoadLocal op:
                 {
-                    Frame.Stack.Push(Frame.Locals[op.Index]);
+                    Frame.Stack.Push(Frame.Locals[op.Value]);
+                    break;
+                }
+                case LoadNumber op:
+                {
+                    Frame.Stack.Push(new RapidsNumberVariable(op.Value));
                     break;
                 }
                 case StoreLocal op:
                 {
-                    Frame.Locals[op.Index] = Frame.Stack.Pop();
+                    Frame.Locals[op.Value] = Frame.Stack.Pop();
                     break;
                 }
                 case LoadGlobal op:
                 {
-                    Frame.Stack.Push(_globals[op.Index]);
+                    Frame.Stack.Push(_globals[op.Value]);
                     break;
                 }
                 case LoadString op:
                 {
-                    Frame.Stack.Push(new RapidsStringVariable(program.Header.Strings[op.Index]));
+                    Frame.Stack.Push(new RapidsStringVariable(program.Header.Strings[op.Value]));
+                    break;
+                }
+                case Exit:
+                {
+                    return;
+                }
+                case Concat op:
+                {
+                    var str = "";
+                    var emptyString = new RapidsStringVariable("");
+                    for (var i = 0; i < op.Value; i++)
+                    {
+                        var result = Frame.Stack.Pop().GetResult(RapidsOperator.Add, emptyString);
+                        if (result is RapidsStringVariable resStr)
+                        {
+                            str = resStr.Value + str;
+                        }
+                        else
+                        {
+                            str += "undefined";
+                        }
+                    }
+                    Frame.Stack.Push(new RapidsStringVariable(str));
                     break;
                 }
                 case Call:

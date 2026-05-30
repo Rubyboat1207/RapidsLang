@@ -5,7 +5,7 @@ namespace RapidsLang.Parser.Nodes;
 public record DeclarationNode(
     Token BaseToken,
     bool Constant,
-    Token Name,
+    IdentifierNode Name,
     TypeNode? Type,
     ExpressionNode Expression,
     int DebugLevel

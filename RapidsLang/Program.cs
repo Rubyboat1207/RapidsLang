@@ -1,4 +1,7 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Json;
 using RapidsLang.Analyzer;
 using RapidsLang.Extension;
 using RapidsLang.Extensions;
@@ -14,9 +17,10 @@ namespace RapidsLang;
 
 public class RapidLangEntry
 {
-    public static void Main(string[] args)
+    public static int Main(string[] args)
     {
-        string code;
+        string? code = null;
+        RapidProgram? program = null;
 
         string? filePath = null;
         // Check if a file path argument is provided
@@ -28,17 +32,46 @@ public class RapidLangEntry
             if (!File.Exists(filePath))
             {
                 Console.WriteLine($"Error: File not found at '{filePath}'");
-                return; // Exit if the file doesn't exist
+                return 1; // Exit if the file doesn't exist
             }
         
             // Read the code from the file
-            code = File.ReadAllText(filePath);
+            var binary = File.ReadAllBytes(filePath);
+
+            if (BytecodeHeader.Signature.SequenceEqual(binary.AsSpan(0, 6).ToArray()))
+            {
+                program = RapidProgram.FromBytes(binary);
+            }
+            else
+            {
+                code = Encoding.UTF8.GetString(binary);
+            }
+            
+            
         }
         else
         {
             Console.WriteLine("Error: No input file specified.");
             Console.WriteLine("Usage: rapids <source_file>.rpd");
-            return; // Exit the program
+            return 1; // Exit the program
+        }
+
+        var useVm = args.Contains("--vm");
+        var outputFile = args.Contains("-o");
+
+        if (program is not null)
+        {
+            var vm = new RapidsVirtualMachine();
+        
+            vm.Run(program);
+
+            return 0;
+        }
+
+        if (code is null)
+        {
+            Console.WriteLine("Code file not found");
+            return 1;
         }
         
         if(args.Contains("--lint"))
@@ -48,7 +81,42 @@ public class RapidLangEntry
             parseRes.PrintDiagnostics(filePath, code, metaData);
             analysis?.PrintDiagnostics(filePath, code, metaData);
             
-            return;
+            return 0;
+        }
+        
+        if (useVm || outputFile)
+        {
+            var (parseRes, metaData, analysis) = RapidsStaticAnalysis.Analyze(code, filePath);
+            
+            if (analysis is null)
+            {
+                Console.WriteLine("Failed to compile.");
+                parseRes.PrintDiagnostics("internal", code, metaData);
+                return 1;
+            }
+            
+            program = RapidsCompiler.Compile(parseRes.RootNode, analysis);
+
+            if (outputFile)
+            {
+                var path = args[Array.IndexOf(args, "-o") + 1];
+                if (!Path.HasExtension(path))
+                {
+                    path += ".rpdb";
+                }
+                File.WriteAllBytes(path, program.ToBytes());
+            }
+
+            if (!useVm)
+            {
+                return 0;
+            }
+
+            var vm = new RapidsVirtualMachine();
+        
+            vm.Run(program);
+
+            return 0;
         }
         
         var preprocRes = RapidsPreproc.Preprocess(code);
@@ -58,7 +126,7 @@ public class RapidLangEntry
         if (parseResult.Diagnostics.Count != 0)
         {
             parseResult.PrintDiagnostics(filePath ?? "debug", code, preprocRes.Metadata);
-            return;
+            return 0;
         }
 
         var extensions = ExtensionLoader.GetExternalExtensions();
@@ -80,23 +148,19 @@ public class RapidLangEntry
             interpreter.HandleExit().Wait();
         }
 
-        
+        return 0;
     }
 
-    public static void MainVM()
+    public static void MainVMBytecode()
     {
-        var vm = new VirtualMachine();
+        var vm = new RapidsVirtualMachine();
         
         vm.Run(new RapidProgram
         {
             Header = new BytecodeHeader
             {
                 GlobalsCount = 1,
-                Modules = [new ModuleImport
-                {
-                    ModuleName = "console",
-                    Imports = ["print"]
-                }],
+                Modules = [new ModuleImport("console", ["print"])],
                 Strings = [
                     "Hello, World"
                 ]
@@ -107,6 +171,26 @@ public class RapidLangEntry
                 new Call()
             ]
         });
+    }
+
+    public static void MainVMCode()
+    {
+        var code = "use console: print; print(`Hello, World`);";
+        
+        var (parseRes, metaData, analysis) = RapidsStaticAnalysis.Analyze(code, "internal");
+
+        if (analysis is null)
+        {
+            Console.WriteLine("Failed to compile.");
+            parseRes.PrintDiagnostics("internal", code, metaData);
+            return;
+        }
+
+        var program = RapidsCompiler.Compile(parseRes.RootNode, analysis);
+
+        var vm = new RapidsVirtualMachine();
+        
+        vm.Run(program);
     }
     
     private static void SetupExitHandlers(RapidsInterpreter interpreter)

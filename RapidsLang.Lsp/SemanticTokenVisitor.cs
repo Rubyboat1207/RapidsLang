@@ -109,7 +109,7 @@ public class SemanticTokenVisitor(
                     tokenType = SemanticTokenType.Function;
                 }
                 
-                PushToken(declarationNode.Name, tokenType, declarationNode.Constant ? [SemanticTokenModifier.Readonly] : null);
+                PushToken(declarationNode.Name.BaseToken, tokenType, declarationNode.Constant ? [SemanticTokenModifier.Readonly] : null);
                 Visit(declarationNode.Expression);
                 break;
             case UseStatementNode useStatementNode:

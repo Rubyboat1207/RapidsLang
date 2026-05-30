@@ -117,6 +117,8 @@ public class RapidsStaticAnalysisResult
     // this one's going to be big.
     public Dictionary<ExpressionNode, RapidsType> ExpressionTypes { get; } = [];
     public Dictionary<IdentifierNode, Symbol> SymbolReferences { get; } = [];
+    public Dictionary<ImportNode, Symbol> ExplicitlyImportedSymbols { get; } = [];
+    public Dictionary<UseStatementNode, Symbol[]> ImplicitlyImportedSymbols { get; } = [];
     
     public void PrintDiagnostics(string sourcePath, string code, RapidsPreprocMetaData metaData)
     {
@@ -312,9 +314,10 @@ public static class RapidsStaticAnalysis
                     declarationNode.Name.Value,
                     declarationNode.Constant,
                     type,
-                    startIndex: declarationNode.Name.Index
+                    startIndex: declarationNode.Name.BaseToken.Index
                 );
                 scope.Symbols.Add(declarationSymbol);
+                result.SymbolReferences[declarationNode.Name] = declarationSymbol;
                 break;
             case DefineTargetOrSourceStatement defineTargetOrSourceStatement:
                 break;
@@ -523,15 +526,19 @@ public static class RapidsStaticAnalysis
                     {
                         if (exported.TryGetValue(importNode.BaseToken.Value, out var value))
                         {
-                            scope.Symbols.Add(importNode.AsName is null
+                            var symbol = importNode.AsName is null
                                 ? value
-                                : new Symbol(importNode.AsName.Value, value.IsConstant, value.Type));
+                                : new Symbol(importNode.AsName.Value, value.IsConstant, value.Type);
+                            scope.Symbols.Add(symbol);
+                            result.ExplicitlyImportedSymbols[importNode] = symbol;
                         }
                     }
                 }
                 else
                 {
-                    exported.Select(ex => ex.Value).ToList().ForEach(scope.Symbols.Add);
+                    var exportedSymbols = exported.Select(ex => ex.Value).ToList();
+                    exportedSymbols.ForEach(scope.Symbols.Add);
+                    result.ImplicitlyImportedSymbols[useStatementNode] = exportedSymbols.ToArray();
                 }
                 break;
             case WhileLoopNode whileLoopNode:

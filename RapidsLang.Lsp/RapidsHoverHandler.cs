@@ -105,7 +105,7 @@ public class RapidsHoverHandler : IHoverHandler
         
         if (node is DeclarationNode decl)
         {
-            if (processedIndex >= decl.Name.Index && processedIndex <= decl.Name.Index + decl.Name.Value.Length)
+            if (processedIndex >= decl.Name.BaseToken.Index && processedIndex <= decl.Name.BaseToken.Index + decl.Name.Value.Length)
             {
                 symbolName = decl.Name.Value;
             }

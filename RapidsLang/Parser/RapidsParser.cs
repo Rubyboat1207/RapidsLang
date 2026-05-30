@@ -312,7 +312,7 @@ public static class RapidsParser
                 builder.AddStatement(new DeclarationNode(
                     declaration,
                     declaration.TokenType == TokenType.Const,
-                    name,
+                    new IdentifierNode(name),
                     type,
                     expression,
                     GetLogLevel(stepper, builder)

@@ -2,7 +2,7 @@ using RapidsLang.Interpreter.Variables;
 
 namespace RapidsLang.InterpreterVM;
 
-public class Frame(int localCount)
+public class Frame(uint localCount)
 {
     public RapidsVariable[] Locals = new RapidsVariable[localCount];
     public Stack<RapidsVariable> Stack = [];
