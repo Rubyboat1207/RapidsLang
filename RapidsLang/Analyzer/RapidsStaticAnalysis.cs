@@ -470,7 +470,10 @@ public static class RapidsStaticAnalysis
                 }
                 break;
             case FunctionDeclarationNode functionDeclarationNode:
-                scope.Symbols.Add(new(functionDeclarationNode.Name.Value, true, GetType(functionDeclarationNode.Function, scope, result, path)));
+                var nameSymbol = new Symbol(functionDeclarationNode.Name.Value, true,
+                    GetType(functionDeclarationNode.Function, scope, result, path));
+                scope.Symbols.Add(nameSymbol);
+                result.SymbolReferences[functionDeclarationNode.Name] = nameSymbol;
                 // VisitStatements(functionDeclarationNode.Function.Body, scope.Child(BlockType.Function), result);
                 _ = GetType(functionDeclarationNode.Function, scope, result, path);
                 // if (functionDeclarationNode.Function.DebugBody is not null)
@@ -701,7 +704,9 @@ public static class RapidsStaticAnalysis
 
                 foreach (var arg in functionNode.Arguments ?? [])
                 {
-                    childScope.Symbols.Add(new Symbol(arg.Name.Value, true, ComputeFromTypeNode(arg.Type), true));
+                    var symbol = new Symbol(arg.Name.Value, true, ComputeFromTypeNode(arg.Type), true);
+                    childScope.Symbols.Add(symbol);
+                    result.SymbolReferences[arg.Name] = symbol;
                 }
                 
                 VisitStatements(functionNode.Body, childScope, result, path);

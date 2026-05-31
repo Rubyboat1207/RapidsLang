@@ -47,9 +47,10 @@ public class RapidsNativeFunctionWithCodeBlock(Action<RapidsInterpreter, CodeBlo
     }
 }
 
-public class RapidsUserFunction(FunctionNode func, InterpreterContext closure, RapidsType? rapidsType = null, int index=0)  : RapidsFunction(rapidsType)
+public class RapidsUserFunction(FunctionNode func, InterpreterContext closure, RapidsType? rapidsType = null, int index=0, int localCount=0)  : RapidsFunction(rapidsType)
 {
     public int Index { get; } = index;
+    public int LocalCount { get; } = localCount;
     public int ParameterCount => Func.Arguments?.Count ?? 0;
     private FunctionNode Func { get; } = func;
     public override void EnqueueExecution(RapidsInterpreter interpreter, CodeBlockRunWork? parentCodeBlock)

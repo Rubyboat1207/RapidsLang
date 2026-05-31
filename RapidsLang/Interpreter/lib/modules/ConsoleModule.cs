@@ -22,13 +22,7 @@ public class ConsoleModule : Module
     
     private static void PrintVm(Frame frame)
     {
-        if (frame.Stack.TryPop(out var variable))
-        {
-            Console.WriteLine(Utils.StringifyVariable(variable));
-        }else
-        {
-            Console.WriteLine();
-        }
+        Console.WriteLine(Utils.StringifyVariable(frame.Locals[0]));
         
         frame.Stack.Push(new RapidsBooleanVariable(false));
     }

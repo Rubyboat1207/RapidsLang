@@ -24,10 +24,10 @@ public class RapidsVirtualMachine
             }
         }
         _frames.Push(new Frame(program.Header.OutermostLocalsCount));
-        
+
         while(Frame.Pc < program.Code.Length)
         {
-            var opCode = program.Code[Frame.Pc++];
+            var opCode = Frame.FunctionIndex.HasValue ? program.FunctionBlock.Functions[Frame.FunctionIndex.Value].Code[Frame.Pc++] : program.Code[Frame.Pc++];
             
             switch (opCode)
             {
@@ -49,6 +49,11 @@ public class RapidsVirtualMachine
                 case LoadGlobal op:
                 {
                     Frame.Stack.Push(_globals[op.Value]);
+                    break;
+                }
+                case LoadFunction op:
+                {
+                    Frame.Stack.Push(new RapidsBytecodeFunctionReference(op.Value));
                     break;
                 }
                 case LoadString op:
@@ -110,39 +115,54 @@ public class RapidsVirtualMachine
                 case Call:
                 {
                     var popped = Frame.Stack.Pop();
-                    if (popped is RapidsFunctionReferenceVariable func)
+                    if (popped is RapidsFunctionReferenceVariable functionRef && functionRef.Function is RapidsNativeFunction nativeFunction)
                     {
-                        switch (func.Function)
+                        var frame = new Frame(0)
                         {
-                            case RapidsNativeFunction nativeFunction:
-                            {
-                                var frame = new Frame(0);
-                                for (var i = 0; i < nativeFunction.ParameterCount; i++)
-                                {
-                                    frame.Stack.Push(Frame.Stack.Pop());
-                                }
-                                nativeFunction.Execute(frame);
-                                var didReturnValue = (RapidsBooleanVariable) frame.Stack.Pop();
-                                if (didReturnValue.Value)
-                                {
-                                    Frame.Stack.Push(frame.Stack.Pop());
-                                }
-                                break;
-                            }
-                            case RapidsUserFunction userFunction:
-                            {
-                                var frame = new Frame(0);
-                                for (var i = 0; i < userFunction.ParameterCount; i++)
-                                {
-                                    frame.Stack.Push(Frame.Stack.Pop());
-                                }
-
-                                frame.Pc = userFunction.Index;
-                                _frames.Push(frame);
-                                
-                                break;
-                            }
+                            Locals = new RapidsVariable[nativeFunction.ParameterCount]
+                        };
+                        for (var i = 0; i < nativeFunction.ParameterCount; i++)
+                        {
+                            frame.Locals[nativeFunction.ParameterCount - 1 - i] = Frame.Stack.Pop();
                         }
+                        nativeFunction.Execute(frame);
+                        var didReturnValue = (RapidsBooleanVariable) frame.Stack.Pop();
+                        if (didReturnValue.Value)
+                        {
+                            Frame.Stack.Push(frame.Stack.Pop());
+                        }
+                    }
+
+                    if (popped is RapidsBytecodeFunctionReference fn)
+                    {
+                        var function = program.FunctionBlock.Functions[fn.Index];
+                        
+                        var frame = new Frame(0)
+                        {
+                            Locals = new RapidsVariable[function.ParameterCount + function.LocalCount],
+                            FunctionIndex = fn.Index
+                        };
+                        for (var i = 0; i < function.ParameterCount; i++)
+                        {
+                            frame.Locals[function.ParameterCount - 1 - i] = Frame.Stack.Pop();
+                        }
+                        
+                        _frames.Push(frame);
+                    }
+                    break;
+                }
+                case Return:
+                {
+                    var didReturnValue = (RapidsBooleanVariable) Frame.Stack.Pop();
+                    if (didReturnValue.Value)
+                    {
+                        var retVal = Frame.Stack.Pop();
+                        _frames.Pop();
+                        Frame.Stack.Push(retVal);
+                    }
+                    else
+                    {
+                        _frames.Pop();
                     }
                     break;
                 }

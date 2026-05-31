@@ -8,12 +8,14 @@ public class RapidProgram
 {
     public BytecodeHeader Header;
     public OpCode[] Code;
+    public RapidsProgramFunctionBlock FunctionBlock;
 
     public byte[] ToBytes()
     {
         List<byte> bytes = [];
         
         bytes.AddRange(Header.ToBytes());
+        bytes.AddRange(FunctionBlock.ToBytes());
         bytes.AddRange(Code.Select(c => c.ToBytes()).SelectMany(b => b));
 
         return bytes.ToArray();
@@ -24,8 +26,12 @@ public class RapidProgram
         var header = BytecodeHeader.FromBytes(data);
     
         // Skip past the header using the total size baked into it
-        var headerSize = BitConverter.ToInt32(data.Slice(BytecodeHeader.Signature.Length + 4, 4));
-        var codeSpan = data[headerSize..];
+        var headerSize = BitConverter.ToInt32(data.Slice(BytecodeHeader.Signature.Length + 4, 8));
+        var functionsSize = BitConverter.ToInt32(data.Slice(headerSize, 8));
+
+        var functionSpan = data[headerSize..(headerSize + functionsSize)].ToArray();
+        
+        var codeSpan = data[(headerSize + functionsSize)..];
     
         var opcodes = new List<OpCode>();
         var offset = 0;
@@ -41,6 +47,7 @@ public class RapidProgram
         return new RapidProgram
         {
             Header = header,
+            FunctionBlock = RapidsProgramFunctionBlock.FromBytes(functionSpan),
             Code = opcodes.ToArray()
         };
     }
@@ -89,11 +96,30 @@ public class RapidProgram
             sw.AppendLine("`");
         }
 
+        sw.AppendLine("\nFUNCTIONS:");
+        for (var i = 0; i < FunctionBlock.Functions.Length; i++)
+        {
+            var func = FunctionBlock.Functions[i];
+
+            sw.AppendLine($"FUNC {i} - Params: {func.ParameterCount} | Locals: {func.LocalCount}");
+
+            WriteOpcodes(func.Code, exported, sw);
+        }
+
+
+        sw.AppendLine("\nCODE:");
+        WriteOpcodes(Code, exported, sw);
+
+        return sw.ToString();
+    }
+
+    public void WriteOpcodes(OpCode[] opcodes, List<(string, ModuleExport)> exported, StringBuilder sw)
+    {
         Dictionary<int, List<int>> JumpLookup = [];
         // Build any helpful stuff.
-        for (var i = 0; i < Code.Length; i++)
+        for (var i = 0; i < opcodes.Length; i++)
         {
-            var opcode = Code[i];
+            var opcode = opcodes[i];
 
             // ReSharper disable once InvertIf
             if (opcode is SingleArgOp j and (Jump or JumpIfFalse or JumpIfTrue))
@@ -109,10 +135,9 @@ public class RapidProgram
             }
         }
         
-        sw.AppendLine("\nCODE:");
-        for (var i = 0; i < Code.Length; i++)
+        for (var i = 0; i < opcodes.Length; i++)
         {
-            var opcode = Code[i];
+            var opcode = opcodes[i];
 
             if (JumpLookup.TryGetValue(i, out var fromList))
             {
@@ -144,7 +169,5 @@ public class RapidProgram
             sw.Append('\n');
 
         }
-
-        return sw.ToString();
     }
 }

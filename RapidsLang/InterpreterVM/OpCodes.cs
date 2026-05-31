@@ -36,6 +36,10 @@ public record OpCode
                 Concat             => 24,
                 LoadNumber         => 25,
                 CaptureLocal       => 26,
+                PushFrame          => 27,
+                PopFrame           => 28,
+                LoadBool           => 29,
+                LoadFunction       => 30,
                 Exit               => 255,
                 _ => throw new ArgumentOutOfRangeException()
             };
@@ -80,6 +84,8 @@ public record OpCode
             27  => new PushFrame(),
             28  => new PopFrame(),
             29  => new LoadBool(bytes[1] == 1),
+            30  => new LoadFunction(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
+            31  => new Return(),
             255 => new Exit(),
             _ => throw new ArgumentOutOfRangeException()
         };
@@ -181,6 +187,7 @@ public record CaptureLocal(int Value) : SingleArgOp(Value);
 
 public record PushFrame : OpCode;
 public record PopFrame : OpCode;
+public record LoadFunction(int Value) : SingleArgOp(Value);
 
 public record LoadBool(bool Bool) : SingleArgByteOp(Bool ? (byte)0 : (byte)1)
 {

@@ -3,7 +3,7 @@ using RapidsLang.Lexer;
 namespace RapidsLang.Parser.Nodes;
 
 public record ArgumentNode(
-    Token Name,
+    IdentifierNode Name,
     TypeNode? Type
 ) : Node(Name)
 {

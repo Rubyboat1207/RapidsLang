@@ -57,7 +57,7 @@ public static class RapidsParser
                         if (funcNode != null)
                         {
                             builder.AddStatement(new FunctionDeclarationNode(
-                                nameToken,
+                                new(nameToken),
                                 funcNode,
                                 0
                             ));
@@ -107,7 +107,7 @@ public static class RapidsParser
                         }
 
                         builder.AddStatement(new FunctionDeclarationNode(
-                            identNode.Token,
+                            identNode,
                             function,
                             0
                         ));
@@ -1791,7 +1791,7 @@ public static class RapidsParser
         if (!hasArrow || stepper.Next is { TokenType: TokenType.OpenCurly } && IsObjectLiteral(stepper, 2)) return new IdentifierNode(potentialArgName);
 
 
-        var args = new List<ArgumentNode> { new(potentialArgName, null) };
+        var args = new List<ArgumentNode> { new(new(potentialArgName), null) };
         return ParseFunctionBody(stepper, builder, openParen, args, null);
 
     }
@@ -1945,7 +1945,7 @@ public static class RapidsParser
                     type = ParseTypeNode(stepper, builder);
                 }
                 
-                arguments.Add(new ArgumentNode(name, type));
+                arguments.Add(new ArgumentNode(new(name), type));
                 
                 if (stepper.Cur.TokenType == TokenType.Comma)
                 {

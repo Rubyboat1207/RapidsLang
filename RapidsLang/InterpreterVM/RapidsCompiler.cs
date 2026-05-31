@@ -11,6 +11,7 @@ public class RapidsCompiler
     private readonly List<string> _strings = [];
     private readonly List<ModuleImport> _modules = [];
     private readonly List<Symbol> _definedGlobalSymbols = [];
+    private readonly List<RapidsBytecodeFunction> _functions = [];
     private RapidsStaticAnalysisResult _staticAnalysisResult = null!;
 
     public static RapidProgram Compile(StatementsNode root, RapidsStaticAnalysisResult staticAnalysisResult)
@@ -33,33 +34,55 @@ public class RapidsCompiler
                 GlobalsCount = (uint) _definedGlobalSymbols.Count,
                 OutermostLocalsCount = res.LocalsUsed
             },
-            Code = res.Operations.ToArray()
+            Code = res.Operations.ToArray(),
+            FunctionBlock = new RapidsProgramFunctionBlock
+            {
+                Functions = _functions.ToArray()
+            }
         };
     }
 
-    private struct CompileStatementsResult
+    private class CompileStatementsResult
     {
         public uint LocalsUsed;
-        public List<OpCode> Operations;
+        public List<OpCode> Operations = [];
+
+        public List<OpCode> BreakPlaceholders = [];
+
+        public List<OpCode> ContinuePlaceholders = [];
+    }
+
+    enum StatementCompilationContext
+    {
+        OuterScope,
+        Function,
+        Loop,
+        DataSource
     }
     
-    private CompileStatementsResult CompileStatements(StatementsNode root, List<Symbol> definedSymbols, int startIndex=0, uint locals=0)
+    private CompileStatementsResult CompileStatements(
+        StatementsNode root,
+        List<Symbol> definedSymbols,
+        int startIndex=0,
+        StatementCompilationContext compilationContext=StatementCompilationContext.OuterScope
+    )
     {
-        var localsUsed = locals;
-        List<OpCode> operations = [];
+        var sResult = new CompileStatementsResult();
         foreach (var statement in root.Statements)
         {
             switch (statement)
             {
                 case FunctionCallStatementNode functionCall:
                 {
-                    operations.AddRange(CompileFunctionCall(functionCall.Function, definedSymbols));
+                    var res = CompileFunctionCall(functionCall.Function, definedSymbols);
+                    sResult.Operations.AddRange(res.OpCodes);
                     break;
                 }
                 case DeclarationNode declarationNode:
                 {
-                    operations.AddRange(CompileExpression(declarationNode.Expression, definedSymbols));
-                    operations.Add(new StoreLocal((int) localsUsed++));
+                    var res = CompileExpression(declarationNode.Expression, definedSymbols);
+                    sResult.Operations.AddRange(res.OpCodes);
+                    sResult.Operations.Add(new StoreLocal((int) sResult.LocalsUsed++));
                     definedSymbols.Add(_staticAnalysisResult.SymbolReferences[declarationNode.Name]);
                     break;
                 }
@@ -83,15 +106,37 @@ public class RapidsCompiler
                     
                     break;
                 }
+                case FunctionDeclarationNode functionDeclarationNode:
+                {
+                    var res = CompileExpression(functionDeclarationNode.Function, definedSymbols);
+                    sResult.Operations.AddRange(res.OpCodes);
+                    sResult.Operations.Add(new StoreLocal((int) sResult.LocalsUsed++));
+                    definedSymbols.Add(_staticAnalysisResult.SymbolReferences[functionDeclarationNode.Name]);
+                    break;
+                }
+                case ReturnNode returnNode:
+                {
+                    if (returnNode.Value is null)
+                    {
+                        sResult.Operations.AddRange([new LoadBool(false), new Return()]);
+                    }
+                    else
+                    {
+                        var res = CompileExpression(returnNode.Value, definedSymbols);
+                        sResult.Operations.AddRange(res.OpCodes);
+                        sResult.Operations.AddRange([new LoadBool(true), new Return()]);
+                    }
+                    break;
+                }
                 case IfNode ifNode:
                 {
-                    operations.AddRange(CompileExpression(ifNode.Condition, definedSymbols));
+                    var res = CompileExpression(ifNode.Condition, definedSymbols);
+                    sResult.Operations.AddRange(res.OpCodes);
                     {
-                        var block = CompileStatements(ifNode.Block, definedSymbols, startIndex + operations.Count, localsUsed);
-                        // +2 b/c this expression is 1 and the jump to end is another
-                        operations.Add(new JumpIfFalse(startIndex + operations.Count + block.Operations.Count + 2)); 
-                        localsUsed += block.LocalsUsed;
-                        operations.AddRange(block.Operations);
+                        var block = CompileStatements(ifNode.Block, definedSymbols, startIndex + sResult.Operations.Count);
+                        sResult.Operations.Add(new JumpIfFalse(startIndex + sResult.Operations.Count + block.Operations.Count + 2)); 
+                        sResult.LocalsUsed += block.LocalsUsed;
+                        sResult.Operations.AddRange(block.Operations);
                     }
 
                     
@@ -99,57 +144,60 @@ public class RapidsCompiler
                     if (ifNode.ElseNodes.Count > 0)
                     {
                         var endOfInitialBlock = new NoOp();
-                        operations.Add(endOfInitialBlock);
+                        sResult.Operations.Add(endOfInitialBlock);
                         opsToReplace.Add(endOfInitialBlock);
                     }
                     
-                    var endIndex = 0;
                     foreach (var eNode in ifNode.ElseNodes)
                     {
-                        var block = CompileStatements(eNode.Block, definedSymbols, startIndex + operations.Count, localsUsed);
+                        var block = CompileStatements(eNode.Block, definedSymbols, startIndex + sResult.Operations.Count);
 
                         if (eNode.Condition is not null)
                         {
-                            operations.AddRange(CompileExpression(eNode.Condition, definedSymbols));
-                            operations.Add(new JumpIfFalse(startIndex + operations.Count + block.Operations.Count + 2));
+                            var condRes = CompileExpression(eNode.Condition, definedSymbols);
+                            sResult.Operations.AddRange(condRes.OpCodes);
+                            sResult.Operations.Add(new JumpIfFalse(startIndex + sResult.Operations.Count + block.Operations.Count + 2));
                         }
                         
-                        localsUsed += block.LocalsUsed;
-                        operations.AddRange(block.Operations);
+                        sResult.LocalsUsed += block.LocalsUsed;
+                        sResult.Operations.AddRange(block.Operations);
                         var endOf = new NoOp();
-                        operations.Add(endOf);
+                        sResult.Operations.Add(endOf);
                         opsToReplace.Add(endOf);
                     }
 
-                    foreach (var index in opsToReplace.Select(opCode => operations.IndexOf(opCode)))
+                    foreach (var index in opsToReplace.Select(opCode => sResult.Operations.IndexOf(opCode)))
                     {
-                        operations.RemoveAt(index);
+                        sResult.Operations.RemoveAt(index);
                         
-                        operations.Insert(index, new Jump(startIndex + operations.Count));
+                        sResult.Operations.Insert(index, new Jump(startIndex + sResult.Operations.Count));
                     }
-                    operations.RemoveAt(operations.Count - 1);
+                    sResult.Operations.RemoveAt(sResult.Operations.Count - 1);
                     break;
                 }
             }
         }
 
-        return new CompileStatementsResult { LocalsUsed = localsUsed, Operations = operations };
+        return sResult;
     }
 
-    private List<OpCode> CompileFunctionCall(FunctionCallExpressionNode callExpressionNode, List<Symbol> definedSymbols)
+    private CompileExpressionResult CompileFunctionCall(FunctionCallExpressionNode callExpressionNode, List<Symbol> definedSymbols)
     {
         List<OpCode> operations = [];
-        foreach (var arg in callExpressionNode.Arguments)
+        foreach (var argRes in callExpressionNode.Arguments.Select(arg => CompileExpression(arg, definedSymbols)))
         {
-            operations.AddRange(CompileExpression(arg, definedSymbols));
+            operations.AddRange(argRes.OpCodes);
         }
-        operations.AddRange(CompileExpression(callExpressionNode.Function, definedSymbols));
+        
+        var res = CompileExpression(callExpressionNode.Function, definedSymbols);
+        operations.AddRange(res.OpCodes);
+        
         operations.Add(new Call());
 
-        return operations;
+        return new CompileExpressionResult(operations);
     }
 
-    private List<OpCode> CompileExpression(ExpressionNode expressionNode, List<Symbol> definedSymbols)
+    private CompileExpressionResult CompileExpression(ExpressionNode expressionNode, List<Symbol> definedSymbols)
     {
         List<OpCode> operations = [];
         switch (expressionNode)
@@ -160,30 +208,50 @@ public class RapidsCompiler
                 {
                     if (definedSymbols.Contains(symbol))
                     {
-                        return [new LoadLocal(definedSymbols.IndexOf(symbol))];
+                        operations =  [new LoadLocal(definedSymbols.IndexOf(symbol))];
                     }
 
                     if (_definedGlobalSymbols.Contains(symbol))
                     {
-                        return [new LoadGlobal(_definedGlobalSymbols.IndexOf(symbol))];
+                        operations =  [new LoadGlobal(_definedGlobalSymbols.IndexOf(symbol))];
+                        break;
                     }
 
                     if (symbol.Name == "exit")
                     {
-                        return [new Exit()];
+                        operations = [new Exit()];
+                        break;
                     }
                     
                     // undefined reference
                 }
                 break;
             }
+            case FunctionNode functionNode:
+            {
+                List<Symbol> innerDefinedSymbols = [];
+                foreach (var arg in functionNode.Arguments ?? [])
+                {
+                    innerDefinedSymbols.Add(_staticAnalysisResult.SymbolReferences[arg.Name]);
+                }
+
+                var res = CompileStatements(functionNode.Body, innerDefinedSymbols);
+
+                var func = new RapidsBytecodeFunction([..res.Operations, new LoadBool(false), new Return()], (uint) (functionNode.Arguments?.Count ?? 0), res.LocalsUsed);
+                _functions.Add(func);
+                operations = [new LoadFunction(_functions.IndexOf(func))];
+                
+                break;
+            }
             case LiteralNumberNode literalNumberNode:
             {
-                return [new LoadNumber(literalNumberNode.Number)];
+                operations = [new LoadNumber(literalNumberNode.Number)];
+                break;
             }
             case BooleanNode booleanNode:
             {
-                return [new LoadBool(booleanNode.Value.TokenType is TokenType.True)];
+                operations = [new LoadBool(booleanNode.Value.TokenType is TokenType.True)];
+                break;
             }
             case StringNode stringNode:
             {
@@ -200,7 +268,8 @@ public class RapidsCompiler
                             operations.Add(new LoadString(_strings.IndexOf(lit.Value.Value)));
                             break;
                         case TemplateStringPart template:
-                            operations.AddRange(CompileExpression(template.Value, definedSymbols));
+                            var res = CompileExpression(template.Value, definedSymbols);
+                            operations.AddRange(res.OpCodes);
                             break;
                     }
                 }
@@ -211,8 +280,17 @@ public class RapidsCompiler
                 }
                 break;
             }
+            case FunctionCallExpressionNode functionCallExpressionNode:
+            {
+                return CompileFunctionCall(functionCallExpressionNode, definedSymbols);
+            }
         }
 
-        return operations;
+        return new CompileExpressionResult(operations);
+    }
+
+    private class CompileExpressionResult(List<OpCode> opCodes)
+    {
+        public List<OpCode> OpCodes { get; } = opCodes;
     }
 }

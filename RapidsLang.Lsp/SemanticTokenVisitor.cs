@@ -157,7 +157,7 @@ public class SemanticTokenVisitor(
                 Visit(functionCallStatementNode.Function);
                 break;
             case FunctionDeclarationNode functionDeclarationNode:
-                PushToken(functionDeclarationNode.Name, SemanticTokenType.Function);
+                PushToken(functionDeclarationNode.Name.Token, SemanticTokenType.Function);
                 Visit(functionDeclarationNode.Function);
                 
                 break;
@@ -176,7 +176,7 @@ public class SemanticTokenVisitor(
                 }
                 break;
             case ArgumentNode argumentNode:
-                PushToken(argumentNode.Name, SemanticTokenType.Parameter);
+                PushToken(argumentNode.Name.Token, SemanticTokenType.Parameter);
                 break;
             case BooleanNode booleanNode:
                 PushToken(booleanNode.Value, SemanticTokenType.Number);
