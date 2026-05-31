@@ -4,17 +4,17 @@ namespace RapidsLang.Parser.Nodes;
 
 public record MemberAccessNode(
     ExpressionNode? Left,
-    Token MemberName
-) : ExpressionNode(Left?.BaseToken ?? MemberName)
+    IdentifierNode MemberName
+) : ExpressionNode(Left?.BaseToken ?? MemberName.BaseToken)
 {
     public override int EndIndex => MemberName.EndIndex;
     public override IEnumerable<Node> GetChildren()
     {
         if (Left is not null)
         {
-            return [Left];
+            return [Left, MemberName];
         }
 
-        return [];
+        return [MemberName];
     }
 }

@@ -289,18 +289,18 @@ public static class RapidsStaticAnalysis
         switch (node)
         {
             case AssignmentNode assignmentNode:
-                _ = GetType(assignmentNode.Variable.Left, scope, result, path);
+                _ = GetType(assignmentNode.Variable, scope, result, path);
                 if (assignmentNode.Variable.Left is null)
                 {
                     var name = assignmentNode.Variable.MemberName;
                     var symbol = scope.Symbols.FirstOrDefault(s => s.Name == name.Value);
                     if (symbol is null)
                     {
-                        result.Diagnostics.Add(AnalysisDiagnostic.OfMayNotBeDefined(name.Index, name.Value.Length, name.Value));
+                        result.Diagnostics.Add(AnalysisDiagnostic.OfMayNotBeDefined(name.Token.Index, name.Value.Length, name.Value));
                     }
                     else if(symbol.IsConstant)
                     {
-                        result.Diagnostics.Add(AnalysisDiagnostic.OfConstantModified(name.Index, name.Value.Length, name.Value));
+                        result.Diagnostics.Add(AnalysisDiagnostic.OfConstantModified(name.Token.Index, name.Value.Length, name.Value));
                     }
                     else
                     {
@@ -750,6 +750,7 @@ public static class RapidsStaticAnalysis
                 computedType = new RapidsFunctionType(argumentTypes, computedReturnType);
                 break;
             case IdentifierNode identifierNode:
+            {
                 var name = identifierNode.Token.Value;
                 var firstInScope = scope.Symbols.FirstOrDefault(s => s.Name == name);
                 
@@ -762,6 +763,7 @@ public static class RapidsStaticAnalysis
                 
                 result.Diagnostics.Add(AnalysisDiagnostic.OfMayNotBeDefined(identifierNode.Token.Index, name.Length, name));
                 break;
+            }
             case ListNode listNode:
                 RapidsType? initialType = null;
                 bool isSameType = true;
@@ -789,7 +791,28 @@ public static class RapidsStaticAnalysis
                 computedType =  RapidsPrimitiveType.Number;
                 break;
             case MemberAccessNode memberAccessNode:
+            {
+                if (memberAccessNode.Left is null)
+                {
+                    var firstInScope = scope.Symbols.FirstOrDefault(s => s.Name == memberAccessNode.MemberName.Value);
+                    if (firstInScope is null)
+                    {
+                        result.Diagnostics.Add(
+                            AnalysisDiagnostic.OfMayNotBeDefined(
+                                memberAccessNode.MemberName.Token.Index,
+                                memberAccessNode.MemberName.Value.Length,
+                                memberAccessNode.MemberName.Value
+                            )
+                        );
+                        break;
+                    }
+
+                    result.SymbolReferences[memberAccessNode.MemberName] = firstInScope;
+                    computedType = firstInScope.Type;
+                    break;
+                }
                 var leftType = GetType(memberAccessNode.Left, scope, result, path);
+                
                 
                 if (leftType is RapidsAnyType)
                 {
@@ -805,11 +828,12 @@ public static class RapidsStaticAnalysis
                 }
                 
                 result.Diagnostics.Add(AnalysisDiagnostic.OfMayNotBeDefined(
-                    memberAccessNode.MemberName.Index,
+                    memberAccessNode.MemberName.Token.Index,
                     memberAccessNode.MemberName.Value.Length,
                     memberAccessNode.MemberName.Value
                 ));
                 break;
+            }
             case NullExpression:
                 computedType = RapidsPrimitiveType.Null;
                 break;

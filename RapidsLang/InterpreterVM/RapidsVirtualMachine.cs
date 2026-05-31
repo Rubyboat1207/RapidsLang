@@ -112,6 +112,61 @@ public class RapidsVirtualMachine
                     Frame.Stack.Push(new RapidsBooleanVariable(op.Bool));
                     break;
                 }
+                case Add:
+                {
+                    Calculate(RapidsOperator.Add);
+                    break;
+                }
+                case Subtract:
+                {
+                    Calculate(RapidsOperator.Subtract);
+                    break;
+                }
+                case Multiply:
+                {
+                    Calculate(RapidsOperator.Multiply);
+                    break;
+                }
+                case Divide:
+                {
+                    Calculate(RapidsOperator.Divide);
+                    break;
+                }
+                case Modulo:
+                {
+                    Calculate(RapidsOperator.Modulo);
+                    break;
+                }
+                case Index:
+                {
+                    Calculate(RapidsOperator.Index);
+                    break;
+                }
+                case Equal:
+                {
+                    Calculate(RapidsOperator.Equality);
+                    break;
+                }
+                case GreaterThan:
+                {
+                    Calculate(RapidsOperator.GreaterThan);
+                    break;
+                }
+                case GreaterThanEqualto:
+                {
+                    Calculate(RapidsOperator.GreaterThanEqualTo);
+                    break;
+                }
+                case LessThanEqualto:
+                {
+                    Calculate(RapidsOperator.LessThanEqualTo);
+                    break;
+                }
+                case LessThan:
+                {
+                    Calculate(RapidsOperator.LessThan);
+                    break;
+                }
                 case Call:
                 {
                     var popped = Frame.Stack.Pop();
@@ -168,5 +223,20 @@ public class RapidsVirtualMachine
                 }
             }
         }
+    }
+
+    public void Calculate(RapidsOperator op)
+    {
+        var b = Frame.Stack.Pop();
+        var a = Frame.Stack.Pop();
+
+        var res = a.GetResult(op, b);
+        if (res is null)
+        {
+            // do something
+            return;
+        }
+        
+        Frame.Stack.Push(res);
     }
 }

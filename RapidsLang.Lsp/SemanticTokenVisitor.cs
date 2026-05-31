@@ -145,7 +145,7 @@ public class SemanticTokenVisitor(
                         memberTokenType = SemanticTokenType.Function;
                     }
                 }
-                PushToken(memberAccessNode.MemberName, memberTokenType);
+                PushToken(memberAccessNode.MemberName.Token, memberTokenType);
                 break;
             case ListItemAssignmentNode listItemAssignmentNode:
                 Visit(listItemAssignmentNode.Array);

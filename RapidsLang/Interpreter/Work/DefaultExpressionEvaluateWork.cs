@@ -93,7 +93,7 @@ public record DefaultExpressionEvaluateWork(ExpressionNode Expression, Action<Ra
                 {
                     if (holder is null)
                     {
-                        throw new Exception($"Variable named {memberAccessNode.MemberName.Value} was not found at {GetLineCol(memberAccessNode.MemberName)}");
+                        throw new Exception($"Variable named {memberAccessNode.MemberName.Value} was not found at {GetLineCol(memberAccessNode.MemberName.Token)}");
                     }
                     
                     Callback.Invoke(holder.Variable);

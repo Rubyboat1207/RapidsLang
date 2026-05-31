@@ -78,12 +78,58 @@ public class RapidsCompiler
                     sResult.Operations.AddRange(res.OpCodes);
                     break;
                 }
+                case WhileLoopNode whileLoopNode:
+                {
+                    var start = sResult.Operations.Count + startIndex;
+                    var condRes = CompileExpression(whileLoopNode.Condition, definedSymbols);
+                    sResult.Operations.AddRange(condRes.OpCodes);
+                    
+                    var placeholder = new NoOp();
+                    var placeholderIndex = sResult.Operations.Count;
+                    sResult.Operations.Add(placeholder);
+                    
+                    var blockStart = sResult.Operations.Count + startIndex;
+                    var blockRes = CompileStatements(whileLoopNode.Block, definedSymbols, blockStart);
+                    
+                    sResult.Operations.AddRange(blockRes.Operations);
+                    // back to the jump if false
+                    sResult.Operations.Add(new Jump(start));
+                    sResult.Operations.RemoveAt(placeholderIndex);
+                    // Add one to account for jump back to start
+                    sResult.Operations.Insert(placeholderIndex, new JumpIfFalse(blockStart + blockRes.Operations.Count + 1));
+
+                    break;
+                }
                 case DeclarationNode declarationNode:
                 {
                     var res = CompileExpression(declarationNode.Expression, definedSymbols);
                     sResult.Operations.AddRange(res.OpCodes);
                     sResult.Operations.Add(new StoreLocal((int) sResult.LocalsUsed++));
                     definedSymbols.Add(_staticAnalysisResult.SymbolReferences[declarationNode.Name]);
+                    break;
+                }
+                case AssignmentNode assignmentNode:
+                {
+                    var exprRes = CompileExpression(assignmentNode.Expression, definedSymbols).OpCodes;
+                    sResult.Operations.AddRange(exprRes);
+                    if (assignmentNode.Variable.Left is null)
+                    {
+                        // assigning a local
+                        if (!_staticAnalysisResult.SymbolReferences.TryGetValue(assignmentNode.Variable.MemberName,
+                                out var symbol))
+                        {
+                            // bad
+                            throw new Exception("something bad");
+                        }
+                        
+                        var localIndex = definedSymbols.IndexOf(symbol);
+                        if (assignmentNode.Operator.TokenType != TokenType.Assignment)
+                        {
+                            sResult.Operations.AddRange([new LoadLocal(localIndex), ..GetOpcodesForOperation(assignmentNode.Operator)]);
+                        }
+                        
+                        sResult.Operations.Add(new StoreLocal(localIndex));
+                    }
                     break;
                 }
                 case UseStatementNode useStatementNode:
@@ -227,6 +273,17 @@ public class RapidsCompiler
                 }
                 break;
             }
+            case OperationNode operationNode:
+            {
+                var leftRes = CompileExpression(operationNode.Left, definedSymbols);
+                operations.AddRange(leftRes.OpCodes);
+                var rightRes = CompileExpression(operationNode.Right, definedSymbols);
+                operations.AddRange(rightRes.OpCodes);
+                // ReSharper disable once SwitchExpressionHandlesSomeKnownEnumValuesWithExceptionInDefault
+                operations.AddRange(GetOpcodesForOperation(operationNode.Operator));
+
+                break;
+            }
             case FunctionNode functionNode:
             {
                 List<Symbol> innerDefinedSymbols = [];
@@ -292,5 +349,28 @@ public class RapidsCompiler
     private class CompileExpressionResult(List<OpCode> opCodes)
     {
         public List<OpCode> OpCodes { get; } = opCodes;
+    }
+
+    public OpCode[] GetOpcodesForOperation(Token op)
+    {
+        return (op.TokenType switch
+        {
+            TokenType.Plus => [new Add()],
+            TokenType.Minus => [new Subtract()],
+            TokenType.Slash => [new Divide()],
+            TokenType.Star => [new Multiply()],
+            TokenType.Modulo => [new Modulo()],
+            TokenType.Not => [new Not()],
+            TokenType.Equality => [new Equal()],
+            TokenType.LessThanOrEqualTo => [new LessThanEqualto()],
+            TokenType.GreaterThanOrEqualTo => [new GreaterThanEqualto()],
+            TokenType.OpenTriangle => [new LessThan()],
+            TokenType.ClosedTriangle => [new GreaterThan()],
+            TokenType.NotEqual => [new Equal(), new Not()],
+            TokenType.And => null,
+            TokenType.Or => null,
+            TokenType.OpenSquare => [new Index()],
+            _ => throw new ArgumentOutOfRangeException($"{op.Value} is not a known operator.")
+        })!;
     }
 }

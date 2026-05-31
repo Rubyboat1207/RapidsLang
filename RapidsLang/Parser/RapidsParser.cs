@@ -161,7 +161,7 @@ public static class RapidsParser
 
                     builder.AddStatement(
                         new AssignmentNode(
-                            new MemberAccessNode(null, ident.Token),
+                            new MemberAccessNode(null, new(ident.Token)),
                             op,
                             assignment,
                             ParseExpression(stepper, builder)!,
@@ -195,14 +195,14 @@ public static class RapidsParser
 
                 if (expression is MemberAccessNode memberAccessNode)
                 {
-                    if (memberAccessNode.MemberName.TokenType is TokenType.Dot)
+                    if (memberAccessNode.MemberName.Token.TokenType is TokenType.Dot)
                     {
                         // unfinished line like: test.\n
                         
                         builder.AddStatement(
                             new UnfinishedMemberAccessNode(
                                 memberAccessNode.Left ?? memberAccessNode,
-                                memberAccessNode.MemberName
+                                memberAccessNode.MemberName.Token
                             )
                         );
                         continue;
@@ -2005,7 +2005,7 @@ public static class RapidsParser
 
         var memberName = stepper.Step();
 
-        return new MemberAccessNode(target, memberName);
+        return new MemberAccessNode(target, new(memberName));
     }
     
     private static ExpressionNode? ParseIndexing(ListStepper<Token> stepper, RapidsParseResult.Builder builder, ExpressionNode target)
