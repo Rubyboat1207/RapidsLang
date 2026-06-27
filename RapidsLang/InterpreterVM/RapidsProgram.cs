@@ -156,7 +156,7 @@ public class RapidProgram
             if (opcode is LoadGlobal lg)
             {
                 sw.Append("; ");
-                sw.Append(exported[lg.Value].Item1);
+                sw.Append(exported.ElementAtOrDefault(lg.Value).Item1 ?? "unknown");
             }
 
             if (opcode is LoadString ls)

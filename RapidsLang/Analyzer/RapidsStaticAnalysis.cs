@@ -586,8 +586,10 @@ public static class RapidsStaticAnalysis
 
                 var innerScope = scope.Child(BlockType.Loop);
 
-                innerScope.Symbols.Add(new Symbol(numericForLoop.Index.Value, false, RapidsPrimitiveType.Number, false,
-                    numericForLoop.Index.StartIndex, true));
+                var symbol = new Symbol(numericForLoop.Index.Value, false, RapidsPrimitiveType.Number, false,
+                    numericForLoop.Index.StartIndex, true);
+                innerScope.Symbols.Add(symbol);
+                result.SymbolReferences[numericForLoop.Index] = symbol;
 
                 VisitStatements(numericForLoop.Body, innerScope, result, path);
                 break;
