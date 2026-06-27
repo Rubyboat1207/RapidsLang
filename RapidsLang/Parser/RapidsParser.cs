@@ -1634,7 +1634,8 @@ public static class RapidsParser
 
                 var numberNode = new LiteralNumberNode(stepper.Step(), num);
 
-                if (stepper is { AtEnd: false, Cur.TokenType: TokenType.Identifier })
+                string[] validMeasurements = ["us", "ms", "s", "m", "h", "d"];
+                if (stepper is { AtEnd: false, Cur.TokenType: TokenType.Identifier } && validMeasurements.Contains(stepper.Cur.Value))
                 {
                     left = new LiteralMeasurementNode(numberNode, new IdentifierNode(stepper.Step()));
                 }

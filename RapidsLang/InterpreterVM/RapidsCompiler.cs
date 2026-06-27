@@ -64,10 +64,12 @@ public class RapidsCompiler
         StatementsNode root,
         List<Symbol> definedSymbols,
         int startIndex=0,
+        int outerLocals=0,
         StatementCompilationContext compilationContext=StatementCompilationContext.OuterScope
     )
     {
         var sResult = new CompileStatementsResult();
+        sResult.LocalsUsed += (uint) outerLocals;
         foreach (var statement in root.Statements)
         {
             switch (statement)
@@ -80,24 +82,67 @@ public class RapidsCompiler
                 }
                 case WhileLoopNode whileLoopNode:
                 {
-                    var start = sResult.Operations.Count + startIndex;
                     var condRes = CompileExpression(whileLoopNode.Condition, definedSymbols);
-                    sResult.Operations.AddRange(condRes.OpCodes);
-                    
-                    var placeholder = new NoOp();
-                    var placeholderIndex = sResult.Operations.Count;
-                    sResult.Operations.Add(placeholder);
-                    
-                    var blockStart = sResult.Operations.Count + startIndex;
-                    var blockRes = CompileStatements(whileLoopNode.Block, definedSymbols, blockStart);
-                    
-                    sResult.Operations.AddRange(blockRes.Operations);
-                    // back to the jump if false
-                    sResult.Operations.Add(new Jump(start));
-                    sResult.Operations.RemoveAt(placeholderIndex);
-                    // Add one to account for jump back to start
-                    sResult.Operations.Insert(placeholderIndex, new JumpIfFalse(blockStart + blockRes.Operations.Count + 1));
 
+                    var res = GenerateLoop([], condRes.OpCodes, [], whileLoopNode.Block, sResult.Operations.Count + startIndex, definedSymbols);
+                    
+                    sResult.Operations.AddRange(res.Operations);
+                    sResult.LocalsUsed += res.LocalsUsed;
+
+                    break;
+                }
+                case NumericForLoop numericForLoop:
+                {
+                    definedSymbols.Add(_staticAnalysisResult.SymbolReferences[numericForLoop.Index]);
+                    var variableIdx = (int) sResult.LocalsUsed++;
+                    var startIdx = (int) sResult.LocalsUsed++;
+                    var endIdx = (int) sResult.LocalsUsed++;
+                    var stepIdx = numericForLoop.StepExpr is null ? null : (int?) sResult.LocalsUsed++;
+                    
+                    var res = GenerateLoop(
+                        [
+                            ..CompileExpression(numericForLoop.Start, definedSymbols).OpCodes,
+                            new StoreLocal(variableIdx),
+                            new LoadLocal(variableIdx),
+                            new StoreLocal(startIdx),
+                            ..CompileExpression(numericForLoop.End, definedSymbols).OpCodes,
+                            new StoreLocal(endIdx),
+                            ..(stepIdx is null ? Array.Empty<OpCode>() : [
+                                ..CompileExpression(numericForLoop.StepExpr!, definedSymbols).OpCodes,
+                                new StoreLocal(stepIdx.Value)
+                            ])
+                        ], 
+                        [
+                            new LoadLocal(variableIdx),
+                            new LoadLocal(endIdx),
+                            new LoadLocal(startIdx),
+                            new LoadLocal(endIdx),
+                            ..CompileBranch(
+                                [new LessThan()], 
+                                [numericForLoop.IncludesEnd ? new LessThan() : new LessThanEqualto()], 
+                                [numericForLoop.IncludesEnd ? new GreaterThan() : new GreaterThanEqualto()]
+                            )
+                        ], 
+                        [
+                            new LoadLocal(variableIdx),
+                            ..(stepIdx is null ? [new LoadNumber(1)] : CompileExpression(numericForLoop.StepExpr!, definedSymbols).OpCodes),
+                            new LoadLocal(startIdx),
+                            new LoadLocal(endIdx),
+                            ..CompileBranch(
+                                [new LessThan()], 
+                                [new Add()], 
+                                [new Subtract()]
+                            ),
+                            new StoreLocal(variableIdx)
+                        ], 
+                        numericForLoop.Body, 
+                        sResult.Operations.Count + startIndex,
+                        definedSymbols
+                    );
+                    
+                    sResult.Operations.AddRange(res.Operations);
+                    sResult.LocalsUsed += res.LocalsUsed;
+                    
                     break;
                 }
                 case DeclarationNode declarationNode:
@@ -224,8 +269,19 @@ public class RapidsCompiler
             }
         }
 
+        sResult.LocalsUsed -= (uint) outerLocals;
         return sResult;
     }
+
+    private OpCode[] CompileBranch(IEnumerable<OpCode> condition, IList<OpCode> positive,
+        IList<OpCode> negative) =>
+    [
+        ..condition,
+        new JumpIfTrueRel(negative.Count + 1),
+        ..negative,
+        new JumpRel(positive.Count),
+        ..positive
+    ];
 
     private CompileExpressionResult CompileFunctionCall(FunctionCallExpressionNode callExpressionNode, List<Symbol> definedSymbols)
     {
@@ -296,7 +352,8 @@ public class RapidsCompiler
 
                 var func = new RapidsBytecodeFunction([..res.Operations, new LoadBool(false), new Return()], (uint) (functionNode.Arguments?.Count ?? 0), res.LocalsUsed);
                 _functions.Add(func);
-                operations = [new LoadFunction(_functions.IndexOf(func))];
+                var idx = _functions.IndexOf(func);
+                operations = [new LoadFunction(idx), new CaptureFunctionClosure(idx)];
                 
                 break;
             }
@@ -317,6 +374,8 @@ public class RapidsCompiler
                 {
                     switch (part)
                     {
+                        case LiteralStringPart lit when lit.Value.Value == "":
+                            break;
                         case LiteralStringPart lit when !_strings.Contains(lit.Value.Value):
                             _strings.Add(lit.Value.Value);
                             operations.Add(new LoadString(_strings.Count - 1));
@@ -372,5 +431,47 @@ public class RapidsCompiler
             TokenType.OpenSquare => [new Index()],
             _ => throw new ArgumentOutOfRangeException($"{op.Value} is not a known operator.")
         })!;
+    }
+
+    private CompileStatementsResult GenerateLoop(IEnumerable<OpCode> pre, IEnumerable<OpCode> condition, IList<OpCode> post, StatementsNode block, int index, List<Symbol> definedSymbols)
+    {
+        CompileStatementsResult sResult = new();
+        
+        sResult.Operations.AddRange(pre);
+        sResult.Operations.Add(new JumpRel(post.Count));
+        
+        var continuePosition = sResult.Operations.Count + index;
+        sResult.Operations.AddRange(post);
+        sResult.Operations.AddRange(condition);
+        
+                    
+        var placeholder = new NoOp();
+        var placeholderIndex = sResult.Operations.Count;
+        sResult.Operations.Add(placeholder);
+                    
+        var blockStart = sResult.Operations.Count + index;
+        var blockRes = CompileStatements(block, definedSymbols, blockStart);
+                    
+        sResult.Operations.AddRange(blockRes.Operations);
+        // back to the jump if false
+        sResult.Operations.Add(new Jump(continuePosition));
+        sResult.Operations.RemoveAt(placeholderIndex);
+        // Add one to account for jump back to start
+        var breakPosition = blockStart + blockRes.Operations.Count + 1;
+        sResult.Operations.Insert(placeholderIndex, new JumpIfFalse(breakPosition));
+
+        foreach (var idx in blockRes.ContinuePlaceholders.Select(cont => sResult.Operations.IndexOf(cont)))
+        {
+            sResult.Operations.RemoveAt(idx);
+            sResult.Operations.Insert(idx, new Jump(continuePosition));
+        }
+                    
+        foreach (var idx in blockRes.BreakPlaceholders.Select(cont => sResult.Operations.IndexOf(cont)))
+        {
+            sResult.Operations.RemoveAt(idx);
+            sResult.Operations.Insert(idx, new Jump(breakPosition));
+        }
+
+        return sResult;
     }
 }

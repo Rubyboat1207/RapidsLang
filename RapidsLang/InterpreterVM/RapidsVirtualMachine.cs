@@ -13,6 +13,7 @@ public class RapidsVirtualMachine
     public void Run(RapidProgram program)
     {
         _globals = new RapidsVariable[program.Header.GlobalsCount];
+        VariableHolder[][] functionClosures = new VariableHolder[program.FunctionBlock.Functions.Length][];
         var globalImportIndex = 0;
         foreach (var importedModule in program.Header.Modules)
         {
@@ -33,7 +34,8 @@ public class RapidsVirtualMachine
             {
                 case LoadLocal op:
                 {
-                    Frame.Stack.Push(Frame.Locals[op.Value]);
+                    // may cause undefined reference if it has not been stored yet.
+                    Frame.Stack.Push(Frame.Locals[op.Value]!.Variable);
                     break;
                 }
                 case LoadNumber op:
@@ -43,7 +45,15 @@ public class RapidsVirtualMachine
                 }
                 case StoreLocal op:
                 {
-                    Frame.Locals[op.Value] = Frame.Stack.Pop();
+                    var holder = Frame.Locals[op.Value];
+                    if (holder is null)
+                    {
+                        Frame.Locals[op.Value] = new VariableHolder(Frame.Stack.Pop(), false);
+                    }
+                    else
+                    {
+                        holder.Variable = Frame.Stack.Pop();
+                    }
                     break;
                 }
                 case LoadGlobal op:
@@ -64,6 +74,11 @@ public class RapidsVirtualMachine
                 case Exit:
                 {
                     return;
+                }
+                case CaptureFunctionClosure op:
+                {
+                    functionClosures[op.Value] = Frame.Locals;
+                    break;
                 }
                 case Concat op:
                 {
@@ -89,6 +104,11 @@ public class RapidsVirtualMachine
                     Frame.Pc = op.Value;
                     break;
                 }
+                case JumpRel op:
+                {
+                    Frame.Pc += op.Value;
+                    break;
+                }
                 case JumpIfTrue op:
                 {
                     var value = Frame.Stack.Pop();
@@ -98,12 +118,30 @@ public class RapidsVirtualMachine
                     }
                     break;
                 }
+                case JumpIfTrueRel op:
+                {
+                    var value = Frame.Stack.Pop();
+                    if (value.Truthy)
+                    {
+                        Frame.Pc += op.Value;
+                    }
+                    break;
+                }
                 case JumpIfFalse op:
                 {
                     var value = Frame.Stack.Pop();
                     if (!value.Truthy)
                     {
                         Frame.Pc = op.Value;
+                    }
+                    break;
+                }
+                case JumpIfFalseRel op:
+                {
+                    var value = Frame.Stack.Pop();
+                    if (!value.Truthy)
+                    {
+                        Frame.Pc += op.Value;
                     }
                     break;
                 }
@@ -174,11 +212,11 @@ public class RapidsVirtualMachine
                     {
                         var frame = new Frame(0)
                         {
-                            Locals = new RapidsVariable[nativeFunction.ParameterCount]
+                            Locals = new VariableHolder[nativeFunction.ParameterCount]
                         };
                         for (var i = 0; i < nativeFunction.ParameterCount; i++)
                         {
-                            frame.Locals[nativeFunction.ParameterCount - 1 - i] = Frame.Stack.Pop();
+                            frame.Locals[nativeFunction.ParameterCount - 1 - i] = new VariableHolder(Frame.Stack.Pop(), false);
                         }
                         nativeFunction.Execute(frame);
                         var didReturnValue = (RapidsBooleanVariable) frame.Stack.Pop();
@@ -191,17 +229,19 @@ public class RapidsVirtualMachine
                     if (popped is RapidsBytecodeFunctionReference fn)
                     {
                         var function = program.FunctionBlock.Functions[fn.Index];
+                        var closure = functionClosures[fn.Index];
                         
                         var frame = new Frame(0)
                         {
-                            Locals = new RapidsVariable[function.ParameterCount + function.LocalCount],
+                            Locals = new VariableHolder[function.ParameterCount + closure.Length + function.LocalCount],
                             FunctionIndex = fn.Index
                         };
                         for (var i = 0; i < function.ParameterCount; i++)
                         {
-                            frame.Locals[function.ParameterCount - 1 - i] = Frame.Stack.Pop();
+                            frame.Locals[function.ParameterCount + closure.Length - 1 - i] = new VariableHolder(Frame.Stack.Pop(), false);
                         }
-                        
+                        closure.CopyTo(frame.Locals, function.ParameterCount);
+
                         _frames.Push(frame);
                     }
                     break;

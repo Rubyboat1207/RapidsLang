@@ -10,37 +10,40 @@ public record OpCode
         {
             return this switch
             {
-                Add                => 1,
-                Subtract           => 2,
-                Multiply           => 3,
-                Divide             => 4,
-                Modulo             => 5,
-                Index              => 6,
-                GreaterThan        => 7,
-                LessThan           => 8,
-                GreaterThanEqualto => 9,
-                LessThanEqualto    => 10,
-                Equal              => 11,
-                Not                => 12,
-                Truthy             => 13,
-                MemberAccess       => 14,
-                Jump               => 15,
-                JumpIfTrue         => 16,
-                JumpIfFalse        => 17,
-                Return             => 18,
-                Call               => 19,
-                LoadLocal          => 20,
-                StoreLocal         => 21,
-                LoadGlobal         => 22,
-                LoadString         => 23,
-                Concat             => 24,
-                LoadNumber         => 25,
-                CaptureLocal       => 26,
-                PushFrame          => 27,
-                PopFrame           => 28,
-                LoadBool           => 29,
-                LoadFunction       => 30,
-                Exit               => 255,
+                Add                    => 1,
+                Subtract               => 2,
+                Multiply               => 3,
+                Divide                 => 4,
+                Modulo                 => 5,
+                Index                  => 6,
+                GreaterThan            => 7,
+                LessThan               => 8,
+                GreaterThanEqualto     => 9,
+                LessThanEqualto        => 10,
+                Equal                  => 11,
+                Not                    => 12,
+                Truthy                 => 13,
+                MemberAccess           => 14,
+                Jump                   => 15,
+                JumpIfTrue             => 16,
+                JumpIfFalse            => 17,
+                Return                 => 18,
+                Call                   => 19,
+                LoadLocal              => 20,
+                StoreLocal             => 21,
+                LoadGlobal             => 22,
+                LoadString             => 23,
+                Concat                 => 24,
+                LoadNumber             => 25,
+                CaptureFunctionClosure => 26,
+                PushFrame              => 27,
+                PopFrame               => 28,
+                LoadBool               => 29,
+                LoadFunction           => 30,
+                JumpRel                => 31,
+                JumpIfTrueRel          => 32,
+                JumpIfFalseRel         => 33,
+                Exit                   => 255,
                 _ => throw new ArgumentOutOfRangeException()
             };
         }
@@ -80,12 +83,14 @@ public record OpCode
             23  => new LoadString(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
             24  => new Concat(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
             25  => new LoadNumber(BitConverter.ToDouble(bytes.AsSpan(1, sizeof(double)))),
-            26  => new CaptureLocal(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
+            26  => new CaptureFunctionClosure(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
             27  => new PushFrame(),
             28  => new PopFrame(),
             29  => new LoadBool(bytes[1] == 1),
             30  => new LoadFunction(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
-            31  => new Return(),
+            31  => new JumpRel(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
+            32  => new JumpIfTrueRel(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
+            33  => new JumpIfFalseRel(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
             255 => new Exit(),
             _ => throw new ArgumentOutOfRangeException()
         };
@@ -170,6 +175,11 @@ public record SingleArgNumberOp(double Value) : OpCode {
 public record Jump(int Value) : SingleArgOp(Value);
 public record JumpIfTrue(int Value) : SingleArgOp(Value);
 public record JumpIfFalse(int Value) : SingleArgOp(Value);
+
+public record JumpRel(int Value) : SingleArgOp(Value);
+public record JumpIfFalseRel(int Value) : SingleArgOp(Value);
+public record JumpIfTrueRel(int Value) : SingleArgOp(Value);
+
 public record Call : OpCode;
 public record Return : OpCode;
 
@@ -183,7 +193,7 @@ public record Concat(int Value) : SingleArgOp(Value);
 
 public record LoadNumber(double Value) : SingleArgNumberOp(Value);
 
-public record CaptureLocal(int Value) : SingleArgOp(Value);
+public record CaptureFunctionClosure(int Value) : SingleArgOp(Value);
 
 public record PushFrame : OpCode;
 public record PopFrame : OpCode;
