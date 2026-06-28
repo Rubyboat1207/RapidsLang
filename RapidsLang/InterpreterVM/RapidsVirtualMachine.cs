@@ -1,5 +1,6 @@
 using RapidsLang.Interpreter;
 using RapidsLang.Interpreter.Variables;
+using RapidsLang.InterpreterVM.ExtendedTypes;
 
 namespace RapidsLang.InterpreterVM;
 
@@ -212,6 +213,16 @@ public class RapidsVirtualMachine
                         Calculate(RapidsOperator.LessThan);
                         break;
                     }
+                    case And:
+                    {
+                        Calculate(RapidsOperator.AndAnd);
+                        break;
+                    }
+                    case Or:
+                    {
+                        Calculate(RapidsOperator.OrOr);
+                        break;
+                    }
                     case Call:
                     {
                         var popped = Frame.Stack.Pop();
@@ -276,6 +287,51 @@ public class RapidsVirtualMachine
 
                         break;
                     }
+                    case AssembleList op:
+                    {
+                        var list = new RapidsListVariable();
+                        for (var i = 0; i < op.Value; i++)
+                        {
+                            list.List.Add(Frame.Stack.Pop());
+                        }
+                        Frame.Stack.Push(list);
+                        break;
+                    }
+                    case GetIterator:
+                    {
+                        Frame.Stack.Push(new RapidsIteratorVariable(Frame.Stack.Pop().GetIterable() ?? []));
+                        break;
+                    }
+                    case IteratorNext:
+                    {
+                        var variable = Frame.Stack.Peek();
+                        if (variable is RapidsIteratorVariable iterator)
+                        {
+                            iterator.Next();
+                        }
+
+                        break;
+                    }
+                    case PushIteratorKey:
+                    {
+                        var variable = Frame.Stack.Peek();
+                        if (variable is RapidsIteratorVariable iterator)
+                        {
+                            Frame.Stack.Push(iterator.GetKey());
+                        }
+
+                        break;
+                    }
+                    case PushIteratorValue:
+                    {
+                        var variable = Frame.Stack.Peek();
+                        if (variable is RapidsIteratorVariable iterator)
+                        {
+                            Frame.Stack.Push(iterator.GetValue());
+                        }
+
+                        break;
+                    }
                 }
             }
             catch (Exception e)
@@ -283,8 +339,10 @@ public class RapidsVirtualMachine
                 Console.WriteLine(e);
                 foreach (var frame in _frames)
                 {
-                    Console.WriteLine($"At instruction {frame.Pc}");
+                    Console.WriteLine($"At instruction {frame.Pc - 1}");
                 }
+
+                return;
             }
             
         }

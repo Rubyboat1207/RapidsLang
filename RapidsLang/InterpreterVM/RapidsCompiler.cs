@@ -3,6 +3,7 @@ using RapidsLang.Analyzer;
 using RapidsLang.Interpreter;
 using RapidsLang.Lexer;
 using RapidsLang.Parser.Nodes;
+using RapidsLang.Utils;
 
 namespace RapidsLang.InterpreterVM;
 
@@ -64,8 +65,7 @@ public class RapidsCompiler
         StatementsNode root,
         List<Symbol> definedSymbols,
         VariableSlotHolder variableSlotHolder,
-        int startIndex=0,
-        StatementCompilationContext compilationContext=StatementCompilationContext.OuterScope
+        int startIndex=0
     )
     {
         var sResult = new CompileStatementsResult();
@@ -77,6 +77,20 @@ public class RapidsCompiler
                 {
                     var res = CompileFunctionCall(functionCall.Function, definedSymbols, variableSlotHolder);
                     sResult.Operations.AddRange(res.OpCodes);
+                    break;
+                }
+                case BreakNode:
+                {
+                    var br = new NoOp();
+                    sResult.Operations.AddRange(br);
+                    sResult.BreakPlaceholders.Add(br);
+                    break;
+                }
+                case ContinueNode:
+                {
+                    var cont = new NoOp();
+                    sResult.Operations.AddRange(cont);
+                    sResult.ContinuePlaceholders.Add(cont);
                     break;
                 }
                 case WhileLoopNode whileLoopNode:
@@ -226,7 +240,10 @@ public class RapidsCompiler
                     sResult.Operations.AddRange(res.OpCodes);
                     {
                         var block = CompileStatements(ifNode.Block, definedSymbols, variableSlotHolder, startIndex + sResult.Operations.Count);
-                        sResult.Operations.Add(new JumpIfFalse(startIndex + sResult.Operations.Count + block.Operations.Count + 2)); 
+                        sResult.BreakPlaceholders.AddRange(block.BreakPlaceholders);
+                        sResult.ContinuePlaceholders.AddRange(block.ContinuePlaceholders);
+                        
+                        sResult.Operations.Add(new JumpIfFalseRel(block.Operations.Count + (ifNode.ElseNodes.Count > 0 ? 1 : 0))); 
                         sResult.LocalsUsed += block.LocalsUsed;
                         sResult.Operations.AddRange(block.Operations);
                     }
@@ -239,20 +256,28 @@ public class RapidsCompiler
                         sResult.Operations.Add(endOfInitialBlock);
                         opsToReplace.Add(endOfInitialBlock);
                     }
-                    
-                    foreach (var eNode in ifNode.ElseNodes)
+
+                    for (var index = 0; index < ifNode.ElseNodes.Count; index++)
                     {
-                        var block = CompileStatements(eNode.Block, definedSymbols, variableSlotHolder, startIndex + sResult.Operations.Count);
+                        var isLast = index == ifNode.ElseNodes.Count - 1;
+                        var eNode = ifNode.ElseNodes[index];
+                        var block = CompileStatements(eNode.Block, definedSymbols, variableSlotHolder,
+                            startIndex + sResult.Operations.Count);
+                        sResult.BreakPlaceholders.AddRange(block.BreakPlaceholders);
+                        sResult.ContinuePlaceholders.AddRange(block.ContinuePlaceholders);
 
                         if (eNode.Condition is not null)
                         {
                             var condRes = CompileExpression(eNode.Condition, definedSymbols, variableSlotHolder);
                             sResult.Operations.AddRange(condRes.OpCodes);
-                            sResult.Operations.Add(new JumpIfFalse(startIndex + sResult.Operations.Count + block.Operations.Count + 2));
+                            sResult.Operations.Add(new JumpIfFalseRel(block.Operations.Count + (isLast ? 0 : 1)));
                         }
-                        
+
                         sResult.LocalsUsed += block.LocalsUsed;
                         sResult.Operations.AddRange(block.Operations);
+                        
+                        if (isLast) continue;
+                        
                         var endOf = new NoOp();
                         sResult.Operations.Add(endOf);
                         opsToReplace.Add(endOf);
@@ -262,9 +287,8 @@ public class RapidsCompiler
                     {
                         sResult.Operations.RemoveAt(index);
                         
-                        sResult.Operations.Insert(index, new Jump(startIndex + sResult.Operations.Count));
+                        sResult.Operations.Insert(index, new Jump(startIndex + sResult.Operations.Count + 1));
                     }
-                    sResult.Operations.RemoveAt(sResult.Operations.Count - 1);
                     break;
                 }
             }
@@ -379,7 +403,7 @@ public class RapidsCompiler
                         case LiteralStringPart lit when lit.Value.Value == "":
                             break;
                         case LiteralStringPart lit when !_strings.Contains(lit.Value.Value):
-                            _strings.Add(lit.Value.Value);
+                            _strings.Add(lit.Value.Value.Unescape());
                             operations.Add(new LoadString(_strings.Count - 1));
                             pushedParts++;
                             break;
@@ -431,8 +455,8 @@ public class RapidsCompiler
             TokenType.OpenTriangle => [new LessThan()],
             TokenType.ClosedTriangle => [new GreaterThan()],
             TokenType.NotEqual => [new Equal(), new Not()],
-            TokenType.And => null,
-            TokenType.Or => null,
+            TokenType.And => [new And()],
+            TokenType.Or => [new Or()],
             TokenType.OpenSquare => [new Index()],
             _ => throw new ArgumentOutOfRangeException($"{op.Value} is not a known operator.")
         })!;
@@ -455,6 +479,8 @@ public class RapidsCompiler
         sResult.Operations.Add(placeholder);
                     
         var blockStart = sResult.Operations.Count + index;
+        var contId = Guid.CreateVersion7();
+        var brId = Guid.CreateVersion7();
         var blockRes = CompileStatements(block, definedSymbols, variableSlotHolder, blockStart);
                     
         sResult.Operations.AddRange(blockRes.Operations);

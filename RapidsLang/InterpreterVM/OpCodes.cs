@@ -43,6 +43,14 @@ public record OpCode
                 JumpRel                => 31,
                 JumpIfTrueRel          => 32,
                 JumpIfFalseRel         => 33,
+                AssembleList           => 33,
+                GetIterator            => 33,
+                IteratorNext           => 36,
+                PushIteratorKey        => 37,
+                PushIteratorValue      => 38,
+                GetMember              => 39,
+                And                    => 40,
+                Or                     => 41,
                 Exit                   => 255,
                 _ => throw new ArgumentOutOfRangeException()
             };
@@ -91,6 +99,14 @@ public record OpCode
             31  => new JumpRel(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
             32  => new JumpIfTrueRel(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
             33  => new JumpIfFalseRel(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
+            34  => new AssembleList(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
+            35  => new GetIterator(),
+            36  => new IteratorNext(),
+            37  => new PushIteratorKey(),
+            38  => new PushIteratorValue(),
+            39  => new GetMember(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
+            40  => new And(),
+            41  => new Or(),
             255 => new Exit(),
             _ => throw new ArgumentOutOfRangeException()
         };
@@ -206,6 +222,19 @@ public record LoadBool(bool Bool) : SingleArgByteOp(Bool ? (byte)0 : (byte)1)
         return "LoadBool " + Bool;
     }
 }
+
+public record AssembleList(int Value) : SingleArgOp(Value);
+public record GetIterator : OpCode;
+
+public record IteratorNext : OpCode;
+
+public record PushIteratorValue : OpCode;
+
+public record PushIteratorKey : OpCode;
+public record GetMember(int Value) : SingleArgOp(Value);
+
+public record And : OpCode;
+public record Or : OpCode;
 
 public record Exit : OpCode;
 public record NoOp : OpCode;
