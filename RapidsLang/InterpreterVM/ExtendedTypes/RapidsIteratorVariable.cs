@@ -10,6 +10,7 @@ public class RapidsIteratorVariable(List<(RapidsVariable, RapidsVariable)> itera
     
     public override string VariableTypeName { get; }
     public override bool Truthy => true;
+    public bool Complete => Index >= Iterable.Count;
 
     public override RapidsVariable? GetMember(string memberName)
     {

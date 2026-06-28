@@ -51,6 +51,7 @@ public record OpCode
                 GetMember              => 39,
                 And                    => 40,
                 Or                     => 41,
+                IteratorComplete       => 42,
                 Exit                   => 255,
                 _ => throw new ArgumentOutOfRangeException()
             };
@@ -107,6 +108,7 @@ public record OpCode
             39  => new GetMember(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
             40  => new And(),
             41  => new Or(),
+            42  => new IteratorComplete(),
             255 => new Exit(),
             _ => throw new ArgumentOutOfRangeException()
         };
@@ -235,6 +237,8 @@ public record GetMember(int Value) : SingleArgOp(Value);
 
 public record And : OpCode;
 public record Or : OpCode;
+
+public record IteratorComplete : OpCode;
 
 public record Exit : OpCode;
 public record NoOp : OpCode;

@@ -604,14 +604,18 @@ public static class RapidsStaticAnalysis
                 }
                 
                 var innerScope = scope.Child(BlockType.Loop);
-                
-                innerScope.Symbols.Add(new Symbol(iterativeForLoop.Item.Value, false, iterableType.IterableType, false,
-                    iterativeForLoop.Item.StartIndex, true));
+
+                var itemSymbol = new Symbol(iterativeForLoop.Item.Value, false, iterableType.IterableType, false,
+                    iterativeForLoop.Item.StartIndex, true);
+                innerScope.Symbols.Add(itemSymbol);
+                result.SymbolReferences[iterativeForLoop.Item] = itemSymbol;
 
                 if (iterativeForLoop.Index is not null)
                 {
-                    innerScope.Symbols.Add(new Symbol(iterativeForLoop.Index.Value, false, iterableType.IndexType, false,
-                        iterativeForLoop.Item.StartIndex, true));
+                    var indexSymbol = new Symbol(iterativeForLoop.Index.Value, false, iterableType.IndexType, false,
+                        iterativeForLoop.Item.StartIndex, true);
+                    innerScope.Symbols.Add(indexSymbol);
+                    result.SymbolReferences[iterativeForLoop.Index] = indexSymbol;
                 }
 
                 VisitStatements(iterativeForLoop.Body, innerScope, result, path);

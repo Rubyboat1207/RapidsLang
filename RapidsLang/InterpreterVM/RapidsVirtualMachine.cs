@@ -304,7 +304,7 @@ public class RapidsVirtualMachine
                     }
                     case IteratorNext:
                     {
-                        var variable = Frame.Stack.Peek();
+                        var variable = Frame.Stack.Pop();
                         if (variable is RapidsIteratorVariable iterator)
                         {
                             iterator.Next();
@@ -312,9 +312,19 @@ public class RapidsVirtualMachine
 
                         break;
                     }
+                    case IteratorComplete:
+                    {
+                        var variable = Frame.Stack.Pop();
+                        if (variable is RapidsIteratorVariable iterator)
+                        {
+                            Frame.Stack.Push(new RapidsBooleanVariable(iterator.Complete));
+                        }
+
+                        break;
+                    }
                     case PushIteratorKey:
                     {
-                        var variable = Frame.Stack.Peek();
+                        var variable = Frame.Stack.Pop();
                         if (variable is RapidsIteratorVariable iterator)
                         {
                             Frame.Stack.Push(iterator.GetKey());
@@ -324,12 +334,17 @@ public class RapidsVirtualMachine
                     }
                     case PushIteratorValue:
                     {
-                        var variable = Frame.Stack.Peek();
+                        var variable = Frame.Stack.Pop();
                         if (variable is RapidsIteratorVariable iterator)
                         {
                             Frame.Stack.Push(iterator.GetValue());
                         }
 
+                        break;
+                    }
+                    case Not:
+                    {
+                        Frame.Stack.Push(new RapidsBooleanVariable(!Frame.Stack.Pop().Truthy));
                         break;
                     }
                 }

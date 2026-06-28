@@ -97,7 +97,7 @@ public class RapidsCompiler
                 {
                     var condRes = CompileExpression(whileLoopNode.Condition, definedSymbols, variableSlotHolder);
 
-                    var res = GenerateLoop([], condRes.OpCodes, [], whileLoopNode.Block, sResult.Operations.Count + startIndex, definedSymbols, variableSlotHolder);
+                    var res = GenerateLoop([], condRes.OpCodes, [], [], whileLoopNode.Block, sResult.Operations.Count + startIndex,  definedSymbols, variableSlotHolder);
                     
                     sResult.Operations.AddRange(res.Operations);
                     sResult.LocalsUsed += res.LocalsUsed;
@@ -147,8 +147,58 @@ public class RapidsCompiler
                                 [new Subtract()]
                             ),
                             new StoreLocal(variableIdx)
-                        ], 
+                        ],
+                        [],
                         numericForLoop.Body, 
+                        sResult.Operations.Count + startIndex,
+                        definedSymbols,
+                        variableSlotHolder
+                    );
+                    
+                    sResult.Operations.AddRange(res.Operations);
+                    sResult.LocalsUsed += res.LocalsUsed;
+                    
+                    break;
+                }
+                case IterativeForLoop iterativeForLoop:
+                {
+                    definedSymbols.Add(_staticAnalysisResult.SymbolReferences[iterativeForLoop.Item]);
+                    var itemIdx = variableSlotHolder.AddOrGetSymbolSlot(_staticAnalysisResult.SymbolReferences[iterativeForLoop.Item]);
+                    int? keyIdx = null;
+                    if (iterativeForLoop.Index is not null)
+                    {
+                        definedSymbols.Add(_staticAnalysisResult.SymbolReferences[iterativeForLoop.Index]);
+                        keyIdx = variableSlotHolder.AddOrGetSymbolSlot(
+                            _staticAnalysisResult.SymbolReferences[iterativeForLoop.Index]);
+                    }
+                    var iterableIdx = variableSlotHolder.ClaimNextOpenSlotId();
+                    
+                    var res = GenerateLoop(
+                        [
+                            ..CompileExpression(iterativeForLoop.Iterable, definedSymbols, variableSlotHolder).OpCodes,
+                            new GetIterator(),
+                            new StoreLocal(iterableIdx)
+                        ],
+                        [
+                            new LoadLocal(iterableIdx),
+                            new IteratorComplete(),
+                            new Not()
+                        ], 
+                        [
+                            new LoadLocal(iterableIdx),
+                            new IteratorNext(),
+                        ],
+                        [
+                            new LoadLocal(iterableIdx),
+                            new PushIteratorValue(),
+                            new StoreLocal(itemIdx),
+                            ..keyIdx is null ? [] : (List<OpCode>) [
+                                new LoadLocal(iterableIdx),
+                                new PushIteratorKey(),
+                                new StoreLocal(keyIdx.Value)
+                            ],
+                        ],
+                        iterativeForLoop.Body,
                         sResult.Operations.Count + startIndex,
                         definedSymbols,
                         variableSlotHolder
@@ -310,6 +360,11 @@ public class RapidsCompiler
 
     private CompileExpressionResult CompileFunctionCall(FunctionCallExpressionNode callExpressionNode, List<Symbol> definedSymbols, VariableSlotHolder variableSlotHolder)
     {
+        // check explicitly for exit, need to emit a different thing.
+        if (callExpressionNode.Function is IdentifierNode { Value: "exit" })
+        {
+            return new CompileExpressionResult([new Exit()]);
+        }
         List<OpCode> operations = [];
         foreach (var argRes in callExpressionNode.Arguments.Select(arg => CompileExpression(arg, definedSymbols, variableSlotHolder)))
         {
@@ -343,15 +398,18 @@ public class RapidsCompiler
                         operations =  [new LoadGlobal(_definedGlobalSymbols.IndexOf(symbol))];
                         break;
                     }
-
-                    if (symbol.Name == "exit")
-                    {
-                        operations = [new Exit()];
-                        break;
-                    }
                     
                     // undefined reference
                 }
+                break;
+            }
+            case ListNode list:
+            {
+                foreach (var listItem in list.Values)
+                {
+                    operations.AddRange(CompileExpression(listItem, definedSymbols, variableSlotHolder).OpCodes);
+                }
+                operations.Add(new AssembleList(list.Values.Count));
                 break;
             }
             case OperationNode operationNode:
@@ -462,7 +520,16 @@ public class RapidsCompiler
         })!;
     }
 
-    private CompileStatementsResult GenerateLoop(IEnumerable<OpCode> pre, IEnumerable<OpCode> condition, IList<OpCode> post, StatementsNode block, int index, List<Symbol> definedSymbols, VariableSlotHolder variableSlotHolder)
+    private CompileStatementsResult GenerateLoop(
+        IEnumerable<OpCode> pre,
+        IEnumerable<OpCode> condition,
+        IList<OpCode> post,
+        IList<OpCode> preBlock,
+        StatementsNode block,
+        int index,
+        List<Symbol> definedSymbols,
+        VariableSlotHolder variableSlotHolder
+    )
     {
         CompileStatementsResult sResult = new();
         
@@ -479,16 +546,15 @@ public class RapidsCompiler
         sResult.Operations.Add(placeholder);
                     
         var blockStart = sResult.Operations.Count + index;
-        var contId = Guid.CreateVersion7();
-        var brId = Guid.CreateVersion7();
         var blockRes = CompileStatements(block, definedSymbols, variableSlotHolder, blockStart);
-                    
+        
+        sResult.Operations.AddRange(preBlock);
         sResult.Operations.AddRange(blockRes.Operations);
         // back to the jump if false
         sResult.Operations.Add(new Jump(continuePosition));
         sResult.Operations.RemoveAt(placeholderIndex);
         // Add one to account for jump back to start
-        var breakPosition = blockStart + blockRes.Operations.Count + 1;
+        var breakPosition = blockStart + blockRes.Operations.Count + preBlock.Count + 1;
         sResult.Operations.Insert(placeholderIndex, new JumpIfFalse(breakPosition));
 
         foreach (var idx in blockRes.ContinuePlaceholders.Select(cont => sResult.Operations.IndexOf(cont)))
