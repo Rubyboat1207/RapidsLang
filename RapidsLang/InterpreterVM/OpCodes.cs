@@ -43,8 +43,8 @@ public record OpCode
                 JumpRel                => 31,
                 JumpIfTrueRel          => 32,
                 JumpIfFalseRel         => 33,
-                AssembleList           => 33,
-                GetIterator            => 33,
+                AssembleList           => 34,
+                GetIterator            => 35,
                 IteratorNext           => 36,
                 PushIteratorKey        => 37,
                 PushIteratorValue      => 38,
@@ -92,7 +92,7 @@ public record OpCode
             23  => new LoadString(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
             24  => new Concat(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
             25  => new LoadNumber(BitConverter.ToDouble(bytes.AsSpan(1, sizeof(double)))),
-            26  => new CaptureFunctionClosure(BitConverter.ToInt32(bytes.AsSpan(1, 4))),
+            26  => new CaptureFunctionClosure(),
             27  => new PushFrame(),
             28  => new PopFrame(),
             29  => new LoadBool(bytes[1] == 1),
@@ -211,13 +211,13 @@ public record Concat(int Value) : SingleArgOp(Value);
 
 public record LoadNumber(double Value) : SingleArgNumberOp(Value);
 
-public record CaptureFunctionClosure(int Value) : SingleArgOp(Value);
+public record CaptureFunctionClosure : OpCode;
 
 public record PushFrame : OpCode;
 public record PopFrame : OpCode;
 public record LoadFunction(int Value) : SingleArgOp(Value);
 
-public record LoadBool(bool Bool) : SingleArgByteOp(Bool ? (byte)0 : (byte)1)
+public record LoadBool(bool Bool) : SingleArgByteOp(Bool ? (byte)1 : (byte)0)
 {
     public override string AsString()
     {

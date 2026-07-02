@@ -266,7 +266,8 @@ public class RapidsCompiler
                 {
                     var res = CompileExpression(functionDeclarationNode.Function, definedSymbols, variableSlotHolder);
                     sResult.Operations.AddRange(res.OpCodes);
-                    sResult.Operations.Add(new StoreLocal((int) sResult.LocalsUsed++));
+                    var symbol = _staticAnalysisResult.SymbolReferences[functionDeclarationNode.Name];
+                    sResult.Operations.Add(new StoreLocal(variableSlotHolder.AddOrGetSymbolSlot(symbol)));
                     definedSymbols.Add(_staticAnalysisResult.SymbolReferences[functionDeclarationNode.Name]);
                     break;
                 }
@@ -390,7 +391,7 @@ public class RapidsCompiler
                 {
                     if (definedSymbols.Contains(symbol))
                     {
-                        operations =  [new LoadLocal(variableSlotHolder.AddOrGetSymbolSlot(symbol))];
+                        operations = [new LoadLocal(variableSlotHolder.AddOrGetSymbolSlot(symbol))];
                     }
 
                     if (_definedGlobalSymbols.Contains(symbol))
@@ -425,19 +426,16 @@ public class RapidsCompiler
             }
             case FunctionNode functionNode:
             {
-                List<Symbol> innerDefinedSymbols = [];
-                foreach (var arg in functionNode.Arguments ?? [])
-                {
-                    innerDefinedSymbols.Add(_staticAnalysisResult.SymbolReferences[arg.Name]);
-                }
-                var innerSlotHolder = variableSlotHolder.CloneForFunction(innerDefinedSymbols);
+                var parameterSymbols = functionNode.Arguments?
+                    .Select(arg => _staticAnalysisResult.SymbolReferences[arg.Name]).ToList() ?? [];
+                var innerSlotHolder = variableSlotHolder.CloneForFunction(parameterSymbols);
 
-                var res = CompileStatements(functionNode.Body, innerDefinedSymbols, innerSlotHolder);
+                var res = CompileStatements(functionNode.Body, definedSymbols, innerSlotHolder);
 
                 var func = new RapidsBytecodeFunction([..res.Operations, new LoadBool(false), new Return()], (uint) (functionNode.Arguments?.Count ?? 0), res.LocalsUsed);
                 _functions.Add(func);
                 var idx = _functions.IndexOf(func);
-                operations = [new LoadFunction(idx), new CaptureFunctionClosure(idx)];
+                operations = [new LoadFunction(idx), new CaptureFunctionClosure()];
                 
                 break;
             }
@@ -476,6 +474,7 @@ public class RapidsCompiler
                             break;
                     }
                 }
+                
 
                 if (stringNode.Parts.Count > 1)
                 {

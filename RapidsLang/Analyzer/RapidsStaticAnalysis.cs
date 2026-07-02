@@ -474,12 +474,8 @@ public static class RapidsStaticAnalysis
                     GetType(functionDeclarationNode.Function, scope, result, path));
                 scope.Symbols.Add(nameSymbol);
                 result.SymbolReferences[functionDeclarationNode.Name] = nameSymbol;
-                // VisitStatements(functionDeclarationNode.Function.Body, scope.Child(BlockType.Function), result);
+
                 _ = GetType(functionDeclarationNode.Function, scope, result, path);
-                // if (functionDeclarationNode.Function.DebugBody is not null)
-                // {
-                //     VisitStatements(functionDeclarationNode.Function.DebugBody, scope.Child(BlockType.Function), result);
-                // }
                 break;
             case IfNode ifNode:
                 VisitStatements(ifNode.Block, scope.Child(BlockType.Statement), result, path);

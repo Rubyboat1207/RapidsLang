@@ -27,7 +27,7 @@ public class RapidsVirtualMachine
         }
         _frames.Push(new Frame(program.Header.OutermostLocalsCount));
 
-        while(Frame.Pc < program.Code.Length)
+        while(Frame.Pc < (Frame.FunctionIndex.HasValue ? program.FunctionBlock.Functions[Frame.FunctionIndex.Value].Code.Length : program.Code.Length))
         {
             var opCode = Frame.FunctionIndex.HasValue ? program.FunctionBlock.Functions[Frame.FunctionIndex.Value].Code[Frame.Pc++] : program.Code[Frame.Pc++];
             try
@@ -80,7 +80,7 @@ public class RapidsVirtualMachine
                     }
                     case CaptureFunctionClosure op:
                     {
-                        functionClosures[op.Value] = Frame.Locals;
+                        // todo
                         break;
                     }
                     case Concat op:

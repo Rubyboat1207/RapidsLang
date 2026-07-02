@@ -27,7 +27,7 @@ public class VariableSlotHolder
         return _largestSlotId++;
     }
 
-    private void RecalculateLargestSlotId() => _largestSlotId = Slots.Max(s => s.Value);
+    private void RecalculateLargestSlotId() => _largestSlotId = Slots.Count > 0 ? Slots.Max(s => s.Value) : 0;
 
     public VariableSlotHolder CloneForFunction(List<Symbol> parameters)
     {
