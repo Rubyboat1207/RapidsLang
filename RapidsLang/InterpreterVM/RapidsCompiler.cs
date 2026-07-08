@@ -429,6 +429,7 @@ public class RapidsCompiler
                 var parameterSymbols = functionNode.Arguments?
                     .Select(arg => _staticAnalysisResult.SymbolReferences[arg.Name]).ToList() ?? [];
                 var innerSlotHolder = variableSlotHolder.CloneForFunction(parameterSymbols);
+                definedSymbols.AddRange(parameterSymbols);
 
                 var res = CompileStatements(functionNode.Body, definedSymbols, innerSlotHolder);
 

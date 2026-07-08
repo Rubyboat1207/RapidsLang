@@ -8,7 +8,7 @@ public class VariableSlotHolder
     private int _largestSlotId;
     public uint LocalsUsed { get; private set; }
     
-    public int AddOrGetSymbolSlot(Symbol symbol)
+    public int AddOrGetSymbolSlot(Symbol symbol, bool dontUseLocal=false)
     {
         if (Slots.TryGetValue(symbol, out var slotId))
         {
@@ -16,7 +16,8 @@ public class VariableSlotHolder
         }
         
         Slots[symbol] = _largestSlotId;
-        LocalsUsed += 1;
+        if(!dontUseLocal)
+            LocalsUsed += 1;
 
         return _largestSlotId++;
     }
@@ -34,7 +35,7 @@ public class VariableSlotHolder
         var cloned = new VariableSlotHolder();
         foreach (var symbol in parameters)
         {
-            _ = cloned.AddOrGetSymbolSlot(symbol);
+            _ = cloned.AddOrGetSymbolSlot(symbol, true);
         }
         
         foreach (var (key, value) in Slots)

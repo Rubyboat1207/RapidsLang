@@ -672,6 +672,13 @@ public static class RapidsStaticAnalysis
                     computedType = returnType ?? RapidsAnyType.Instance;
                     break;
                 }
+
+                _ = GetType(fn, scope, result, path);
+
+                foreach (var arg in functionCallExpressionNode.Arguments)
+                {
+                    _ = GetType(arg, scope, result, path);
+                }
                 
                 var retType = GetType(fn, scope, result, path);
 
